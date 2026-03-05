@@ -30,7 +30,6 @@ export function Dialog(props: DialogProps) {
           classList={{
             ...(props.classList ?? {}),
             [props.class ?? ""]: !!props.class,
-            "aurora-modal": true,
           }}
           onOpenAutoFocus={(e) => {
             const target = e.currentTarget as HTMLElement | null
