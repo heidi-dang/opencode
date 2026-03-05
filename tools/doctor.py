@@ -18,6 +18,8 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 
+import re
+
 SCRIPT_DIR = Path(__file__).parent
 DOCTOR_DIR = SCRIPT_DIR.parent / '_doctor'
 LATEST_DIR = DOCTOR_DIR / 'latest'
@@ -134,6 +136,70 @@ def check_installer_gate() -> dict:
     log('Installer gate passed')
     return _result(name, 'pass', '')
 
+def _parse_jsonc(text: str) -> dict:
+    stripped = re.sub(r'(?<!["\w:])//.*?$', '', text, flags=re.MULTILINE)
+    stripped = re.sub(r',\s*([}\]])', r'\1', stripped)
+    return json.loads(stripped)
+
+def check_defaults_gate() -> dict:
+    name = 'defaults'
+    log('Running defaults gate')
+    errors = []
+
+    # Check .opencode/opencode.jsonc
+    cfg = Path('.opencode/opencode.jsonc')
+    if not cfg.exists():
+        return _result(name, 'fail', f'{cfg} not found')
+    try:
+        data = _parse_jsonc(cfg.read_text())
+    except Exception as e:
+        return _result(name, 'fail', f'Cannot parse {cfg}: {e}')
+
+    agent = data.get('agent', {}).get('sisyphus', {})
+    if not agent:
+        errors.append('agent.sisyphus missing')
+    else:
+        if 'grok-4-1-fast' not in agent.get('model', ''):
+            errors.append(f"agent.sisyphus.model={agent.get('model')!r}, expected grok-4-1-fast")
+        if agent.get('mode') != 'primary':
+            errors.append(f"agent.sisyphus.mode={agent.get('mode')!r}, expected primary")
+
+    if data.get('default_agent') != 'sisyphus':
+        errors.append(f"default_agent={data.get('default_agent')!r}, expected sisyphus")
+
+    # Forbidden defaults: no GitHub Copilot or Anthropic Claude as default model
+    model = data.get('model', '')
+    forbidden = ['github/', 'copilot', 'claude', 'anthropic']
+    for f in forbidden:
+        if f in model.lower():
+            errors.append(f'Forbidden default model: {model}')
+            break
+
+    # Check installer config template
+    install = Path('install')
+    if install.exists():
+        src = install.read_text()
+        if 'grok-2' in src and 'grok-4-1-fast' not in src:
+            errors.append('Installer still references grok-2 instead of grok-4-1-fast')
+        if '"mode": "subagent"' in src:
+            errors.append('Installer uses mode=subagent instead of primary')
+
+        # Check for hidden Unicode
+        raw = install.read_bytes()
+        for bad, label in [(b'\xc2\xa0', 'NBSP'), (b'\xe2\x80\x8b', 'ZWSP'),
+                           (b'\xe2\x80\x8c', 'ZWNJ'), (b'\xe2\x80\x8d', 'ZWJ'),
+                           (b'\xef\xbb\xbf', 'BOM'), (b'\xe2\x80\xae', 'RLO'),
+                           (b'\xe2\x80\xad', 'LRO'), (b'\xe2\x80\xab', 'RLE'),
+                           (b'\xe2\x80\xaa', 'LRE')]:
+            if bad in raw:
+                errors.append(f'Hidden Unicode ({label}) in install script')
+
+    if errors:
+        return _result(name, 'fail', '; '.join(errors))
+
+    log('Defaults gate passed')
+    return _result(name, 'pass', 'grok-4-1-fast, sisyphus primary, no forbidden defaults')
+
 def check_typecheck() -> dict:
     name = 'typecheck'
     log('Running typecheck')
@@ -186,6 +252,7 @@ def main() -> None:
     results.append(check_branding_gate())
     results.append(check_assets_gate())
     results.append(check_installer_gate())
+    results.append(check_defaults_gate())
     results.append(check_typecheck())
 
     if args.full:
