@@ -37,7 +37,7 @@ export const SidebarContent = (props: {
   const placement = () => (props.mobile ? "bottom" : "right")
 
   return (
-    <div class="flex h-full w-full overflow-hidden">
+    <div class="flex h-full w-full overflow-hidden aurora-surface">
       <div
         class="w-16 shrink-0 bg-background-base flex flex-col items-center overflow-hidden"
         onMouseMove={props.aimMove}
