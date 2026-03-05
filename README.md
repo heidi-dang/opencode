@@ -41,6 +41,12 @@ bun install
 bun run dev
 ```
 
+### Doctor Framework
+
+Run `python3 tools/doctor.py` before every commit (auto via husky pre-commit).
+
+Run `python3 tools/doctor.py --full` before pushing PRs (includes build/tests/gates).
+
 ### Documentation
 
 For more info on how to configure OpenHei, head over to the [original OpenCode docs](https://opencode.ai/docs).
