@@ -8,6 +8,13 @@
     "github-triage": true,
     "github-pr-search": true
   },
+  "agent": {
+    "Sisyphus": {
+      "model": "xai/grok-4-1-fast",
+      "mode": "primary"
+    }
+  },
+  "default_agent": "Sisyphus",
   "plugin": [
     "opencode-helicone-session",
     "opencode-wakatime",
