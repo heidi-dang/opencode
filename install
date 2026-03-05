@@ -9,7 +9,7 @@ NC='\033[0m' # No Color
 
 usage() {
     cat <<EOF
-OpenCode Installer
+OpenHei Installer
 
 Usage: install.sh [options]
 
@@ -18,17 +18,20 @@ Options:
     -v, --version <version> Install a specific version (e.g., 1.0.180)
     -b, --binary <path>     Install from a local binary instead of downloading
         --no-modify-path    Don't modify shell config files (.zshrc, .bashrc, etc.)
+        --heidi-dang        Initialize OpenHei config with xAI Grok defaults (~/.opencode/opencode.jsonc)
 
 Examples:
     curl -fsSL https://opencode.ai/install | bash
     curl -fsSL https://opencode.ai/install | bash -s -- --version 1.0.180
     ./install --binary /path/to/opencode
+    ./install --heidi-dang
 EOF
 }
 
 requested_version=${VERSION:-}
 no_modify_path=false
 binary_path=""
+heidi_dang=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -56,6 +59,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --no-modify-path)
             no_modify_path=true
+            shift
+            ;;
+        --heidi-dang)
+            heidi_dang=true
             shift
             ;;
         *)
@@ -356,6 +363,40 @@ if [ -n "$binary_path" ]; then
 else
     check_version
     download_and_install
+fi
+
+# Initialize OpenCode config with defaults if --heidi-dang and missing
+if [[ "$heidi_dang" == "true" ]]; then
+    CONFIG_DIR="$HOME/.opencode"
+    mkdir -p "$CONFIG_DIR"
+    
+    CONFIG_FILE="$CONFIG_DIR/opencode.jsonc"
+    if [ ! -f "$CONFIG_FILE" ]; then
+        print_message info "\n${MUTED}Initializing ${NC}OpenHei config ${MUTED}at ${NC}$CONFIG_FILE"
+        cat > "$CONFIG_FILE" << 'EOF'
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "xai/grok-2",
+  "provider": {
+    "xai": {
+      "apiKey": "${XAI_API_KEY}",
+      "baseURL": "https://api.x.ai/v1"
+    }
+  },
+  "agent": {
+    "sisyphus": {
+      "model": "xai/grok-2",
+      "description": "Sisyphus agent for intensive code generation",
+      "mode": "subagent"
+    }
+  },
+  "plugin": []
+}
+EOF
+        print_message info "${MUTED}Config created. Set ${NC}XAI_API_KEY${MUTED} environment variable.${NC}"
+    else
+        print_message info "${MUTED}Config already exists at ${NC}$CONFIG_FILE"
+    fi
 fi
 
 
