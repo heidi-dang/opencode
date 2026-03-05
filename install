@@ -9,7 +9,7 @@ NC='\033[0m' # No Color
 
 usage() {
     cat <<EOF
-OpenCode Installer
+OpenHei Installer
 
 Usage: install.sh [options]
 
@@ -17,18 +17,21 @@ Options:
     -h, --help              Display this help message
     -v, --version <version> Install a specific version (e.g., 1.0.180)
     -b, --binary <path>     Install from a local binary instead of downloading
+        --heidi-dang        Build from heidi-dang fork (clones, builds, installs)
         --no-modify-path    Don't modify shell config files (.zshrc, .bashrc, etc.)
 
 Examples:
-    curl -fsSL https://opencode.ai/install | bash
-    curl -fsSL https://opencode.ai/install | bash -s -- --version 1.0.180
+    curl -fsSL https://openhei.dev/install | bash
+    curl -fsSL https://openhei.dev/install | bash -s -- --version 1.0.180
     ./install --binary /path/to/opencode
+    ./install --heidi-dang
 EOF
 }
 
 requested_version=${VERSION:-}
 no_modify_path=false
 binary_path=""
+heidi_dang=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -54,6 +57,10 @@ while [[ $# -gt 0 ]]; do
                 exit 1
             fi
             ;;
+        --heidi-dang)
+            heidi_dang=true
+            shift
+            ;;
         --no-modify-path)
             no_modify_path=true
             shift
@@ -68,8 +75,46 @@ done
 INSTALL_DIR=$HOME/.opencode/bin
 mkdir -p "$INSTALL_DIR"
 
-# If --binary is provided, skip all download/detection logic
-if [ -n "$binary_path" ]; then
+# Handle --heidi-dang flow: clone, build, extract binary
+if [ "$heidi_dang" = "true" ]; then
+    temp_dir="${TMPDIR:-/tmp}/openhei_heidi_dang_$$"
+    mkdir -p "$temp_dir"
+    trap "rm -rf '$temp_dir'" EXIT
+    
+    print_message info "\n${MUTED}Cloning ${NC}heidi-dang fork..."
+    git clone https://github.com/code-yeongyu/openhei-heidi-dang.git "$temp_dir/repo" 2>&1 | grep -E "(Cloning|fatal)" || true
+    
+    if [ ! -d "$temp_dir/repo" ]; then
+        echo -e "${RED}Error: Failed to clone heidi-dang fork${NC}"
+        exit 1
+    fi
+    
+    cd "$temp_dir/repo"
+    print_message info "${MUTED}Building from source...${NC}"
+    bun install --production=false >/dev/null 2>&1
+    bun run packages/opencode/script/build.ts --single >/dev/null 2>&1
+    
+    # Extract binary: dist/{platform}/bin/opencode
+    found_binary=false
+    for binary in dist/*/bin/opencode; do
+        if [ -f "$binary" ]; then
+            print_message info "${MUTED}Installing binary from ${NC}$binary"
+            cp "$binary" "${INSTALL_DIR}/opencode"
+            chmod 755 "${INSTALL_DIR}/opencode"
+            found_binary=true
+            specific_version="heidi-dang-build"
+            break
+        fi
+    done
+    
+    if [ "$found_binary" = "false" ]; then
+        echo -e "${RED}Error: No binary found in dist/*/bin/opencode${NC}"
+        exit 1
+    fi
+    
+    cd - >/dev/null
+    trap - EXIT
+elif [ -n "$binary_path" ]; then
     if [ ! -f "$binary_path" ]; then
         echo -e "${RED}Error: Binary not found at ${binary_path}${NC}"
         exit 1
@@ -351,7 +396,10 @@ install_from_binary() {
     chmod 755 "${INSTALL_DIR}/opencode"
 }
 
-if [ -n "$binary_path" ]; then
+if [ "$heidi_dang" = "true" ]; then
+    # Binary already installed from heidi-dang flow
+    :
+elif [ -n "$binary_path" ]; then
     install_from_binary
 else
     check_version
