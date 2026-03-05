@@ -1,0 +1,205 @@
+/**
+ * Aurora UI Polish Layer
+ * 
+ * Minimal, controlled Aurora effects for major surfaces:
+ * - Gradient frame edges on app shell, panels, modals
+ * - Glow border on hover/focus for interactive containers
+ * - Subtle motion with prefers-reduced-motion support
+ * - iPhone Safari horizontal scroll prevention
+ */
+
+/* Aurora CSS Custom Properties */
+:root {
+  /* Aurora gradient colors - light theme */
+  --aurora-gradient-start: oklch(0.85 0.02 280);
+  --aurora-gradient-end: oklch(0.92 0.04 180);
+  --aurora-glow-color: oklch(0.7 0.05 280 / 0.3);
+  --aurora-glow-hover: oklch(0.7 0.08 280 / 0.5);
+  --aurora-border-subtle: oklch(0.85 0.02 280 / 0.15);
+
+  /* Aurora animation */
+  --aurora-transition: all 0.2s ease-out;
+
+  @media (prefers-color-scheme: dark) {
+    --aurora-gradient-start: oklch(0.25 0.02 280);
+    --aurora-gradient-end: oklch(0.18 0.03 180);
+    --aurora-glow-color: oklch(0.5 0.06 280 / 0.25);
+    --aurora-glow-hover: oklch(0.55 0.1 280 / 0.4);
+    --aurora-border-subtle: oklch(0.25 0.02 280 / 0.2);
+  }
+}
+
+/**
+ * Aurora Surface - Main container with gradient edge glow
+ * Apply to: app shell, main panels, sidebar containers
+ */
+.aurora-surface {
+  position: relative;
+}
+
+.aurora-surface::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    var(--aurora-gradient-start),
+    var(--aurora-gradient-end),
+    var(--aurora-gradient-start)
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  opacity: 0.6;
+  transition: opacity 0.3s ease;
+}
+
+/**
+ * Aurora Panel - Interactive panel with glow on hover/focus
+ * Apply to: cards, panels, dialogs, sidebar sections
+ */
+.aurora-panel {
+  position: relative;
+  transition: var(--aurora-transition);
+}
+
+.aurora-panel:hover,
+.aurora-panel:focus-within {
+  box-shadow:
+    0 0 20px var(--aurora-glow-hover),
+    0 0 40px var(--aurora-glow-color);
+}
+
+/**
+ * Aurora Modal - Focused modal with prominent glow
+ * Apply to: dialogs, modals, overlays
+ */
+.aurora-modal {
+  position: relative;
+  box-shadow:
+    0 0 30px var(--aurora-glow-color),
+    0 0 60px var(--aurora-glow-color);
+  animation: aurora-pulse 3s ease-in-out infinite;
+}
+
+@keyframes aurora-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 20px var(--aurora-glow-color),
+      0 0 40px var(--aurora-glow-color);
+  }
+  50% {
+    box-shadow:
+      0 0 30px var(--aurora-glow-hover),
+      0 0 60px var(--aurora-glow-color);
+  }
+}
+
+/**
+ * Aurora Input - Text inputs with subtle glow on focus
+ * Apply to: text fields, inputs, textareas
+ */
+.aurora-input {
+  transition: var(--aurora-transition);
+}
+
+.aurora-input:focus {
+  box-shadow:
+    0 0 0 1px var(--aurora-border-subtle),
+    0 0 15px var(--aurora-glow-color);
+}
+
+/**
+ * Aurora Interactive - Button/link with glow on hover
+ * Apply to: buttons, links, interactive elements
+ */
+.aurora-interactive {
+  transition: var(--aurora-transition);
+}
+
+.aurora-interactive:hover {
+  box-shadow: 0 0 12px var(--aurora-glow-hover);
+}
+
+/**
+ * Aurora Frame - Full frame gradient border
+ * Apply to: outer frame, main app container
+ */
+.aurora-frame {
+  position: relative;
+}
+
+.aurora-frame::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 2px;
+  background: linear-gradient(
+    180deg,
+    var(--aurora-gradient-start) 0%,
+    var(--aurora-gradient-end) 50%,
+    var(--aurora-gradient-start) 100%
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/**
+ * iPhone Safari Horizontal Scroll Prevention
+ * Apply to: html, body, and main app container
+ */
+.aurora-no-overflow {
+  overflow-x: hidden;
+  overscroll-behavior-x: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+/**
+ * Reduced motion support
+ */
+@media (prefers-reduced-motion: reduce) {
+  .aurora-surface::before,
+  .aurora-panel:hover,
+  .aurora-panel:focus-within,
+  .aurora-modal,
+  .aurora-input:focus,
+  .aurora-interactive:hover {
+    animation: none;
+    transition: none;
+    box-shadow: none;
+  }
+
+  .aurora-panel:hover,
+  .aurora-panel:focus-within {
+    box-shadow: none;
+  }
+
+  .aurora-modal {
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  }
+
+  .aurora-input:focus {
+    box-shadow: 0 0 0 1px var(--aurora-border-subtle);
+  }
+
+  .aurora-interactive:hover {
+    box-shadow: none;
+  }
+}
