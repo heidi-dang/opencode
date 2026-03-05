@@ -1,7 +1,33 @@
-<svg xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" width="512" height="512"><svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
-<rect width="512" height="512" fill="#131010"></rect>
-<path d="M320 224V352H192V224H320Z" fill="#5A5858"></path>
-<path fill-rule="evenodd" clip-rule="evenodd" d="M384 416H128V96H384V416ZM320 160H192V352H320V160Z" fill="white"></path>
-</svg><style>@media (prefers-color-scheme: light) { :root { filter: none; } }
-@media (prefers-color-scheme: dark) { :root { filter: none; } }
-</style></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#00E5FF"/>
+      <stop offset="0.5" stop-color="#8A2BE2"/>
+      <stop offset="1" stop-color="#FF2BD6"/>
+    </linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="2.2" result="b"/>
+      <feColorMatrix in="b" type="matrix"
+        values="1 0 0 0 0
+                0 1 0 0 0
+                0 0 1 0 0
+                0 0 0 0.6 0" result="c"/>
+      <feMerge>
+        <feMergeNode in="c"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <circle cx="32" cy="32" r="28" fill="#0A0A0E"/>
+  <circle cx="32" cy="32" r="28" fill="none" stroke="url(#g)" stroke-width="5" filter="url(#glow)"/>
+  <circle cx="32" cy="32" r="22" fill="#0C0C12"/>
+
+  <g filter="url(#glow)" fill="#F5F6FF">
+    <rect x="18" y="18" width="6" height="28" rx="3"/>
+    <rect x="40" y="18" width="6" height="28" rx="3"/>
+    <rect x="22" y="29" width="20" height="8" rx="4"/>
+  </g>
+
+  <circle cx="44" cy="20" r="3" fill="#00E5FF" filter="url(#glow)"/>
+</svg>
