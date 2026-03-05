@@ -84,6 +84,15 @@
     "@opencode-ai/plugin": "workspace:*",
     "@opencode-ai/script": "workspace:*",
     "@opencode-ai/sdk": "workspace:*",
+    "octto": "0.3.0",
+    "oh-my-opencode": "3.10.0",
+    "opencode-antigravity-auth": "1.6.0",
+    "opencode-gemini-auth": "1.4.6",
+    "opencode-google-antigravity-auth": "0.2.15",
+    "opencode-helicone-session": "1.0.1",
+    "opencode-openai-codex-auth": "4.4.0",
+    "opencode-supermemory": "2.0.2",
+    "opencode-wakatime": "1.2.5",
     "typescript": "catalog:"
   },
   "repository": {
