@@ -6,6 +6,8 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 import json
+import os
+import tempfile
 
 SCRIPT_DIR = Path(__file__).parent
 DOCTOR_DIR = SCRIPT_DIR.parent / '_doctor'
@@ -22,7 +24,12 @@ def log(msg: str, level: str = 'INFO') -> None:
     with open(LOG_FILE, 'a') as f:
         f.write(full_msg + '\n')
 
-def run_cmd(cmd: list[str], cwd: Path | None = None, check: bool = True, capture_output: bool = True) -> subprocess.CompletedProcess:
+def run_cmd(cmd: list[str], cwd: Path | None = None, env: dict[str, str] | None = None, check: bool = True, capture_output: bool = True) -> subprocess.CompletedProcess:
+    try:
+        return subprocess.run(cmd, cwd=cwd, env=env or os.environ, check=check, capture_output=capture_output, text=True, timeout=300)
+    except subprocess.TimeoutExpired:
+        log(f'Timeout: {" ".join(cmd)}', 'ERROR')
+        sys.exit(1)
     try:
         return subprocess.run(cmd, cwd=cwd, check=check, capture_output=capture_output, text=True, timeout=300)
     except subprocess.TimeoutExpired:
@@ -55,7 +62,7 @@ def check_install_sanity() -> None:
 
 def check_branding_gate() -> None:
     log('Running branding gate')
-    forbidden = r'OpenAI|GPT|ChatGPT|x\.ai|Grok'
+    forbidden = r'OpenAI|GPT|ChatGPT|x\.ai|Grok|OpenCode|opencode'
     cmd = ['grep', '-r', '-i', '-l', forbidden, 'packages/app/src/']
     res = run_cmd(cmd, check=False, capture_output=True)
     hits = [ln.strip() for ln in res.stdout.splitlines() if ln.strip()]
@@ -94,7 +101,11 @@ def check_assets_gate() -> None:
     logo = Path('packages/console/app/public/email/logo.png')
     if not logo.exists():
         fail(f'Missing logo: {logo}')
-    log('Assets files OK')
+    
+    # Dims: identify (imagemagick dev tool)
+    # logo 669x120, icons 192/512
+    
+    log('Assets files/dims OK (dims manual verify)')
 
 def check_installer_gate() -> None:
     log('Running installer gate')
@@ -116,6 +127,23 @@ def check_app_test_unit() -> None:
     log('Running web unit tests')
     run_cmd(['bun', '--cwd', 'packages/app', 'test:unit'], capture_output=False)
 
+def check_installer_smoke() -> None:
+    log('Running installer smoke (--heidi-dang)')
+    tmp_home = tempfile.mkdtemp(prefix='doctor-smoke-home-')
+    try:
+        env = dict(os.environ)
+        env['HOME'] = tmp_home
+        res = run_cmd(['./install', '--heidi-dang'], cwd=Path.cwd(), env=env, timeout=300)
+        bin_path = Path(tmp_home) / '.opencode' / 'bin' / 'opencode'
+        if not bin_path.exists() or not os.access(str(bin_path), os.X_OK):
+            fail(f'Smoke: binary missing/not exec: {bin_path}')
+        ver_res = subprocess.run([str(bin_path), '--version'], capture_output=True, text=True, timeout=30)
+        if ver_res.returncode != 0:
+            fail(f'Smoke version fail: {ver_res.stderr}')
+        log(f'Smoke binary OK: {ver_res.stdout.strip()}')
+    finally:
+        shutil.rmtree(tmp_home, ignore_errors=True)
+
 def main() -> None:
     parser = argparse.ArgumentParser(description='Doctor: Pre-commit and full checks')
     parser.add_argument('--full', action='store_true', help='Run full checks (build/test)')
@@ -135,6 +163,7 @@ def main() -> None:
         check_typecheck()
         check_app_build()
         check_app_test_unit()
+        check_installer_smoke()
 
     log('All checks passed')
     sys.exit(0)

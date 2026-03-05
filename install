@@ -77,24 +77,24 @@ mkdir -p "$INSTALL_DIR"
 
 # Handle --heidi-dang flow: clone, build, extract binary
 if [ "$heidi_dang" = "true" ]; then
-    temp_dir="${TMPDIR:-/tmp}/openhei_heidi_dang_$$"
-    mkdir -p "$temp_dir"
-    trap "rm -rf '$temp_dir'" EXIT
+    cache_dir="$HOME/.openhei/src/heidi-dang"
+    mkdir -p "$(dirname "$cache_dir")"
     
-    print_message info "\n${MUTED}Cloning ${NC}heidi-dang fork..."
-    git clone https://github.com/code-yeongyu/openhei-heidi-dang.git "$temp_dir/repo" 2>&1 | grep -E "(Cloning|fatal)" || true
-    
-    if [ ! -d "$temp_dir/repo" ]; then
-        echo -e "${RED}Error: Failed to clone heidi-dang fork${NC}"
-        exit 1
+    if [ -d "$cache_dir" ]; then
+        cd "$cache_dir"
+        default_branch=$(git ls-remote --symref origin HEAD | awk '/^ref: refs\/heads\// { gsub(/.*heads\//, ""); gsub(/\^{}.*/, ""); print }')
+        git fetch --depth=1 origin "$default_branch"
+        git checkout "$default_branch" --quiet
+        git reset --hard "origin/$default_branch" --quiet
+    else
+        git clone --depth=1 https://github.com/heidi-dang/opencode.git "$cache_dir"
+        cd "$cache_dir"
     fi
     
-    cd "$temp_dir/repo"
-    print_message info "${MUTED}Building from source...${NC}"
-    bun install --production=false >/dev/null 2>&1
+    print_message info "${MUTED}Building from heidi-dang fork...${NC}"
+    bun install >/dev/null 2>&1
     bun run packages/opencode/script/build.ts --single >/dev/null 2>&1
     
-    # Extract binary: dist/{platform}/bin/opencode
     found_binary=false
     for binary in dist/*/bin/opencode; do
         if [ -f "$binary" ]; then
@@ -111,9 +111,6 @@ if [ "$heidi_dang" = "true" ]; then
         echo -e "${RED}Error: No binary found in dist/*/bin/opencode${NC}"
         exit 1
     fi
-    
-    cd - >/dev/null
-    trap - EXIT
 elif [ -n "$binary_path" ]; then
     if [ ! -f "$binary_path" ]; then
         echo -e "${RED}Error: Binary not found at ${binary_path}${NC}"
