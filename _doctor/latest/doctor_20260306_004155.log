@@ -1,0 +1,17 @@
+[2026-03-06 00:41:55] [INFO] Doctor run: quick=Yes
+[2026-03-06 00:41:55] [INFO] Log: /home/heidi/work/opencode-heidi/_doctor/latest/doctor_20260306_004155.log
+[2026-03-06 00:41:55] [INFO] Running env checks
+[2026-03-06 00:41:55] [INFO] Python: Python 3.13.7
+[2026-03-06 00:41:55] [INFO] Bun: 1.3.10
+[2026-03-06 00:41:55] [INFO] Running install sanity
+[2026-03-06 00:41:55] [WARN] WARNING: No package-lock.json or bun.lockb found. Run `bun install` first.
+[2026-03-06 00:41:55] [INFO] Running branding gate
+[2026-03-06 00:41:55] [INFO] Branding gate passed
+[2026-03-06 00:41:55] [INFO] Running assets gate
+[2026-03-06 00:41:55] [INFO] app_public exists
+[2026-03-06 00:41:55] [INFO] ui_assets exists
+[2026-03-06 00:41:55] [INFO] Manifests OK
+[2026-03-06 00:41:55] [INFO] Assets files OK
+[2026-03-06 00:41:55] [INFO] Running installer gate
+[2026-03-06 00:41:55] [INFO] Installer gate passed
+[2026-03-06 00:41:55] [INFO] All checks passed
