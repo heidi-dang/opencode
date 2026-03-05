@@ -1,37 +1,27 @@
 <p align="center">
-  <a href="https://openhei.dev">
-    <picture>
-      <source srcset="docs/brand/openhei-logo.svg" media="(prefers-color-scheme: dark)">
-      <source srcset="docs/brand/openhei-logo.svg" media="(prefers-color-scheme: light)">
-      <img src="docs/brand/openhei-logo.svg" alt="OpenHei logo" height="80">
-    </picture>
+  <a href="https://github.com/heidi-dang/opencode">
+    <img src="docs/brand/openhei-logo.svg" alt="OpenHei logo" height="80">
   </a>
 </p>
-<p align="center">The open source AI coding agent. Fork of OpenCode.</p>
+
+<p align="center">OpenHei: OpenCode fork with custom branding/doctor gates.</p>
+
 <p align="center">
   <a href="https://discord.gg/openhei"><img alt="Discord" src="https://img.shields.io/discord/1391832426048651334?style=flat-square&label=discord" /></a>
 </p>
 
-<p align="center">
-  <a href="README.md">English</a>
-</p>
-
 ---
 
-### About
+### Upstream
 
-OpenHei is a fork of [OpenCode](https://github.com/anomalyco/opencode), an AI-powered development tool built by the team at [anomalyco](https://github.com/anomalyco). This fork includes custom branding and modifications.
-
-**Upstream**: [anomalyco/opencode](https://github.com/anomalyco/opencode)
+[anomalyco/opencode](https://github.com/anomalyco/opencode)
 
 ### Installation
 
 ```bash
-# YOLO
-curl -fsSL https://openhei.dev/install | bash
+./install --heidi-dang  # source build from fork
 
-# Package managers
-npm i -g openhei@latest        # or bun/pnpm/yarn
+npm i -g openhei@latest # or bun/pnpm/yarn
 ```
 
 ### Building from Source
@@ -43,18 +33,18 @@ bun run dev
 
 ### Doctor Framework
 
-Run `python3 tools/doctor.py` before every commit (auto via husky pre-commit).
+`python3 tools/doctor.py` (husky pre-commit, quick gates).
 
-Run `python3 tools/doctor.py --full` before pushing PRs (includes build/tests/gates).
+`python3 tools/doctor.py --full` before PR (build/test/smoke).
+
+Logs: tools/\_doctor/latest/ (untracked).
 
 ### Documentation
 
-For more info on how to configure OpenHei, head over to the [original OpenCode docs](https://opencode.ai/docs).
+[opencode.ai/docs](https://opencode.ai/docs)
 
 ### License
 
-See [LICENSE](./LICENSE) for the original OpenCode license (MIT).
-
----
+MIT [LICENSE](./LICENSE)
 
 **Community**: [Discord](https://discord.gg/openhei)
