@@ -62,3 +62,4 @@
 
 @import "./utilities.css" layer(utilities);
 @import "./animations.css" layer(utilities);
+@import "./aurora.css" layer(utilities);
