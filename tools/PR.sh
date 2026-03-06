@@ -142,7 +142,7 @@ create_or_update_pr() {
   existing="$(gh pr list --repo heidi-dang/opencode --head "$br" --state open --json number,url --jq '.[0].url' 2>/dev/null || true)"
   if [[ -n "$existing" ]]; then
     grn "PR already exists: $existing"
-    gh pr view --repo heidi-dang/opencode --head "$br" --json url,number,headRefName,baseRefName --jq '{url,number,headRefName,baseRefName}'
+    gh pr view "$br" --repo heidi-dang/opencode --json url,number,headRefName,baseRefName --jq '{url,number,headRefName,baseRefName}'
     return 0
   fi
 
@@ -225,7 +225,7 @@ EOF
     --body "$body"
 
   grn "PR created."
-  gh pr view --repo heidi-dang/opencode --head "$br" --json url,number,headRefName,baseRefName --jq '{url,number,headRefName,baseRefName}'
+  gh pr view "$br" --repo heidi-dang/opencode --json url,number,headRefName,baseRefName --jq '{url,number,headRefName,baseRefName}'
 }
 
 main() {
