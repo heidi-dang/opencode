@@ -117,8 +117,8 @@ def check_assets_gate() -> dict:
         data = json.loads(mf.read_text())
     except Exception as e:
         return _result(name, 'fail', f'Could not read manifest: {e}')
-    if data.get('name') != 'OpenCode':
-        return _result(name, 'fail', f'Manifest name "{data.get("name")}" != "OpenCode"')
+    if data.get('name') != 'OpenHei':
+        return _result(name, 'fail', f'Manifest name "{data.get("name")}" != "OpenHei"')
     icons = [
         ui_ass / 'favicon' / 'web-app-manifest-192x192.png',
         ui_ass / 'favicon' / 'web-app-manifest-512x512.png',
@@ -162,7 +162,7 @@ def check_global_policy() -> dict:
     except Exception as e:
         return _result(name, 'fail', f'Could not parse config: {e}')
 
-    policy = cfg.get('opencode', {}).get('globalModelPolicy', False)
+    policy = cfg.get('openhei', {}).get('globalModelPolicy', False)
     if not policy:
         log('globalModelPolicy not enabled, skipping')
         return _result(name, 'pass', 'policy not enabled')
@@ -279,15 +279,15 @@ def check_default_model() -> dict:
     return _result(name, 'pass', f'{expected} is first priority')
 
 def check_installer_gate() -> dict:
-     name = 'installer'
-     log('Running installer gate')
-     res = run_cmd(['./install', '--help'], check=False, capture_output=True)
-     out = (res.stdout + res.stderr).lower()
-     out = ' '.join(out.split()).strip()
-     if '--heidi-dang' not in out or 'opencode' not in out:
-         return _result(name, 'fail', 'Installer --help missing --heidi-dang and/or opencode branding')
-     log('Installer gate passed')
-     return _result(name, 'pass', '')
+    name = 'installer'
+    log('Running installer gate')
+    res = run_cmd(['./install', '--help'], check=False, capture_output=True)
+    out = (res.stdout + res.stderr).lower()
+    out = ' '.join(out.split()).strip()
+    if '--heidi-dang' not in out or 'opencode' not in out:
+        return _result(name, 'fail', 'Installer --help missing --heidi-dang and/or opencode branding')
+    log('Installer gate passed')
+    return _result(name, 'pass', '')
 
 def check_typecheck() -> dict:
     name = 'typecheck'
@@ -344,11 +344,22 @@ def main() -> None:
     results.append(check_global_policy())
     results.append(check_default_model())
     results.append(check_installer_gate())
+    try:
+        from .checks.check_installer_plugin_fallback import check_installer_plugin_fallback
+    except Exception:
+        try:
+            from tools.checks.check_installer_plugin_fallback import check_installer_plugin_fallback
+        except Exception:
+            from checks.check_installer_plugin_fallback import check_installer_plugin_fallback
+    results.append(check_installer_plugin_fallback())
     results.append(check_typecheck())
     try:
         from .check_ui_glow_polish import check_ui_glow_polish
-    except ImportError:
-        from check_ui_glow_polish import check_ui_glow_polish
+    except Exception:
+        try:
+            from tools.check_ui_glow_polish import check_ui_glow_polish
+        except Exception:
+            from check_ui_glow_polish import check_ui_glow_polish
     results.append(check_ui_glow_polish())
     results.append(check_copilot_toolbox())
 
