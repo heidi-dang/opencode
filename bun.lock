@@ -255,35 +255,6 @@
         "vite": "catalog:",
       },
     },
-    "packages/enterprise": {
-      "name": "@opencode-ai/enterprise",
-      "version": "1.2.17",
-      "dependencies": {
-        "@opencode-ai/ui": "workspace:*",
-        "@opencode-ai/util": "workspace:*",
-        "@pierre/diffs": "catalog:",
-        "@solidjs/meta": "catalog:",
-        "@solidjs/router": "catalog:",
-        "@solidjs/start": "catalog:",
-        "aws4fetch": "^1.0.20",
-        "hono": "catalog:",
-        "hono-openapi": "catalog:",
-        "js-base64": "3.7.7",
-        "luxon": "catalog:",
-        "nitro": "3.0.1-alpha.1",
-        "solid-js": "catalog:",
-        "zod": "catalog:",
-      },
-      "devDependencies": {
-        "@cloudflare/workers-types": "catalog:",
-        "@tailwindcss/vite": "catalog:",
-        "@types/luxon": "catalog:",
-        "@typescript/native-preview": "catalog:",
-        "tailwindcss": "catalog:",
-        "typescript": "catalog:",
-        "vite": "catalog:",
-      },
-    },
     "packages/function": {
       "name": "@opencode-ai/function",
       "version": "1.2.17",
@@ -1430,8 +1401,6 @@
     "@opencode-ai/desktop": ["@opencode-ai/desktop@workspace:packages/desktop"],
 
     "@opencode-ai/desktop-electron": ["@opencode-ai/desktop-electron@workspace:packages/desktop-electron"],
-
-    "@opencode-ai/enterprise": ["@opencode-ai/enterprise@workspace:packages/enterprise"],
 
     "@opencode-ai/function": ["@opencode-ai/function@workspace:packages/function"],
 
