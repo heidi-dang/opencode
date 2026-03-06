@@ -249,6 +249,35 @@ def check_global_policy() -> dict:
         detail += f'; overrides rewritten: [{", ".join(overrides)}]'
     return _result(name, 'pass', detail)
 
+def check_default_model() -> dict:
+    name = 'default_model'
+    log('Running default model gate')
+    
+    provider_path = Path('packages/opencode/src/provider/provider.ts')
+    if not provider_path.exists():
+        return _result(name, 'fail', 'provider.ts not found')
+    
+    content = provider_path.read_text()
+    
+    match = re.search(r'const priority = \[([^\]]+)\]', content)
+    if not match:
+        return _result(name, 'fail', 'priority list not found in provider.ts')
+    
+    priority_str = match.group(1)
+    priorities = re.findall(r'"([^"]+)"', priority_str)
+    
+    if not priorities:
+        return _result(name, 'fail', 'priority list empty')
+    
+    first_priority = priorities[0]
+    expected = 'grok-4-fast'
+    
+    if first_priority != expected:
+        return _result(name, 'fail', f'first priority is "{first_priority}", expected "{expected}"')
+    
+    log(f'Default model priority: {first_priority}')
+    return _result(name, 'pass', f'{expected} is first priority')
+
 def check_installer_gate() -> dict:
      name = 'installer'
      log('Running installer gate')
@@ -313,6 +342,7 @@ def main() -> None:
     results.append(check_branding_gate())
     results.append(check_assets_gate())
     results.append(check_global_policy())
+    results.append(check_default_model())
     results.append(check_installer_gate())
     results.append(check_typecheck())
 

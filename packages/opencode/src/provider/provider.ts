@@ -1296,7 +1296,7 @@ export namespace Provider {
     return undefined
   }
 
-  const priority = ["grok-4-1-fast", "gpt-5", "claude-sonnet-4", "big-pickle", "gemini-3-pro"]
+  const priority = ["grok-4-fast", "gpt-5", "claude-sonnet-4", "big-pickle", "gemini-3-pro"]
   export function sort(models: Model[]) {
     return sortBy(
       models,
