@@ -279,15 +279,15 @@ def check_default_model() -> dict:
     return _result(name, 'pass', f'{expected} is first priority')
 
 def check_installer_gate() -> dict:
-     name = 'installer'
-     log('Running installer gate')
-     res = run_cmd(['./install', '--help'], check=False, capture_output=True)
-     out = (res.stdout + res.stderr).lower()
-     out = ' '.join(out.split()).strip()
-     if '--heidi-dang' not in out or 'openhei' not in out:
-         return _result(name, 'fail', 'Installer --help missing --heidi-dang and/or openhei branding')
-     log('Installer gate passed')
-     return _result(name, 'pass', '')
+    name = 'installer'
+    log('Running installer gate')
+    res = run_cmd(['./install', '--help'], check=False, capture_output=True)
+    out = (res.stdout + res.stderr).lower()
+    out = ' '.join(out.split()).strip()
+    if '--heidi-dang' not in out or 'opencode' not in out:
+        return _result(name, 'fail', 'Installer --help missing --heidi-dang and/or opencode branding')
+    log('Installer gate passed')
+    return _result(name, 'pass', '')
 
 def check_typecheck() -> dict:
     name = 'typecheck'
@@ -344,8 +344,22 @@ def main() -> None:
     results.append(check_global_policy())
     results.append(check_default_model())
     results.append(check_installer_gate())
+    try:
+        from .checks.check_installer_plugin_fallback import check_installer_plugin_fallback
+    except Exception:
+        try:
+            from tools.checks.check_installer_plugin_fallback import check_installer_plugin_fallback
+        except Exception:
+            from checks.check_installer_plugin_fallback import check_installer_plugin_fallback
+    results.append(check_installer_plugin_fallback())
     results.append(check_typecheck())
-    from tools.check_ui_glow_polish import check_ui_glow_polish
+    try:
+        from .check_ui_glow_polish import check_ui_glow_polish
+    except Exception:
+        try:
+            from tools.check_ui_glow_polish import check_ui_glow_polish
+        except Exception:
+            from check_ui_glow_polish import check_ui_glow_polish
     results.append(check_ui_glow_polish())
     results.append(check_copilot_toolbox())
 
