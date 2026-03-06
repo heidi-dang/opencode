@@ -1,4 +1,44 @@
 :root {
+  /* Glow Polish */
+  --glow-default:
+    0 0 0 1px rgba(var(--border-weak-base, rgba(0, 0, 0, 0.07)), 0.8),
+    0 4px 12px -4px rgba(var(--cobalt-light-alpha-3), 0.25);
+  --glow-active: 0 0 0 2px var(--border-interactive-base), 0 8px 24px -8px rgba(var(--cobalt-light-alpha-3), 0.4);
+  --glow-focus: 0 0 0 3px rgba(var(--cobalt-light-alpha-3), 0.3), 0 0 0 1px var(--border-interactive-base);
+  --aurora-stops:
+    radial-gradient(ellipse at top left, rgba(var(--cobalt-light-alpha-3), 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at bottom right, rgba(var(--apple-light-3), 0.04) 0%, transparent 50%),
+    linear-gradient(135deg, var(--background-base) 0%, var(--background-weak) 50%, var(--background-base) 100%);
+
+  /* Glow Polish - Plain CSS classes using native box-shadow with theme vars */
+  .glow-border {
+    box-shadow: var(--glow-default);
+    transition: box-shadow 0.2s ease;
+  }
+
+  .glow-border--active,
+  .glow-border:focus-within,
+  .glow-border[aria-selected="true"] {
+    box-shadow: var(--glow-active);
+  }
+
+  *:focus-visible.glow-border {
+    box-shadow: var(--glow-focus);
+  }
+
+  .aurora-bg {
+    background: var(--aurora-stops);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
   --font-family-sans: "Inter", "Inter Fallback";
   --font-family-sans--font-feature-settings: "ss03" 1;
   --font-family-mono: "IBM Plex Mono", "IBM Plex Mono Fallback";
@@ -344,6 +384,13 @@
   --avatar-text-cyan: #0894b3;
   --avatar-text-lime: #5d770d;
 
+  --cobalt-light-rgb: 3, 76, 255;
+  --glow-primary: 0 0 8px rgba(var(--cobalt-light-rgb), 0.3);
+  --glow-selection: 0 0 12px rgba(var(--cobalt-light-rgb), 0.2);
+  --glow-input-focus: 0 0 4px rgba(var(--cobalt-light-rgb), 0.4);
+  --aurora-start: linear-gradient(45deg, var(--background-base), var(--background-weak));
+  --aurora-end: linear-gradient(-45deg, var(--background-weak), var(--background-base));
+
   @media (prefers-color-scheme: dark) {
     color-scheme: dark;
     --text-mix-blend-mode: plus-lighter;
@@ -602,5 +649,12 @@
     --avatar-text-purple: #9d5bd2;
     --avatar-text-cyan: #369eff;
     --avatar-text-lime: #c4f042;
+
+    --cobalt-dark-rgb: 3, 76, 255;
+    --glow-primary: 0 0 8px rgba(var(--cobalt-dark-rgb), 0.4);
+    --glow-selection: 0 0 12px rgba(var(--cobalt-dark-rgb), 0.3);
+    --glow-input-focus: 0 0 4px rgba(var(--cobalt-dark-rgb), 0.5);
+    --aurora-start: linear-gradient(45deg, var(--smoke-dark-1), var(--smoke-dark-2));
+    --aurora-end: linear-gradient(-45deg, var(--smoke-dark-2), var(--smoke-dark-1));
   }
 }

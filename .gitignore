@@ -26,5 +26,9 @@ target
 # Local dev files
 opencode-dev
 logs/
+_doctor/
+**/__pycache__/
+*.pyc
+.opencode/
 *.bun-build
 tsconfig.tsbuildinfo

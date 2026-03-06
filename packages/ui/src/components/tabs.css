@@ -98,14 +98,7 @@
       outline: none;
       box-shadow: none;
     }
-    &:has([data-selected]) {
-      color: var(--text-strong);
-      background-color: transparent;
-      border-bottom-color: transparent;
-      [data-slot="tabs-trigger-close-button"] {
-        opacity: 1;
-      }
-    }
+    &:has([data-selected]) {\n      color: var(--text-strong);\n      background-color: transparent;\n      border-bottom-color: transparent;\n      box-shadow: var(--glow-active);\n      [data-slot=\"tabs-trigger-close-button\"] {\n        opacity: 1;\n      }\n    }
 
     &:hover:not(:disabled):not([data-selected]) {
       color: var(--text-strong);

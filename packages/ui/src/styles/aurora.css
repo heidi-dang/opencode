@@ -174,32 +174,4 @@
 /**
  * Reduced motion support
  */
-@media (prefers-reduced-motion: reduce) {
-  .aurora-surface::before,
-  .aurora-panel:hover,
-  .aurora-panel:focus-within,
-  .aurora-modal,
-  .aurora-input:focus,
-  .aurora-interactive:hover {
-    animation: none;
-    transition: none;
-    box-shadow: none;
-  }
-
-  .aurora-panel:hover,
-  .aurora-panel:focus-within {
-    box-shadow: none;
-  }
-
-  .aurora-modal {
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-  }
-
-  .aurora-input:focus {
-    box-shadow: 0 0 0 1px var(--aurora-border-subtle);
-  }
-
-  .aurora-interactive:hover {
-    box-shadow: none;
-  }
-}
+/* Glow Polish Classes per spec */\n\n/**\n * Aurora Background - App-level gradient background (spec #2)\n * Readability guaranteed via surface layering\n */\n.aurora-bg {\n  background:\n    radial-gradient(ellipse at top left, rgba(var(--cobalt-dark-rgb), 0.04) 0%, transparent 50%),\n    radial-gradient(ellipse at bottom right, rgba(var(--cobalt-dark-rgb), 0.03) 0%, transparent 50%),\n    linear-gradient(135deg,\n      var(--background-base) 0%,\n      rgba(var(--smoke-dark-rgb), 0.97) 50%,\n      var(--background-base) 100%\n    );\n}\n\n/**\n * Glow Border - Panels, cards, dialogs (spec #1 panels)\n */\n.glow-border {\n  box-shadow:\n    var(--shadow-xs-border),\n    0 4px 12px -4px rgba(var(--cobalt-dark-rgb), 0.15),\n    inset 0 1px 0 rgba(255, 255, 255, 0.3);\n}\n\n/**\n * Glow Active - Active tabs, selected items (spec #1 tabs/selections)\n */\n.glow-active {\n  box-shadow:\n    inset 4px 0 var(--border-selected),\n    var(--shadow-xs-border-select),\n    0 2px 8px rgba(var(--cobalt-dark-rgb), 0.15);\n}\n\n/**\n * Glow Focus - Inputs, focused elements (spec #1 inputs/focus)\n */\n.glow-focus {\n  box-shadow:\n    var(--shadow-xs-border-focus),\n    0 0 0 3px rgba(var(--cobalt-dark-rgb), 0.15);\n  outline: none;\n  border-color: var(--border-selected);\n}\n\n/* Reduced motion support */\n@media (prefers-reduced-motion: reduce) {\n  .aurora-surface::before,\n  .aurora-panel:hover,\n  .aurora-panel:focus-within,\n  .aurora-modal,\n  .aurora-input:focus,\n  .aurora-interactive:hover,\n  .aurora-bg,\n  .glow-border,\n  .glow-active,\n  .glow-focus {\n    animation: none !important;\n    transition: none !important;\n  }\n\n  .aurora-panel:hover,\n  .aurora-panel:focus-within,\n  .glow-border,\n  .glow-active,\n  .glow-focus {\n    box-shadow: var(--shadow-xs-border) !important;\n  }\n\n  .aurora-modal {\n    box-shadow: var(--shadow-md) !important;\n  }\n\n  .aurora-input:focus,\n  .glow-focus {\n    box-shadow: var(--shadow-xs-border-focus) !important;\n  }\n\n  .aurora-interactive:hover {\n    box-shadow: none !important;\n  }\n}

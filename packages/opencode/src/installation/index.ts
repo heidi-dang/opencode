@@ -10,6 +10,10 @@ import { Flag } from "../flag/flag"
 declare global {
   const OPENCODE_VERSION: string
   const OPENCODE_CHANNEL: string
+  const OPENCODE_REPO_URL: string
+  const OPENCODE_COMMIT_SHA: string
+  const OPENCODE_BRANCH: string
+  const OPENCODE_BUILD_TIME: string
 }
 
 export namespace Installation {
@@ -191,6 +195,8 @@ export namespace Installation {
 
   export const VERSION = typeof OPENCODE_VERSION === "string" ? OPENCODE_VERSION : "local"
   export const CHANNEL = typeof OPENCODE_CHANNEL === "string" ? OPENCODE_CHANNEL : "local"
+  export const COMMIT_SHA = Provenance.COMMIT_SHA !== "unknown" ? Provenance.COMMIT_SHA.substring(0, 7) : ""
+  export const VERSION_WITH_SHA = VERSION + (COMMIT_SHA ? ` (${COMMIT_SHA})` : "")
   export const USER_AGENT = `opencode/${CHANNEL}/${VERSION}/${Flag.OPENCODE_CLIENT}`
 
   export async function latest(installMethod?: Method) {
@@ -257,5 +263,22 @@ export namespace Installation {
         return res.json()
       })
       .then((data: any) => data.tag_name.replace(/^v/, ""))
+  }
+
+  export const Provenance = {
+    REPO_URL: typeof OPENCODE_REPO_URL === "string" ? OPENCODE_REPO_URL : "unknown",
+    COMMIT_SHA: typeof OPENCODE_COMMIT_SHA === "string" ? OPENCODE_COMMIT_SHA : "unknown",
+    BRANCH: typeof OPENCODE_BRANCH === "string" ? OPENCODE_BRANCH : "unknown",
+    BUILD_TIME_UTC: typeof OPENCODE_BUILD_TIME === "string" ? OPENCODE_BUILD_TIME : "unknown",
+  }
+
+  export function getProvenance() {
+    return {
+      repoUrl: Provenance.REPO_URL,
+      commitSha: Provenance.COMMIT_SHA,
+      branch: Provenance.BRANCH,
+      buildTime: Provenance.BUILD_TIME_UTC,
+      version: VERSION,
+    }
   }
 }

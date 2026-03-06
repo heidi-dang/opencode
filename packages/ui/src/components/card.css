@@ -1,9 +1,4 @@
-[data-component="card"] {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  background-color: var(--surface-inset-base);
-  border: 1px solid var(--border-weaker-base);
+[data-component="card"] {\n  width: 100%;\n  display: flex;\n  flex-direction: column;\n  background-color: var(--surface-inset-base);\n  border: 1px solid var(--border-weaker-base);\n  box-shadow: var(--glow-default);
   transition: background-color 0.15s ease;
   border-radius: var(--radius-md);
   padding: 6px 12px;
