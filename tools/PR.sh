@@ -64,7 +64,6 @@ assert_clean_gitignore_junk() {
   # Block common junk from being committed.
   local junk=(
     "_doctor"
-    ".opencode"
     "__pycache__"
   )
   local bad=0
@@ -143,7 +142,7 @@ create_or_update_pr() {
   existing="$(gh pr list --repo heidi-dang/opencode --head "$br" --state open --json number,url --jq '.[0].url' 2>/dev/null || true)"
   if [[ -n "$existing" ]]; then
     grn "PR already exists: $existing"
-    gh pr view --repo heidi-dang/opencode --head "$br" --json url,number,headRefName,baseRefName --jq '{url,number,headRefName,baseRefName}'
+    gh pr view "$br" --repo heidi-dang/opencode --json url,number,headRefName,baseRefName --jq '{url,number,headRefName,baseRefName}'
     return 0
   fi
 
@@ -226,7 +225,7 @@ EOF
     --body "$body"
 
   grn "PR created."
-  gh pr view --repo heidi-dang/opencode --head "$br" --json url,number,headRefName,baseRefName --jq '{url,number,headRefName,baseRefName}'
+  gh pr view "$br" --repo heidi-dang/opencode --json url,number,headRefName,baseRefName --jq '{url,number,headRefName,baseRefName}'
 }
 
 main() {
@@ -257,6 +256,8 @@ main() {
     die "Working tree not clean. Commit or stash changes before running PR.sh."
   fi
 
+  trap 'rm -f .pr_doctor_tail.txt .pr_build_tail.txt || true' EXIT
+
   assert_clean_gitignore_junk
   assert_has_diff_vs_base "$base"
 
@@ -265,9 +266,6 @@ main() {
 
   push_branch
   create_or_update_pr "$base"
-
-  # Cleanup
-  rm -f .pr_doctor_tail.txt .pr_build_tail.txt || true
 }
 
 main "$@"
