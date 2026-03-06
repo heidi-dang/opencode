@@ -9,8 +9,32 @@ import { mapValues } from "remeda"
 import { errors } from "../error"
 import { lazy } from "../../util/lazy"
 
+import { CopilotUsageService, CopilotUsageSchema } from "../../services/copilot-usage"
+
 export const ProviderRoutes = lazy(() =>
   new Hono()
+    .get(
+      "/copilot/usage",
+      describeRoute({
+        summary: "Get Copilot usage",
+        description: "Retrieve GitHub Copilot usage metrics and diagnostics.",
+        operationId: "provider.copilot.usage",
+        responses: {
+          200: {
+            description: "Copilot usage data",
+            content: {
+              "application/json": {
+                schema: resolver(CopilotUsageSchema),
+              },
+            },
+          },
+        },
+      }),
+      async (c) => {
+        const usage = await CopilotUsageService.getCopilotUsage()
+        return c.json(usage)
+      },
+    )
     .get(
       "/",
       describeRoute({

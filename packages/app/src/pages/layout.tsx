@@ -55,6 +55,7 @@ import { useCommand, type CommandOption } from "@/context/command"
 import { ConstrainDragXAxis } from "@/utils/solid-dnd"
 import { DialogSelectDirectory } from "@/components/dialog-select-directory"
 import { DialogEditProject } from "@/components/dialog-edit-project"
+import { DialogCopilotUsage } from "@/components/dialog-copilot-usage"
 import { Titlebar } from "@/components/titlebar"
 import { useServer } from "@/context/server"
 import { useLanguage, type Locale } from "@/context/language"
@@ -892,6 +893,13 @@ export default function Layout(props: ParentProps) {
         onSelect: () => openServer(),
       },
       {
+        id: "copilot.open",
+        title: "Copilot Usage",
+        category: language.t("command.category.view"),
+        keybind: "mod+k",
+        onSelect: () => openCopilot(),
+      },
+      {
         id: "settings.open",
         title: language.t("command.settings.open"),
         category: language.t("command.category.settings"),
@@ -1044,6 +1052,10 @@ export default function Layout(props: ParentProps) {
 
   function openSettings() {
     dialog.show(() => <DialogSettings />)
+  }
+
+  function openCopilot() {
+    dialog.show(() => <DialogCopilotUsage />)
   }
 
   function projectRoot(directory: string) {
@@ -2098,6 +2110,9 @@ export default function Layout(props: ParentProps) {
               settingsLabel={() => language.t("sidebar.settings")}
               settingsKeybind={() => command.keybind("settings.open")}
               onOpenSettings={openSettings}
+              copilotLabel={() => "Copilot"}
+              copilotKeybind={() => command.keybind("copilot.open")}
+              onOpenCopilot={openCopilot}
               helpLabel={() => language.t("sidebar.help")}
               onOpenHelp={() => platform.openLink("https://opencode.ai/desktop-feedback")}
               renderPanel={() => (
@@ -2167,6 +2182,9 @@ export default function Layout(props: ParentProps) {
               settingsLabel={() => language.t("sidebar.settings")}
               settingsKeybind={() => command.keybind("settings.open")}
               onOpenSettings={openSettings}
+              copilotLabel={() => "Copilot"}
+              copilotKeybind={() => command.keybind("copilot.open")}
+              onOpenCopilot={openCopilot}
               helpLabel={() => language.t("sidebar.help")}
               onOpenHelp={() => platform.openLink("https://opencode.ai/desktop-feedback")}
               renderPanel={() => <SidebarPanel project={currentProject()} mobile />}

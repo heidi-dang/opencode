@@ -29,6 +29,9 @@ export const SidebarContent = (props: {
   settingsLabel: Accessor<string>
   settingsKeybind: Accessor<string | undefined>
   onOpenSettings: () => void
+  copilotLabel: Accessor<string>
+  copilotKeybind: Accessor<string | undefined>
+  onOpenCopilot: () => void
   helpLabel: Accessor<string>
   onOpenHelp: () => void
   renderPanel: () => JSX.Element
@@ -86,6 +89,16 @@ export const SidebarContent = (props: {
               size="large"
               onClick={props.onOpenSettings}
               aria-label={props.settingsLabel()}
+            />
+          </TooltipKeybind>
+          <TooltipKeybind placement={placement()} title={props.copilotLabel()} keybind={props.copilotKeybind() ?? ""}>
+            <IconButton
+              icon="chart-bar"
+              variant="ghost"
+              size="large"
+              onClick={props.onOpenCopilot}
+              aria-label={props.copilotLabel()}
+              data-testid="copilot-icon"
             />
           </TooltipKeybind>
           <Tooltip placement={placement()} value={props.helpLabel()}>

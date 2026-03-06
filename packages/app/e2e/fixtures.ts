@@ -3,6 +3,9 @@ import { cleanupTestProject, createTestProject, seedProjects } from "./actions"
 import { promptSelector } from "./selectors"
 import { createSdk, dirSlug, getWorktree, sessionPath } from "./utils"
 
+export { expect }
+export type { Page }
+
 export const settingsKey = "settings.v3"
 
 type TestFixtures = {
@@ -83,5 +86,3 @@ async function seedStorage(page: Page, input: { directory: string; extra?: strin
     )
   })
 }
-
-export { expect }

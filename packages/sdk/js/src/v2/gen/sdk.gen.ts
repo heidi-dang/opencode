@@ -81,6 +81,7 @@ import type {
   ProjectUpdateErrors,
   ProjectUpdateResponses,
   ProviderAuthResponses,
+  ProviderCopilotUsageResponses,
   ProviderListResponses,
   ProviderOauthAuthorizeErrors,
   ProviderOauthAuthorizeResponses,
@@ -2449,6 +2450,38 @@ export class Question extends HeyApiClient {
   }
 }
 
+export class Copilot extends HeyApiClient {
+  /**
+   * Get Copilot usage
+   *
+   * Retrieve GitHub Copilot usage metrics and diagnostics.
+   */
+  public usage<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<ProviderCopilotUsageResponses, unknown, ThrowOnError>({
+      url: "/provider/copilot/usage",
+      ...options,
+      ...params,
+    })
+  }
+}
+
 export class Oauth extends HeyApiClient {
   /**
    * OAuth authorize
@@ -2598,6 +2631,11 @@ export class Provider extends HeyApiClient {
       ...options,
       ...params,
     })
+  }
+
+  private _copilot?: Copilot
+  get copilot(): Copilot {
+    return (this._copilot ??= new Copilot({ client: this.client }))
   }
 
   private _oauth?: Oauth

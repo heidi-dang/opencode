@@ -12,6 +12,15 @@ import { Filesystem } from "../util/filesystem"
 /* @ts-ignore */
 
 export namespace ModelsDev {
+  export const copilotMultipliers: Record<string, number> = {
+    "gpt-4.1": 0,
+    "gpt-5-mini": 0,
+    "grok-code-fast-1": 0.25,
+    "claude-haiku-4.5": 0.33,
+    "claude-sonnet-4.5": 1,
+    "gpt-5.2-codex": 1,
+    "claude-opus-4.6": 3,
+  }
   const log = Log.create({ service: "models.dev" })
   const filepath = path.join(Global.Path.cache, "models.json")
 

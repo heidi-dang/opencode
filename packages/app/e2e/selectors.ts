@@ -71,3 +71,19 @@ export const listItemKeyStartsWithSelector = (prefix: string) => `${listItemSele
 export const listItemKeySelector = (key: string) => `${listItemSelector}[data-key="${key}"]`
 
 export const keybindButtonSelector = (id: string) => `[data-keybind-id="${id}"]`
+
+export const copilotDialogSelector = '[data-testid="dialog-copilot-usage"]'
+export const copilotUsageLoadingSelector = '[data-testid="copilot-usage-loading"]'
+export const copilotUsageErrorSelector = '[data-testid="copilot-usage-error"]'
+export const copilotUsageStaleWarningSelector = '[data-testid="copilot-usage-stale-warning"]'
+export const copilotUsageReducedWarningSelector = '[data-testid="copilot-usage-reduced-warning"]'
+export const copilotUsageWarningsSelector = '[data-testid="copilot-usage-warnings"]'
+export const copilotUsageAccountSectionSelector = '[data-testid="copilot-usage-account-section"]'
+export const copilotUsageAccountStatusSelector = '[data-testid="copilot-usage-account-status"]'
+export const copilotUsageUsageOverviewSectionSelector = '[data-testid="copilot-usage-usage-overview-section"]'
+export const copilotUsageConfidenceSelector = '[data-testid="copilot-usage-confidence"]'
+export const copilotUsageModelBreakdownSectionSelector = '[data-testid="copilot-usage-model-breakdown-section"]'
+export const copilotUsageNoModelBreakdownSelector = '[data-testid="copilot-usage-no-model-breakdown"]'
+export const copilotUsageSessionSectionSelector = '[data-testid="copilot-usage-session-section"]'
+export const copilotUsageDiagnosticsSectionSelector = '[data-testid="copilot-usage-diagnostics-section"]'
+export const copilotUsageDiagnosticsModeSelector = '[data-testid="copilot-usage-diagnostics-mode"]'

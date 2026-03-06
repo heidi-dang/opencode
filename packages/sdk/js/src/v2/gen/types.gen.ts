@@ -1474,6 +1474,12 @@ export type Config = {
      */
     reserved?: number
   }
+  openhei?: {
+    /**
+     * Enable global model policy for OpenHei
+     */
+    globalModelPolicy?: boolean
+  }
   experimental?: {
     disable_paste_summary?: boolean
     /**
@@ -3892,6 +3898,61 @@ export type QuestionRejectResponses = {
 }
 
 export type QuestionRejectResponse = QuestionRejectResponses[keyof QuestionRejectResponses]
+
+export type ProviderCopilotUsageData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/provider/copilot/usage"
+}
+
+export type ProviderCopilotUsageResponses = {
+  /**
+   * Copilot usage data
+   */
+  200: {
+    account: {
+      status: "connected" | "disconnected"
+      type: "personal" | "org" | null
+      plan: "free" | "pro" | "pro+" | null
+      reset: string | null
+      source: "api" | "local"
+    }
+    globalUsage: {
+      consumed: number
+      remaining: number | null
+      confidence: "exact" | "derived" | "estimated"
+      lastFetch: string
+    }
+    modelBreakdown: Array<{
+      id: string
+      name: string
+      multiplier: number
+      category: "included" | "premium"
+      prompts: number
+      premiumUnits: number
+      tokensEst: number
+      confidence: "exact" | "derived" | "estimated"
+    }>
+    sessionLocal: {
+      prompts: number
+      premiumEst: number
+      tokensEst: number
+    }
+    diagnostics: {
+      mode: "full" | "reduced"
+      stale: boolean
+      missingScopes: Array<string>
+      warnings: Array<string>
+      unmappedModels: Array<string>
+    }
+  }
+}
+
+export type ProviderCopilotUsageResponse = ProviderCopilotUsageResponses[keyof ProviderCopilotUsageResponses]
 
 export type ProviderListData = {
   body?: never
