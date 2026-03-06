@@ -4,7 +4,7 @@
   </a>
 </p>
 
-<p align="center">OpenHei: OpenCode fork with custom branding/doctor gates.</p>
+<p align="center">OpenHei: OpenCode derivative with custom branding/doctor gates.</p>
 
 <p align="center">
   <a href="https://discord.gg/openhei"><img alt="Discord" src="https://img.shields.io/discord/1391832426048651334?style=flat-square&label=discord" /></a>
@@ -19,7 +19,7 @@
 ### Installation
 
 ```bash
-./install --heidi-dang  # source build from fork
+./install --heidi-dang  # OpenHei config (policy + plugin)
 
 npm i -g openhei@latest # or bun/pnpm/yarn
 ```
