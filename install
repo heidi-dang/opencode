@@ -397,57 +397,103 @@ install_from_local_repo() {
 
 setup_heidi_plugin() {
     local cwd="$PWD"
+
     XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-$HOME/.config}
     OPENCODE_CONFIG_DIR="$XDG_CONFIG_HOME/opencode"
+
     PLUGIN_ROOT="$OPENCODE_CONFIG_DIR/plugins"
     PLUGIN_PATH="$PLUGIN_ROOT/oh-my-opencode"
     CONFIG="$OPENCODE_CONFIG_DIR/opencode.json"
 
     mkdir -p "$PLUGIN_ROOT"
 
+    ########################################################
+    # Clone or update plugin
+    ########################################################
+
     if [ ! -d "$PLUGIN_PATH/.git" ]; then
-        print_message info "Cloning oh-my-opencode..."
+        print_message info "Installing oh-my-opencode from GitHub..."
         git clone https://github.com/heidi-dang/oh-my-opencode "$PLUGIN_PATH"
     else
-        print_message info "Updating oh-my-opencode..."
+        print_message info "Updating oh-my-opencode (latest main)..."
         cd "$PLUGIN_PATH"
+
         git fetch origin
+
+        # guarantee exact latest main
         git checkout main
-        git pull origin main
+        git reset --hard origin/main
+        git clean -fd
     fi
 
+    ########################################################
+    # Build plugin locally
+    ########################################################
+
     cd "$PLUGIN_PATH"
+
+    print_message info "Building oh-my-opencode plugin..."
+
     if command -v bun >/dev/null 2>&1; then
-        bun install
+        bun install --frozen-lockfile
         bun run build
     else
-        npm install
+        npm ci
         npm run build
     fi
 
+    ########################################################
+    # Verify build output
+    ########################################################
+
+    if [ ! -d "$PLUGIN_PATH/dist" ] && [ ! -d "$PLUGIN_PATH/build" ]; then
+        echo -e "${RED}ERROR: plugin build output not found${NC}"
+        exit 1
+    fi
+
+    ########################################################
+    # Ensure config exists
+    ########################################################
+
     mkdir -p "$OPENCODE_CONFIG_DIR"
     if [ ! -f "$CONFIG" ]; then
-        cat > "$CONFIG" << 'EOF'
+        cat > "$CONFIG" <<EOF
 {
-  "$schema": "https://opencode.ai/config.json",
-  "openhei": {
-    "globalModelPolicy": true
-  },
+  "\$schema": "https://opencode.ai/config.json",
   "plugin": []
 }
 EOF
     fi
+
+    ########################################################
+    # Ensure jq exists
+    ########################################################
 
     if ! command -v jq >/dev/null 2>&1; then
         echo -e "${RED}Error: jq is required to update ${CONFIG}${NC}"
         exit 1
     fi
 
+    ########################################################
+    # Register plugin path safely
+    ########################################################
+
     print_message info "Registering local oh-my-opencode plugin"
-    jq --arg p "$PLUGIN_PATH" '.openhei = ((.openhei // {}) + {"globalModelPolicy": true}) | .plugin = [$p]' "$CONFIG" > "$CONFIG.tmp"
+    jq --arg p "$PLUGIN_PATH" '
+        .openhei = ((.openhei // {}) + {"globalModelPolicy": true}) |
+        .plugin = ((.plugin // []) | map(select(. != $p)) + [$p])
+    ' "$CONFIG" > "$CONFIG.tmp"
     mv "$CONFIG.tmp" "$CONFIG"
 
+    ########################################################
+    # Restore working directory
+    ########################################################
+
     cd "$cwd"
+
+    ########################################################
+    # Verify install
+    ########################################################
 
     if [ -d "$PLUGIN_PATH" ]; then
         print_message info "oh-my-opencode installed from GitHub main"
