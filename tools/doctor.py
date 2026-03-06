@@ -54,6 +54,24 @@ def check_env() -> dict:
     log(f'Bun: {bun_ver}')
     return _result(name, 'pass', f'python={py_ver} bun={bun_ver}')
 
+def check_repo_trim() -> dict:
+    name = 'repo_trim'
+    log('Running repo trim check')
+    
+    root = Path(__file__).parent.parent
+    enterprise_path = root / 'packages' / 'enterprise'
+    if enterprise_path.exists():
+        return _result(name, 'fail', 'packages/enterprise still exists')
+    
+    sst_config = root / 'sst.config.ts'
+    if sst_config.exists():
+        content = sst_config.read_text()
+        if 'infra/enterprise.js' in content:
+            return _result(name, 'fail', 'sst.config.ts still references enterprise')
+    
+    log('Repo trim check passed')
+    return _result(name, 'pass', 'enterprise package removed')
+
 def check_install_sanity() -> dict:
     name = 'install_sanity'
     log('Running install sanity')
@@ -290,6 +308,7 @@ def main() -> None:
 
     results = []
     results.append(check_env())
+    results.append(check_repo_trim())
     results.append(check_install_sanity())
     results.append(check_branding_gate())
     results.append(check_assets_gate())
