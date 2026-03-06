@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 APP=opencode
+ROOT_DIR="$PWD"
 
 MUTED='\033[0;2m'
 RED='\033[0;31m'
@@ -19,12 +20,14 @@ Options:
     -b, --binary <path>     Install from a local binary instead of downloading
         --no-modify-path    Don't modify shell config files (.zshrc, .bashrc, etc.)
         --heidi-dang        Create openhei branding config with global model policy
+        --local-repo        Build and install OpenCode from local working directory
 
 Examples:
     curl -fsSL https://opencode.ai/install | bash
     curl -fsSL https://opencode.ai/install | bash -s -- --version 1.0.180
     ./install --binary /path/to/opencode
     ./install --heidi-dang
+    ./install --heidi-dang --local-repo
 EOF
 }
 
@@ -32,6 +35,7 @@ requested_version=${VERSION:-}
 no_modify_path=false
 binary_path=""
 heidi_dang=false
+local_repo=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -63,6 +67,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --heidi-dang)
             heidi_dang=true
+            shift
+            ;;
+        --local-repo)
+            local_repo=true
             shift
             ;;
         *)
@@ -187,7 +195,9 @@ else
         fi
     fi
 
-    if [ -z "$requested_version" ]; then
+    if [ "$local_repo" = "true" ]; then
+        specific_version="local-repo"
+    elif [ -z "$requested_version" ]; then
         url="https://github.com/anomalyco/opencode/releases/latest/download/$filename"
         specific_version=$(curl -s https://api.github.com/repos/anomalyco/opencode/releases/latest | sed -n 's/.*"tag_name": *"v\([^"]*\)".*/\1/p')
 
@@ -358,35 +368,110 @@ install_from_binary() {
     chmod 755 "${INSTALL_DIR}/opencode"
 }
 
+install_from_local_repo() {
+    print_message info "\n${MUTED}Using local OpenCode repository from ${NC}$ROOT_DIR"
+
+    if ! command -v bun >/dev/null 2>&1; then
+        echo -e "${RED}Error: bun is required for --local-repo${NC}"
+        exit 1
+    fi
+
+    if [ ! -f "$ROOT_DIR/package.json" ] || [ ! -d "$ROOT_DIR/packages/opencode" ]; then
+        echo -e "${RED}Error: --local-repo must be run from OpenCode repository root${NC}"
+        exit 1
+    fi
+
+    cd "$ROOT_DIR"
+    bun install
+    bun --cwd packages/opencode run build -- --single
+
+    local bin_path="$ROOT_DIR/packages/opencode/dist/opencode-$target/bin/opencode"
+    if [ ! -f "$bin_path" ]; then
+        echo -e "${RED}Error: local build output not found at ${bin_path}${NC}"
+        exit 1
+    fi
+
+    cp "$bin_path" "${INSTALL_DIR}/opencode"
+    chmod 755 "${INSTALL_DIR}/opencode"
+}
+
+setup_heidi_plugin() {
+    local cwd="$PWD"
+    XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-$HOME/.config}
+    OPENCODE_CONFIG_DIR="$XDG_CONFIG_HOME/opencode"
+    PLUGIN_ROOT="$OPENCODE_CONFIG_DIR/plugins"
+    PLUGIN_PATH="$PLUGIN_ROOT/oh-my-opencode"
+    CONFIG="$OPENCODE_CONFIG_DIR/opencode.json"
+
+    mkdir -p "$PLUGIN_ROOT"
+
+    if [ ! -d "$PLUGIN_PATH/.git" ]; then
+        print_message info "Cloning oh-my-opencode..."
+        git clone https://github.com/heidi-dang/oh-my-opencode "$PLUGIN_PATH"
+    else
+        print_message info "Updating oh-my-opencode..."
+        cd "$PLUGIN_PATH"
+        git fetch origin
+        git checkout main
+        git pull origin main
+    fi
+
+    cd "$PLUGIN_PATH"
+    if command -v bun >/dev/null 2>&1; then
+        bun install
+        bun run build
+    else
+        npm install
+        npm run build
+    fi
+
+    mkdir -p "$OPENCODE_CONFIG_DIR"
+    if [ ! -f "$CONFIG" ]; then
+        cat > "$CONFIG" << 'EOF'
+{
+  "$schema": "https://opencode.ai/config.json",
+  "openhei": {
+    "globalModelPolicy": true
+  },
+  "plugin": []
+}
+EOF
+    fi
+
+    if ! command -v jq >/dev/null 2>&1; then
+        echo -e "${RED}Error: jq is required to update ${CONFIG}${NC}"
+        exit 1
+    fi
+
+    print_message info "Registering local oh-my-opencode plugin"
+    jq --arg p "$PLUGIN_PATH" '.openhei = ((.openhei // {}) + {"globalModelPolicy": true}) | .plugin = [$p]' "$CONFIG" > "$CONFIG.tmp"
+    mv "$CONFIG.tmp" "$CONFIG"
+
+    cd "$cwd"
+
+    if [ -d "$PLUGIN_PATH" ]; then
+        print_message info "oh-my-opencode installed from GitHub main"
+        return
+    fi
+
+    echo -e "${RED}ERROR: plugin install failed${NC}"
+    exit 1
+}
+
 if [ -n "$binary_path" ]; then
     install_from_binary
-else
+elif [ "$local_repo" != "true" ]; then
     check_version
     download_and_install
 fi
 
 # Create config for --heidi-dang flag
 if [ "$heidi_dang" = "true" ]; then
-    XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-$HOME/.config}
-    OPENCODE_CONFIG_DIR="$XDG_CONFIG_HOME/opencode"
-    mkdir -p "$OPENCODE_CONFIG_DIR"
-    
-    config_file="$OPENCODE_CONFIG_DIR/opencode.json"
-    
-    if [ ! -f "$config_file" ]; then
-        cat > "$config_file" << 'EOF'
-{
-  "$schema": "https://opencode.ai/config.json",
-  "openhei": {
-    "globalModelPolicy": true
-  },
-  "plugin": ["oh-my-opencode", "openhei-global-model-policy"]
-}
-EOF
-        print_message info "${MUTED}Created config at ${NC}$config_file"
-    else
-        print_message info "${MUTED}Config already exists at ${NC}$config_file"
-    fi
+    setup_heidi_plugin
+fi
+
+if [ "$local_repo" = "true" ]; then
+    install_from_local_repo
 fi
 
 add_to_path() {
