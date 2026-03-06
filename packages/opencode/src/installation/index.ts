@@ -193,6 +193,13 @@ export namespace Installation {
     await $`${process.execPath} --version`.nothrow().quiet().text()
   }
 
+  export const Provenance = {
+    REPO_URL: typeof OPENCODE_REPO_URL === "string" ? OPENCODE_REPO_URL : "unknown",
+    COMMIT_SHA: typeof OPENCODE_COMMIT_SHA === "string" ? OPENCODE_COMMIT_SHA : "unknown",
+    BRANCH: typeof OPENCODE_BRANCH === "string" ? OPENCODE_BRANCH : "unknown",
+    BUILD_TIME_UTC: typeof OPENCODE_BUILD_TIME === "string" ? OPENCODE_BUILD_TIME : "unknown",
+  }
+
   export const VERSION = typeof OPENCODE_VERSION === "string" ? OPENCODE_VERSION : "local"
   export const CHANNEL = typeof OPENCODE_CHANNEL === "string" ? OPENCODE_CHANNEL : "local"
   export const COMMIT_SHA = Provenance.COMMIT_SHA !== "unknown" ? Provenance.COMMIT_SHA.substring(0, 7) : ""
@@ -263,13 +270,6 @@ export namespace Installation {
         return res.json()
       })
       .then((data: any) => data.tag_name.replace(/^v/, ""))
-  }
-
-  export const Provenance = {
-    REPO_URL: typeof OPENCODE_REPO_URL === "string" ? OPENCODE_REPO_URL : "unknown",
-    COMMIT_SHA: typeof OPENCODE_COMMIT_SHA === "string" ? OPENCODE_COMMIT_SHA : "unknown",
-    BRANCH: typeof OPENCODE_BRANCH === "string" ? OPENCODE_BRANCH : "unknown",
-    BUILD_TIME_UTC: typeof OPENCODE_BUILD_TIME === "string" ? OPENCODE_BUILD_TIME : "unknown",
   }
 
   export function getProvenance() {
