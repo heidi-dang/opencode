@@ -10,8 +10,5 @@
   line-height: inherit;
   box-sizing: border-box;
 
-  &:focus {
-    outline: none;
-    box-shadow: var(--inline-input-shadow, 0 0 0 1px var(--border-interactive-focus));
-  }
+  &:focus {\n    outline: none;\n    box-shadow: var(--glow-focus);\n    box-shadow: var(--inline-input-shadow, var(--glow-focus));\n  }
 }

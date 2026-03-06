@@ -345,6 +345,8 @@ def main() -> None:
     results.append(check_default_model())
     results.append(check_installer_gate())
     results.append(check_typecheck())
+    from tools.check_ui_glow_polish import check_ui_glow_polish
+    results.append(check_ui_glow_polish())
 
     if args.full:
         results.append(check_app_build())

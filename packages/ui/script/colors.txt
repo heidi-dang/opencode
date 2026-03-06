@@ -232,3 +232,8 @@
 --border-weaker-focus: var(--smoke-light-alpha-6);
 --button-ghost-hover: var(--smoke-light-alpha-2);
 --button-ghost-hover2: var(--smoke-light-alpha-3);
+--glow-primary: #a8c0ff26;
+--glow-selection: #a8c0ff40;
+--glow-input-focus: #a8c0ff40;
+--aurora-start: var(--background-base);
+--aurora-end: var(--background-weak);
