@@ -64,7 +64,6 @@ assert_clean_gitignore_junk() {
   # Block common junk from being committed.
   local junk=(
     "_doctor"
-    ".opencode"
     "__pycache__"
   )
   local bad=0
@@ -257,6 +256,8 @@ main() {
     die "Working tree not clean. Commit or stash changes before running PR.sh."
   fi
 
+  trap 'rm -f .pr_doctor_tail.txt .pr_build_tail.txt || true' EXIT
+
   assert_clean_gitignore_junk
   assert_has_diff_vs_base "$base"
 
@@ -265,9 +266,6 @@ main() {
 
   push_branch
   create_or_update_pr "$base"
-
-  # Cleanup
-  rm -f .pr_doctor_tail.txt .pr_build_tail.txt || true
 }
 
 main "$@"
