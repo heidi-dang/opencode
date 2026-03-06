@@ -233,6 +233,13 @@ export namespace Config {
 
     result.plugin = deduplicatePlugins(result.plugin ?? [])
 
+    if (result.openhei?.globalModelPolicy && result.model) {
+      Object.entries(result.agent || {}).forEach(([name, agent]) => {
+        agent.model = result.model
+      })
+      log.info("Applied global model policy")
+    }
+
     return {
       config: result,
       directories,
@@ -1145,6 +1152,11 @@ export namespace Config {
             .min(0)
             .optional()
             .describe("Token buffer for compaction. Leaves enough window to avoid overflow during compaction."),
+        })
+        .optional(),
+      openhei: z
+        .object({
+          globalModelPolicy: z.boolean().optional().describe("Enable global model policy for OpenHei"),
         })
         .optional(),
       experimental: z

@@ -9,7 +9,7 @@ NC='\033[0m' # No Color
 
 usage() {
     cat <<EOF
-OpenHei Installer
+OpenCode Installer
 
 Usage: install.sh [options]
 
@@ -18,7 +18,7 @@ Options:
     -v, --version <version> Install a specific version (e.g., 1.0.180)
     -b, --binary <path>     Install from a local binary instead of downloading
         --no-modify-path    Don't modify shell config files (.zshrc, .bashrc, etc.)
-        --heidi-dang        Initialize OpenHei config with xAI Grok defaults (~/.opencode/opencode.jsonc)
+        --heidi-dang        Create openhei branding config with global model policy
 
 Examples:
     curl -fsSL https://opencode.ai/install | bash
@@ -365,40 +365,29 @@ else
     download_and_install
 fi
 
-# Initialize OpenCode config with defaults if --heidi-dang and missing
-if [[ "$heidi_dang" == "true" ]]; then
-    CONFIG_DIR="$HOME/.opencode"
-    mkdir -p "$CONFIG_DIR"
+# Create config for --heidi-dang flag
+if [ "$heidi_dang" = "true" ]; then
+    XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-$HOME/.config}
+    OPENCODE_CONFIG_DIR="$XDG_CONFIG_HOME/opencode"
+    mkdir -p "$OPENCODE_CONFIG_DIR"
     
-    CONFIG_FILE="$CONFIG_DIR/opencode.jsonc"
-    if [ ! -f "$CONFIG_FILE" ]; then
-        print_message info "\n${MUTED}Initializing ${NC}OpenHei config ${MUTED}at ${NC}$CONFIG_FILE"
-        cat > "$CONFIG_FILE" << 'EOF'
+    config_file="$OPENCODE_CONFIG_DIR/opencode.json"
+    
+    if [ ! -f "$config_file" ]; then
+        cat > "$config_file" << 'EOF'
 {
   "$schema": "https://opencode.ai/config.json",
-  "model": "xai/grok-2",
-  "provider": {
-    "xai": {
-      "apiKey": "${XAI_API_KEY}",
-      "baseURL": "https://api.x.ai/v1"
-    }
+  "openhei": {
+    "globalModelPolicy": true
   },
-  "agent": {
-    "sisyphus": {
-      "model": "xai/grok-2",
-      "description": "Sisyphus agent for intensive code generation",
-      "mode": "subagent"
-    }
-  },
-  "plugin": []
+  "plugin": ["oh-my-opencode", "openhei-global-model-policy"]
 }
 EOF
-        print_message info "${MUTED}Config created. Set ${NC}XAI_API_KEY${MUTED} environment variable.${NC}"
+        print_message info "${MUTED}Created config at ${NC}$config_file"
     else
-        print_message info "${MUTED}Config already exists at ${NC}$CONFIG_FILE"
+        print_message info "${MUTED}Config already exists at ${NC}$config_file"
     fi
 fi
-
 
 add_to_path() {
     local config_file=$1
