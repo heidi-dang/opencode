@@ -224,7 +224,8 @@ EOF
     --title "$PR_TITLE" \
     --body "$body"
 
-  grn "PR created."
+  PR_URL=$(gh pr view --json url --jq .url)
+  echo "PR opened: $PR_URL"
   gh pr view "$br" --repo heidi-dang/opencode --json url,number,headRefName,baseRefName --jq '{url,number,headRefName,baseRefName}'
 }
 
