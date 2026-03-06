@@ -28,3 +28,10 @@ opencode-dev
 logs/
 *.bun-build
 tsconfig.tsbuildinfo
+
+# Local assistant artifacts
+_doctor/
+tools/_doctor/
+__pycache__/
+**/__pycache__/
+*.pyc
