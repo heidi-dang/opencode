@@ -34,6 +34,8 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
       }
     }
 
+    let _model: any
+
     const agent = iife(() => {
       const agents = createMemo(() => sync.data.agent.filter((x) => x.mode !== "subagent" && !x.hidden))
       const visibleAgents = createMemo(() => sync.data.agent.filter((x) => !x.hidden))
@@ -54,7 +56,17 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
       ])
       return {
         list() {
-          return agents()
+          const base = agents()
+          if ((sync.data.config as any).openhei?.globalModelPolicy && _model) {
+            const parsed = _model.parsed()
+            const suffix = ` (${parsed.provider}/${parsed.model})`
+            return base.map((a) => ({
+              ...a,
+              title: a.name + suffix,
+              description: (a.description || "") + suffix,
+            }))
+          }
+          return base
         },
         current() {
           return agents().find((x) => x.name === agentStore.current)!
@@ -401,6 +413,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
       agent,
       mcp,
     }
+    _model = model
     return result
   },
 })

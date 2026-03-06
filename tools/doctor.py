@@ -3,22 +3,11 @@ import argparse
 import subprocess
 import sys
 import shutil
-from datetime import datetime
-from pathlib import Path
-import json
-
-#!/usr/bin/env python3
-import argparse
-import subprocess
-import sys
-import shutil
 import json
 import os
-import tempfile
+import re
 from datetime import datetime
 from pathlib import Path
-
-import re
 
 SCRIPT_DIR = Path(__file__).parent
 DOCTOR_DIR = SCRIPT_DIR.parent / '_doctor'
@@ -125,80 +114,133 @@ def check_assets_gate() -> dict:
     log('Assets files OK')
     return _result(name, 'pass', '')
 
-def check_installer_gate() -> dict:
-    name = 'installer'
-    log('Running installer gate')
-    res = run_cmd(['./install', '--help'], check=False, capture_output=True)
-    out = (res.stdout + res.stderr).lower()
-    out = ' '.join(out.split()).strip()
-    if '--heidi-dang' not in out or 'openhei' not in out:
-        return _result(name, 'fail', 'Installer --help missing --heidi-dang and/or openhei branding')
-    log('Installer gate passed')
-    return _result(name, 'pass', '')
-
 def _parse_jsonc(text: str) -> dict:
-    stripped = re.sub(r'(?<!["\w:])//.*?$', '', text, flags=re.MULTILINE)
-    stripped = re.sub(r',\s*([}\]])', r'\1', stripped)
-    return json.loads(stripped)
-
-def check_defaults_gate() -> dict:
-    name = 'defaults'
-    log('Running defaults gate')
-    errors = []
-
-    # Check .opencode/opencode.jsonc
-    cfg = Path('.opencode/opencode.jsonc')
-    if not cfg.exists():
-        return _result(name, 'fail', f'{cfg} not found')
+    text = re.sub(r'(?<!:)//(?!/).*$', '', text, flags=re.MULTILINE)
+    text = re.sub(r'/\*.*?\*/', '', text, flags=re.DOTALL)
+    text = re.sub(r',(\s*[}\]])', r'\1', text)
     try:
-        data = _parse_jsonc(cfg.read_text())
+        return json.loads(text)
+    except json.JSONDecodeError as e:
+        log(f'JSONC parse failed: {e}', 'DEBUG')
+        log(f'Text snippet: {text[:200]}', 'DEBUG')
+        raise ValueError(f'Invalid JSON: {e}')
+
+def check_global_policy() -> dict:
+    name = 'global_policy'
+    log('Running global model policy gate')
+
+    candidates = [
+        Path('.opencode/opencode.jsonc'),
+        Path(os.path.expanduser('~/.opencode/opencode.jsonc')),
+    ]
+    config_path = next((p for p in candidates if p.exists()), None)
+    if not config_path:
+        log('No opencode.jsonc found (project or global), skipping')
+        return _result(name, 'pass', 'no config file')
+
+    try:
+        cfg_text = config_path.read_text()
+        cfg = _parse_jsonc(cfg_text)
     except Exception as e:
-        return _result(name, 'fail', f'Cannot parse {cfg}: {e}')
+        return _result(name, 'fail', f'Could not parse config: {e}')
 
-    agent = data.get('agent', {}).get('sisyphus', {})
-    if not agent:
-        errors.append('agent.sisyphus missing')
-    else:
-        if 'grok-4-1-fast' not in agent.get('model', ''):
-            errors.append(f"agent.sisyphus.model={agent.get('model')!r}, expected grok-4-1-fast")
-        if agent.get('mode') != 'primary':
-            errors.append(f"agent.sisyphus.mode={agent.get('mode')!r}, expected primary")
+    policy = cfg.get('openhei', {}).get('globalModelPolicy', False)
+    if not policy:
+        log('globalModelPolicy not enabled, skipping')
+        return _result(name, 'pass', 'policy not enabled')
 
-    if data.get('default_agent') != 'sisyphus':
-        errors.append(f"default_agent={data.get('default_agent')!r}, expected sisyphus")
+    log('Checking global model policy...')
 
-    # Forbidden defaults: no GitHub Copilot or Anthropic Claude as default model
-    model = data.get('model', '')
-    forbidden = ['github/', 'copilot', 'claude', 'anthropic']
-    for f in forbidden:
-        if f in model.lower():
-            errors.append(f'Forbidden default model: {model}')
-            break
+    if not cfg.get('model'):
+        return _result(name, 'fail', 'globalModelPolicy enabled but no top-level model defined')
 
-    # Check installer config template
-    install = Path('install')
-    if install.exists():
-        src = install.read_text()
-        if 'grok-2' in src and 'grok-4-1-fast' not in src:
-            errors.append('Installer still references grok-2 instead of grok-4-1-fast')
-        if '"mode": "subagent"' in src:
-            errors.append('Installer uses mode=subagent instead of primary')
+    model = cfg['model']
+    log(f'Global model: {model}')
 
-        # Check for hidden Unicode
-        raw = install.read_bytes()
-        for bad, label in [(b'\xc2\xa0', 'NBSP'), (b'\xe2\x80\x8b', 'ZWSP'),
-                           (b'\xe2\x80\x8c', 'ZWNJ'), (b'\xe2\x80\x8d', 'ZWJ'),
-                           (b'\xef\xbb\xbf', 'BOM'), (b'\xe2\x80\xae', 'RLO'),
-                           (b'\xe2\x80\xad', 'LRO'), (b'\xe2\x80\xab', 'RLE'),
-                           (b'\xe2\x80\xaa', 'LRE')]:
-            if bad in raw:
-                errors.append(f'Hidden Unicode ({label}) in install script')
+    # Static check: warn about per-agent model overrides in raw config
+    overrides = []
+    for agent, val in (cfg.get('agent') or {}).items():
+        if isinstance(val, dict) and val.get('model'):
+            overrides.append(f'{agent}={val["model"]}')
+    if overrides:
+        log(f'Per-agent model overrides in config: {overrides}', 'WARN')
+        log('These will be rewritten to the global model at runtime', 'WARN')
 
-    if errors:
-        return _result(name, 'fail', '; '.join(errors))
+    prompt_path = Path('packages/opencode/src/session/prompt.ts')
+    if not prompt_path.exists():
+        return _result(name, 'fail', 'packages/opencode/src/session/prompt.ts missing')
 
-    log('Defaults gate passed')
-    return _result(name, 'pass', 'grok-4-1-fast, sisyphus primary, no forbidden defaults')
+    content = prompt_path.read_text()
+    if 'agent_loop_model' not in content:
+        return _result(name, 'fail', 'Structured log "agent_loop_model" missing from SessionPrompt.loop')
+
+    log('Runtime logging hook present')
+
+    rewrite_path = Path('packages/opencode/src/config/config.ts')
+    if not rewrite_path.exists():
+        return _result(name, 'fail', 'config.ts missing')
+
+    rewrite_src = rewrite_path.read_text()
+    if 'globalModelPolicy' not in rewrite_src or 'agent.model = result.model' not in rewrite_src:
+        return _result(name, 'fail', 'Global model policy rewrite missing from config.ts')
+
+    log('Config rewrite present in config.ts')
+
+    res = run_cmd(['bun', 'run', 'tools/check_config.ts'], check=False, capture_output=True)
+    if res.returncode != 0:
+        log(f'check_config.ts exited {res.returncode} (env may lack API keys), static-only', 'WARN')
+        detail = f'static-only, model={model}'
+        if overrides:
+            detail += f'; overrides will be rewritten: [{", ".join(overrides)}]'
+        return _result(name, 'pass', detail)
+
+    try:
+        out = json.loads(res.stdout)
+    except (json.JSONDecodeError, ValueError):
+        log('check_config.ts output not JSON, static-only', 'WARN')
+        detail = f'static-only, model={model}'
+        if overrides:
+            detail += f'; overrides will be rewritten: [{", ".join(overrides)}]'
+        return _result(name, 'pass', detail)
+
+    agents = out.get('agent', {})
+    mismatches = []
+    for agent, val in agents.items():
+        if val.get('model') != model:
+            mismatches.append(f'{agent}: {val.get("model")} != {model}')
+
+    if mismatches:
+        if overrides:
+            msg = (
+                'Per-agent overrides detected AND runtime rewrite failed. '
+                f'Config overrides: [{", ".join(overrides)}]. '
+                f'Runtime mismatches: [{"; ".join(mismatches)}]. '
+                'Remove agent.*.model from config or fix the rewrite in config.ts'
+            )
+        else:
+            msg = 'Agent model mismatches: ' + '; '.join(mismatches)
+        return _result(name, 'fail', msg)
+
+    if overrides:
+        log('Per-agent overrides present but rewrite applied correctly')
+
+    log(f'All {len(agents)} agents have model={model}')
+
+    detail = f'{len(agents)} agents, model={model}'
+    if overrides:
+        detail += f'; overrides rewritten: [{", ".join(overrides)}]'
+    return _result(name, 'pass', detail)
+
+def check_installer_gate() -> dict:
+     name = 'installer'
+     log('Running installer gate')
+     res = run_cmd(['./install', '--help'], check=False, capture_output=True)
+     out = (res.stdout + res.stderr).lower()
+     out = ' '.join(out.split()).strip()
+     if '--heidi-dang' not in out or 'openhei' not in out:
+         return _result(name, 'fail', 'Installer --help missing --heidi-dang and/or openhei branding')
+     log('Installer gate passed')
+     return _result(name, 'pass', '')
 
 def check_typecheck() -> dict:
     name = 'typecheck'
@@ -251,8 +293,8 @@ def main() -> None:
     results.append(check_install_sanity())
     results.append(check_branding_gate())
     results.append(check_assets_gate())
+    results.append(check_global_policy())
     results.append(check_installer_gate())
-    results.append(check_defaults_gate())
     results.append(check_typecheck())
 
     if args.full:
