@@ -347,6 +347,7 @@ def main() -> None:
     results.append(check_typecheck())
     from tools.check_ui_glow_polish import check_ui_glow_polish
     results.append(check_ui_glow_polish())
+    results.append(check_copilot_toolbox())
 
     if args.full:
         results.append(check_app_build())
@@ -373,6 +374,33 @@ def main() -> None:
     log('All checks passed')
     log(f'Structured log: {STRUCTURED_FILE}')
     sys.exit(0)
+
+def check_copilot_toolbox() -> dict:
+    name = 'copilot_toolbox'
+    log('Running Copilot Toolbox gates')
+    
+    files = [
+        Path('docs/implementation-copilot-toolbox.md'),
+        Path('packages/opencode/src/services/copilot-usage.ts'),
+        Path('packages/opencode/src/provider/models.ts'),
+        Path('packages/opencode/src/server/routes/global.ts'),
+        Path('packages/app/src/context/copilot.tsx'),
+    ]
+    missing = [f for f in files if not f.exists()]
+    if missing:
+        return _result(name, 'fail', f'Missing files: {missing}')
+    
+    models_path = Path('packages/opencode/src/provider/models.ts')
+    content = models_path.read_text()
+    if 'copilotMultipliers' not in content:
+        return _result(name, 'fail', 'copilotMultipliers map missing from models.ts')
+    
+    res = run_cmd(['bun', 'turbo', 'typecheck', '--filter=opencode...'], check=False, cwd=Path('.'))
+    if res.returncode != 0:
+        return _result(name, 'fail', f'typecheck failed: {res.stdout[:200]}')
+    
+    log('Copilot Toolbox backend gates passed')
+    return _result(name, 'pass', 'files/service/multipliers/typecheck OK')
 
 if __name__ == '__main__':
     main()
