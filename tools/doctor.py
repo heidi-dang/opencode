@@ -117,8 +117,8 @@ def check_assets_gate() -> dict:
         data = json.loads(mf.read_text())
     except Exception as e:
         return _result(name, 'fail', f'Could not read manifest: {e}')
-    if data.get('name') != 'OpenHei':
-        return _result(name, 'fail', f'Manifest name "{data.get("name")}" != "OpenHei"')
+    if data.get('name') != 'OpenCode':
+        return _result(name, 'fail', f'Manifest name "{data.get("name")}" != "OpenCode"')
     icons = [
         ui_ass / 'favicon' / 'web-app-manifest-192x192.png',
         ui_ass / 'favicon' / 'web-app-manifest-512x512.png',
@@ -162,7 +162,7 @@ def check_global_policy() -> dict:
     except Exception as e:
         return _result(name, 'fail', f'Could not parse config: {e}')
 
-    policy = cfg.get('openhei', {}).get('globalModelPolicy', False)
+    policy = cfg.get('opencode', {}).get('globalModelPolicy', False)
     if not policy:
         log('globalModelPolicy not enabled, skipping')
         return _result(name, 'pass', 'policy not enabled')
@@ -284,8 +284,8 @@ def check_installer_gate() -> dict:
      res = run_cmd(['./install', '--help'], check=False, capture_output=True)
      out = (res.stdout + res.stderr).lower()
      out = ' '.join(out.split()).strip()
-     if '--heidi-dang' not in out or 'openhei' not in out:
-         return _result(name, 'fail', 'Installer --help missing --heidi-dang and/or openhei branding')
+     if '--heidi-dang' not in out or 'opencode' not in out:
+         return _result(name, 'fail', 'Installer --help missing --heidi-dang and/or opencode branding')
      log('Installer gate passed')
      return _result(name, 'pass', '')
 
@@ -345,7 +345,10 @@ def main() -> None:
     results.append(check_default_model())
     results.append(check_installer_gate())
     results.append(check_typecheck())
-    from tools.check_ui_glow_polish import check_ui_glow_polish
+    try:
+        from .check_ui_glow_polish import check_ui_glow_polish
+    except ImportError:
+        from check_ui_glow_polish import check_ui_glow_polish
     results.append(check_ui_glow_polish())
     results.append(check_copilot_toolbox())
 

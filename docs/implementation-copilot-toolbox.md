@@ -10,14 +10,9 @@
 ## Frontend Injection Point
 
 **Note**: No 'Model' tab found in sidebar (sidebar-shell.tsx icons: projects/settings/help). Models in settings-models.tsx/dialog-select-model.tsx.
-**Proposal**: Add Copilot icon/tab in sidebar-shell.tsx icons array after settings-gear:
+**Status**: Implemented PR #13 - Models header + Copilot chart-bar tab (sidebar-shell.tsx post-projects, Cmd+K tooltip). Opens DialogCopilotUsage.
 
-```tsx
-// sidebar-shell.tsx ~line 82
-{icon: 'copilot', label: 'Copilot', onClick: () => setActiveTab('copilot'), component: CopilotPanel}
-```
-
-Alternative: settings-models.tsx sub-section 'Copilot Usage'.
+settings-models.tsx subtab preserved (user unstaged).
 
 ## Backend Data Sources
 
@@ -112,8 +107,8 @@ Plans: Free=50, Pro=300, Pro+=1500 premium units/mo, reset 1st 00:00 UTC, overag
 2. packages/opencode/src/services/copilot-usage.ts (new service)
 3. packages/opencode/src/provider/models.ts (+catalog)
 4. packages/opencode/src/session/llm.ts (+local tracking)
-5. packages/app/src/components/sidebar-shell.tsx (+Copilot icon/tab)
-6. packages/app/src/components/copilot-panel.tsx (new, 5 sections)
+5. packages/app/src/pages/layout/sidebar-shell.tsx (PR #13 - Models tab)
+6. packages/app/src/components/dialog-copilot-usage.tsx (surface - data-driven 6 sections: account/usage/model/session/diagnostics)
 7. tools/doctor.py (+check_copilot_toolbox)
 8. packages/app/e2e/copilot-toolbox.spec.ts (new tests)
 9. packages/opencode/test/services/copilot-usage.test.ts (unit)

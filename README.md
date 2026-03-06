@@ -1,13 +1,13 @@
 <p align="center">
   <a href="https://github.com/heidi-dang/opencode">
-    <img src="docs/brand/openhei-logo.svg" alt="OpenHei logo" height="80">
+    <img src="docs/brand/opencode-logo.svg" alt="OpenCode logo" height="80">
   </a>
 </p>
 
-<p align="center">OpenHei: OpenCode derivative with custom branding/doctor gates.</p>
+<p align="center">OpenCode: OpenCode derivative with custom branding/doctor gates.</p>
 
 <p align="center">
-  <a href="https://discord.gg/openhei"><img alt="Discord" src="https://img.shields.io/discord/1391832426048651334?style=flat-square&label=discord" /></a>
+  <a href="https://discord.gg/opencode"><img alt="Discord" src="https://img.shields.io/discord/1391832426048651334?style=flat-square&label=discord" /></a>
 </p>
 
 ---
@@ -19,9 +19,9 @@
 ### Installation
 
 ```bash
-./install --heidi-dang  # OpenHei config (policy + plugin)
+./install --heidi-dang  # OpenCode config (policy + plugin)
 
-npm i -g openhei@latest # or bun/pnpm/yarn
+npm i -g opencode@latest # or bun/pnpm/yarn
 ```
 
 ### Building from Source
@@ -47,4 +47,4 @@ Logs: tools/\_doctor/latest/ (untracked).
 
 MIT [LICENSE](./LICENSE)
 
-**Community**: [Discord](https://discord.gg/openhei)
+**Community**: [Discord](https://discord.gg/opencode)

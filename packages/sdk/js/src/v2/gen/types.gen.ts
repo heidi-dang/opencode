@@ -1474,9 +1474,9 @@ export type Config = {
      */
     reserved?: number
   }
-  openhei?: {
+  opencode?: {
     /**
-     * Enable global model policy for OpenHei
+     * Enable global model policy for OpenCode
      */
     globalModelPolicy?: boolean
   }

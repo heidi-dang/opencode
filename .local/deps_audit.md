@@ -1,4 +1,4 @@
-# Dependency Audit - OpenHei Fork
+# Dependency Audit - OpenCode Fork
 
 ## Workspace Inventory
 

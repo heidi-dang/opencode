@@ -57,7 +57,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
       return {
         list() {
           const base = agents()
-          if ((sync.data.config as any).openhei?.globalModelPolicy && _model) {
+          if ((sync.data.config as any).opencode?.globalModelPolicy && _model) {
             const parsed = _model.parsed()
             const suffix = ` (${parsed.provider}/${parsed.model})`
             return base.map((a) => ({
