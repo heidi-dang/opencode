@@ -1,4 +1,5 @@
 import { createMemo, For, Show, type Accessor, type JSX } from "solid-js"
+import { Icon } from "@opencode-ai/ui/icon"
 import {
   DragDropProvider,
   DragDropSensors,
@@ -58,6 +59,27 @@ export const SidebarContent = (props: {
               <SortableProvider ids={props.projects().map((p) => p.worktree)}>
                 <For each={props.projects()}>{(project) => props.renderProject(project)}</For>
               </SortableProvider>
+              <div class="w-full px-3 py-2">
+                <div class="flex items-center gap-2 text-12-medium text-text-weak mb-1">
+                  <Icon name="model" class="size-3" />
+                  <span>Models</span>
+                </div>
+                <TooltipKeybind
+                  placement={placement()}
+                  title={props.copilotLabel()}
+                  keybind={props.copilotKeybind() ?? ""}
+                >
+                  <IconButton
+                    icon="chart-bar"
+                    variant="ghost"
+                    size="large"
+                    onClick={props.onOpenCopilot}
+                    class="w-full justify-start"
+                    aria-label={props.copilotLabel()}
+                    data-testid="copilot-tab"
+                  />
+                </TooltipKeybind>
+              </div>
               <Tooltip
                 placement={placement()}
                 value={
@@ -91,16 +113,7 @@ export const SidebarContent = (props: {
               aria-label={props.settingsLabel()}
             />
           </TooltipKeybind>
-          <TooltipKeybind placement={placement()} title={props.copilotLabel()} keybind={props.copilotKeybind() ?? ""}>
-            <IconButton
-              icon="chart-bar"
-              variant="ghost"
-              size="large"
-              onClick={props.onOpenCopilot}
-              aria-label={props.copilotLabel()}
-              data-testid="copilot-icon"
-            />
-          </TooltipKeybind>
+
           <Tooltip placement={placement()} value={props.helpLabel()}>
             <IconButton
               icon="help"
