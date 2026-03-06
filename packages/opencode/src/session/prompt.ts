@@ -345,6 +345,13 @@ export namespace SessionPrompt {
         }
         throw e
       })
+      log.info("agent_loop_model", {
+        agent: lastUser.agent,
+        modelID: model.id,
+        providerID: model.providerID,
+        sessionID,
+        step,
+      })
       const task = tasks.pop()
 
       // pending subtask

@@ -8,10 +8,10 @@ export function DialogAgent() {
   const dialog = useDialog()
 
   const options = createMemo(() =>
-    local.agent.list().map((item) => {
+    local.agent.list().map((item: any) => {
       return {
         value: item.name,
-        title: item.name,
+        title: item.title ?? item.name,
         description: item.native ? "native" : item.description,
       }
     }),
