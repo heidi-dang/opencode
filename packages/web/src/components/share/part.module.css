@@ -162,7 +162,11 @@
       background: transparent;
       box-shadow: 0 0 18px rgba(50, 120, 255, 0.10);
       pointer-events: none;
-      z-index: -1;
+      /* keep the glow visible outside the card but not covering the border/content */
+      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      z-index: 0;
     }
 
     [data-component="assistant-reasoning-markdown"]::after {
@@ -183,7 +187,11 @@
       pointer-events: none;
       filter: blur(10px);
       opacity: 0.9;
-      z-index: -1;
+      /* show sweep outside the content-box so it doesn't obscure the border */
+      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      z-index: 0;
     }
 
     [data-component="assistant-reasoning-markdown"]:hover,
@@ -230,7 +238,10 @@
       background: transparent;
       box-shadow: 0 0 18px rgba(50, 120, 255, 0.10);
       pointer-events: none;
-      z-index: -1;
+      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      z-index: 0;
     }
 
     & > [data-component="assistant-text-markdown"]::after {
@@ -251,7 +262,17 @@
       pointer-events: none;
       filter: blur(10px);
       opacity: 0.9;
-      z-index: -1;
+      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      z-index: 0;
+    }
+
+    /* ensure inner content renders above the sweep */
+    & > [data-component="assistant-text-markdown"] > *,
+    [data-component="assistant-reasoning-markdown"] > * {
+      position: relative;
+      z-index: 1;
     }
 
     & > [data-component="assistant-text-markdown"]:hover,
