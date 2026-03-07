@@ -143,6 +143,7 @@
       padding: 0.5rem calc(0.5rem + 3px);
       border-radius: 0.25rem;
       position: relative;
+      z-index: 0;
       background: rgba(6, 16, 28, 0.92);
       border: 1px solid rgba(90, 160, 255, 0.22);
       box-shadow:
@@ -157,21 +158,11 @@
       content: "";
       position: absolute;
       inset: 0;
-      padding: 1px;
       border-radius: inherit;
-      background:
-        linear-gradient(
-          135deg,
-          rgba(90, 160, 255, 0.10),
-          rgba(120, 200, 255, 0.42),
-          rgba(90, 160, 255, 0.10)
-        );
-      -webkit-mask:
-        linear-gradient(#000 0 0) content-box,
-        linear-gradient(#000 0 0);
-      -webkit-mask-composite: xor;
-      mask-composite: exclude;
+      background: transparent;
+      box-shadow: 0 0 18px rgba(50, 120, 255, 0.10);
       pointer-events: none;
+      z-index: -1;
     }
 
     [data-component="assistant-reasoning-markdown"]::after {
@@ -192,6 +183,7 @@
       pointer-events: none;
       filter: blur(10px);
       opacity: 0.9;
+      z-index: -1;
     }
 
     [data-component="assistant-reasoning-markdown"]:hover,
@@ -219,6 +211,7 @@
       padding: 0.5rem calc(0.5rem + 3px);
       border-radius: 0.25rem;
       position: relative;
+      z-index: 0;
       background: rgba(6, 16, 28, 0.92);
       border: 1px solid rgba(90, 160, 255, 0.22);
       box-shadow:
@@ -233,21 +226,11 @@
       content: "";
       position: absolute;
       inset: 0;
-      padding: 1px;
       border-radius: inherit;
-      background:
-        linear-gradient(
-          135deg,
-          rgba(90, 160, 255, 0.10),
-          rgba(120, 200, 255, 0.42),
-          rgba(90, 160, 255, 0.10)
-        );
-      -webkit-mask:
-        linear-gradient(#000 0 0) content-box,
-        linear-gradient(#000 0 0);
-      -webkit-mask-composite: xor;
-      mask-composite: exclude;
+      background: transparent;
+      box-shadow: 0 0 18px rgba(50, 120, 255, 0.10);
       pointer-events: none;
+      z-index: -1;
     }
 
     & > [data-component="assistant-text-markdown"]::after {
@@ -268,6 +251,7 @@
       pointer-events: none;
       filter: blur(10px);
       opacity: 0.9;
+      z-index: -1;
     }
 
     & > [data-component="assistant-text-markdown"]:hover,
