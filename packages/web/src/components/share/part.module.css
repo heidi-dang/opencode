@@ -140,10 +140,68 @@
     [data-component="assistant-reasoning-markdown"] {
       align-self: flex-start;
       font-size: 0.75rem;
-      border: 1px solid var(--sl-color-blue-high);
       padding: 0.5rem calc(0.5rem + 3px);
       border-radius: 0.25rem;
       position: relative;
+      background: rgba(6, 16, 28, 0.92);
+      border: 1px solid rgba(90, 160, 255, 0.22);
+      box-shadow:
+        0 0 0 1px rgba(120, 180, 255, 0.04) inset,
+        0 0 18px rgba(50, 120, 255, 0.10),
+        0 0 42px rgba(20, 80, 180, 0.08);
+      overflow: hidden;
+      isolation: isolate;
+    }
+
+    [data-component="assistant-reasoning-markdown"]::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      padding: 1px;
+      border-radius: inherit;
+      background:
+        linear-gradient(
+          135deg,
+          rgba(90, 160, 255, 0.10),
+          rgba(120, 200, 255, 0.42),
+          rgba(90, 160, 255, 0.10)
+        );
+      -webkit-mask:
+        linear-gradient(#000 0 0) content-box,
+        linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      pointer-events: none;
+    }
+
+    [data-component="assistant-reasoning-markdown"]::after {
+      content: "";
+      position: absolute;
+      inset: -30%;
+      border-radius: inherit;
+      background: linear-gradient(
+        115deg,
+        transparent 35%,
+        rgba(120, 200, 255, 0.00) 42%,
+        rgba(120, 200, 255, 0.18) 50%,
+        rgba(120, 200, 255, 0.00) 58%,
+        transparent 65%
+      );
+      transform: translateX(-35%);
+      animation: responseBorderSweep 3.8s linear infinite;
+      pointer-events: none;
+      filter: blur(10px);
+      opacity: 0.9;
+    }
+
+    [data-component="assistant-reasoning-markdown"]:hover,
+    [data-component="assistant-reasoning-markdown"][data-active="true"],
+    [data-component="assistant-reasoning-markdown"][data-streaming="true"] {
+      border-color: rgba(120, 190, 255, 0.34);
+      box-shadow:
+        0 0 0 1px rgba(130, 190, 255, 0.06) inset,
+        0 0 24px rgba(60, 130, 255, 0.16),
+        0 0 54px rgba(30, 100, 220, 0.12);
     }
   }
 
@@ -158,10 +216,68 @@
     & > [data-component="assistant-text-markdown"] {
       align-self: flex-start;
       font-size: 0.875rem;
-      border: 1px solid var(--sl-color-blue-high);
       padding: 0.5rem calc(0.5rem + 3px);
       border-radius: 0.25rem;
       position: relative;
+      background: rgba(6, 16, 28, 0.92);
+      border: 1px solid rgba(90, 160, 255, 0.22);
+      box-shadow:
+        0 0 0 1px rgba(120, 180, 255, 0.04) inset,
+        0 0 18px rgba(50, 120, 255, 0.10),
+        0 0 42px rgba(20, 80, 180, 0.08);
+      overflow: hidden;
+      isolation: isolate;
+    }
+
+    & > [data-component="assistant-text-markdown"]::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      padding: 1px;
+      border-radius: inherit;
+      background:
+        linear-gradient(
+          135deg,
+          rgba(90, 160, 255, 0.10),
+          rgba(120, 200, 255, 0.42),
+          rgba(90, 160, 255, 0.10)
+        );
+      -webkit-mask:
+        linear-gradient(#000 0 0) content-box,
+        linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      pointer-events: none;
+    }
+
+    & > [data-component="assistant-text-markdown"]::after {
+      content: "";
+      position: absolute;
+      inset: -30%;
+      border-radius: inherit;
+      background: linear-gradient(
+        115deg,
+        transparent 35%,
+        rgba(120, 200, 255, 0.00) 42%,
+        rgba(120, 200, 255, 0.18) 50%,
+        rgba(120, 200, 255, 0.00) 58%,
+        transparent 65%
+      );
+      transform: translateX(-35%);
+      animation: responseBorderSweep 3.8s linear infinite;
+      pointer-events: none;
+      filter: blur(10px);
+      opacity: 0.9;
+    }
+
+    & > [data-component="assistant-text-markdown"]:hover,
+    & > [data-component="assistant-text-markdown"][data-active="true"],
+    & > [data-component="assistant-text-markdown"][data-streaming="true"] {
+      border-color: rgba(120, 190, 255, 0.34);
+      box-shadow:
+        0 0 0 1px rgba(130, 190, 255, 0.06) inset,
+        0 0 24px rgba(60, 130, 255, 0.16),
+        0 0 54px rgba(30, 100, 220, 0.12);
     }
   }
 
@@ -424,5 +540,82 @@
       word-break: break-word;
       color: var(--sl-color-text-secondary);
     }
+  }
+}
+
+.model-response-card {
+  position: relative;
+  border-radius: 0.25rem;
+  background: rgba(6, 16, 28, 0.92);
+  border: 1px solid rgba(90, 160, 255, 0.22);
+  box-shadow:
+    0 0 0 1px rgba(120, 180, 255, 0.04) inset,
+    0 0 18px rgba(50, 120, 255, 0.10),
+    0 0 42px rgba(20, 80, 180, 0.08);
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.model-response-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background:
+    linear-gradient(
+      135deg,
+      rgba(90, 160, 255, 0.10),
+      rgba(120, 200, 255, 0.42),
+      rgba(90, 160, 255, 0.10)
+    );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+.model-response-card::after {
+  content: "";
+  position: absolute;
+  inset: -30%;
+  border-radius: inherit;
+  background: linear-gradient(
+    115deg,
+    transparent 35%,
+    rgba(120, 200, 255, 0.00) 42%,
+    rgba(120, 200, 255, 0.18) 50%,
+    rgba(120, 200, 255, 0.00) 58%,
+    transparent 65%
+  );
+  transform: translateX(-35%);
+  animation: responseBorderSweep 3.8s linear infinite;
+  pointer-events: none;
+  filter: blur(10px);
+  opacity: 0.9;
+}
+
+@keyframes responseBorderSweep {
+  0% { transform: translateX(-35%); }
+  100% { transform: translateX(35%); }
+}
+
+.model-response-card:hover,
+.model-response-card[data-active="true"],
+.model-response-card[data-streaming="true"] {
+  border-color: rgba(120, 190, 255, 0.34);
+  box-shadow:
+    0 0 0 1px rgba(130, 190, 255, 0.06) inset,
+    0 0 24px rgba(60, 130, 255, 0.16),
+    0 0 54px rgba(30, 100, 220, 0.12);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-component="assistant-text-markdown"]::after,
+  [data-component="assistant-reasoning-markdown"]::after {
+    animation: none;
+    opacity: 0.35;
   }
 }
