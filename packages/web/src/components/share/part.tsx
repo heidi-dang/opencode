@@ -139,7 +139,7 @@ export function Part(props: PartProps) {
         )}
         {props.message.role === "assistant" && props.part.type === "text" && (
           <div data-component="assistant-text">
-            <div data-component="assistant-text-markdown">
+            <div data-component="assistant-text-markdown" class={styles["model-response-card"]}>
               <ContentMarkdown expand={props.last} text={props.part.text} />
             </div>
             {props.last && props.message.role === "assistant" && props.message.time.completed && (
@@ -163,9 +163,9 @@ export function Part(props: PartProps) {
             <Show when={props.part.text}>
               <div data-component="assistant-reasoning">
                 <ResultsButton showCopy={messages.show_details} hideCopy={messages.hide_details}>
-                  <div data-component="assistant-reasoning-markdown">
-                    <ContentMarkdown expand text={props.part.text || messages.thinking_pending} />
-                  </div>
+                        <div data-component="assistant-reasoning-markdown" class={styles["model-response-card"]}>
+                          <ContentMarkdown expand text={props.part.text || messages.thinking_pending} />
+                        </div>
                 </ResultsButton>
               </div>
             </Show>
