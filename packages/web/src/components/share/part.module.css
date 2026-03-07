@@ -145,7 +145,7 @@
       position: relative;
       z-index: 0;
       background: rgba(6, 16, 28, 0.92);
-      border: 1px solid rgba(90, 160, 255, 0.22);
+      border: 1px solid rgba(90, 160, 255, 0.4);
       box-shadow:
         0 0 0 1px rgba(120, 180, 255, 0.04) inset,
         0 0 18px rgba(50, 120, 255, 0.10),
@@ -162,11 +162,7 @@
       background: transparent;
       box-shadow: 0 0 18px rgba(50, 120, 255, 0.10);
       pointer-events: none;
-      /* keep the glow visible outside the card but not covering the border/content */
-      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-      -webkit-mask-composite: xor;
-      mask-composite: exclude;
-      z-index: 0;
+      z-index: -1;
     }
 
     [data-component="assistant-reasoning-markdown"]::after {
@@ -197,7 +193,7 @@
     [data-component="assistant-reasoning-markdown"]:hover,
     [data-component="assistant-reasoning-markdown"][data-active="true"],
     [data-component="assistant-reasoning-markdown"][data-streaming="true"] {
-      border-color: rgba(120, 190, 255, 0.34);
+      border-color: rgba(120, 190, 255, 0.5);
       box-shadow:
         0 0 0 1px rgba(130, 190, 255, 0.06) inset,
         0 0 24px rgba(60, 130, 255, 0.16),
@@ -221,7 +217,7 @@
       position: relative;
       z-index: 0;
       background: rgba(6, 16, 28, 0.92);
-      border: 1px solid rgba(90, 160, 255, 0.22);
+      border: 1px solid rgba(90, 160, 255, 0.4);
       box-shadow:
         0 0 0 1px rgba(120, 180, 255, 0.04) inset,
         0 0 18px rgba(50, 120, 255, 0.10),
@@ -238,10 +234,7 @@
       background: transparent;
       box-shadow: 0 0 18px rgba(50, 120, 255, 0.10);
       pointer-events: none;
-      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-      -webkit-mask-composite: xor;
-      mask-composite: exclude;
-      z-index: 0;
+      z-index: -1;
     }
 
     & > [data-component="assistant-text-markdown"]::after {
@@ -278,7 +271,7 @@
     & > [data-component="assistant-text-markdown"]:hover,
     & > [data-component="assistant-text-markdown"][data-active="true"],
     & > [data-component="assistant-text-markdown"][data-streaming="true"] {
-      border-color: rgba(120, 190, 255, 0.34);
+      border-color: rgba(120, 190, 255, 0.5);
       box-shadow:
         0 0 0 1px rgba(130, 190, 255, 0.06) inset,
         0 0 24px rgba(60, 130, 255, 0.16),
