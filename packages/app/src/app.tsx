@@ -33,6 +33,7 @@ import { GlobalSyncProvider } from "@/context/global-sync"
 import { HighlightsProvider } from "@/context/highlights"
 import { LanguageProvider, useLanguage } from "@/context/language"
 import { LayoutProvider } from "@/context/layout"
+import { LiveRunProvider } from "@/context/run/provider"
 import { ModelsProvider } from "@/context/models"
 import { NotificationProvider } from "@/context/notification"
 import { PermissionProvider } from "@/context/permission"
@@ -114,7 +115,9 @@ function SessionProviders(props: ParentProps) {
     <TerminalProvider>
       <FileProvider>
         <PromptProvider>
-          <CommentsProvider>{props.children}</CommentsProvider>
+          <LiveRunProvider>
+            <CommentsProvider>{props.children}</CommentsProvider>
+          </LiveRunProvider>
         </PromptProvider>
       </FileProvider>
     </TerminalProvider>

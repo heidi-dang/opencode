@@ -16,6 +16,7 @@ import { PermissionNext } from "@/permission/next"
 import { Question } from "@/question"
 import { PartID } from "./schema"
 import type { SessionID, MessageID } from "./schema"
+import { Truncate } from "@/tool/truncation"
 
 export namespace SessionProcessor {
   const DOOM_LOOP_THRESHOLD = 3
@@ -181,12 +182,15 @@ export namespace SessionProcessor {
                 case "tool-result": {
                   const match = toolcalls[value.toolCallId]
                   if (match && match.state.status === "running") {
+                    // Use bounded capture to prevent unbounded output in message payload
+                    const bounded = await Truncate.boundedCapture(value.output.output)
+                    
                     await Session.updatePart({
                       ...match,
                       state: {
                         status: "completed",
                         input: value.input ?? match.state.input,
-                        output: value.output.output,
+                        output: bounded.preview,  // Bounded preview for message
                         metadata: value.output.metadata,
                         title: value.output.title,
                         time: {
@@ -194,6 +198,12 @@ export namespace SessionProcessor {
                           end: Date.now(),
                         },
                         attachments: value.output.attachments,
+                        // Bounded output metadata
+                        outputHasMore: bounded.hasMore,
+                        outputRef: bounded.ref,
+                        outputBytes: bounded.fullBytes,
+                        previewLines: bounded.previewLines,
+                        previewBytes: bounded.previewBytes,
                       },
                     })
 

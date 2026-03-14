@@ -1642,24 +1642,33 @@ ToolRegistry.register({
     const data = useData()
     const i18n = useI18n()
     const location = useLocation()
-    const childSessionId = () => props.metadata.sessionId as string | undefined
-    const modelID = () => (props.metadata as any)?.model?.modelID || "unknown"
-    const subagent = () => props.input.subagent_type || "sub"
-
-    const title = createMemo(() => `Call ${subagent()} sub agents (${modelID()})`)
-    const subtitle = createMemo(() => {
-      const value = props.input.description
-      if (typeof value === "string" && value) return value
-      return childSessionId()
+    // PERFORMANCE: Combine reactive computations to reduce overhead
+    const taskInfo = createMemo(() => {
+      const childId = props.metadata.sessionId as string | undefined
+      const modelId = (props.metadata as any)?.model?.modelID || "unknown"
+      const subagentType = props.input.subagent_type || "sub"
+      const isRunning = props.status === "pending" || props.status === "running"
+      
+      return {
+        childSessionId: childId,
+        modelID: modelId,
+        subagent: subagentType,
+        running: isRunning,
+        title: `Call ${subagentType} sub agents (${modelId})`,
+        subtitle: (() => {
+          const value = props.input.description
+          if (typeof value === "string" && value) return value
+          return childId
+        })()
+      }
     })
-    const running = createMemo(() => props.status === "pending" || props.status === "running")
 
     // PERFORMANCE: Limit array size to prevent memory leaks
     const MAX_MESSAGES = 1000
     const MAX_TOOLS = 500
     
     const messages = createMemo(() => {
-      const allMessages = data.store.message[childSessionId() ?? ""] ?? []
+      const allMessages = data.store.message[taskInfo().childSessionId ?? ""] ?? []
       return allMessages.slice(-MAX_MESSAGES)
     })
     
@@ -1675,7 +1684,7 @@ ToolRegistry.register({
 
     // PERFORMANCE: Combine current action computation
     const currentAction = createMemo(() => {
-      if (!running()) return undefined
+      if (!taskInfo().running) return undefined
       
       const lastTool = tools().findLast((x) => (x.state as any).title)
       if (lastTool) {
@@ -1693,9 +1702,9 @@ ToolRegistry.register({
       return undefined
     })
 
-    const href = createMemo(() => sessionLink(childSessionId(), location.pathname, data.sessionHref))
+    const href = createMemo(() => sessionLink(taskInfo().childSessionId, location.pathname, data.sessionHref))
 
-    const titleContent = () => <TextShimmer text={title()} active={running()} />
+    const titleContent = () => <TextShimmer text={taskInfo().title} active={taskInfo().running} />
 
     const trigger = () => (
       <div data-slot="basic-tool-tool-info-structured">
@@ -1710,7 +1719,7 @@ ToolRegistry.register({
               </span>
             </Show>
           </div>
-          <Show when={subtitle()}>
+          <Show when={taskInfo().subtitle}>
             <Switch>
               <Match when={href()}>
                 <a
@@ -1719,11 +1728,11 @@ ToolRegistry.register({
                   href={href()!}
                   onClick={(e) => e.stopPropagation()}
                 >
-                  {subtitle()}
+                  {taskInfo().subtitle}
                 </a>
               </Match>
               <Match when={true}>
-                <span data-slot="basic-tool-tool-subtitle">{subtitle()}</span>
+                <span data-slot="basic-tool-tool-subtitle">{taskInfo().subtitle}</span>
               </Match>
             </Switch>
           </Show>
