@@ -97,35 +97,36 @@ export namespace Truncate {
   export async function sweepBlobs(knownRefs: Set<string>): Promise<number> {
     let deleted = 0
     const blobsDir = path.join(DIR, "blobs")
-    
+
     try {
       const hashPrefixes = await fs.readdir(blobsDir)
       for (const prefix of hashPrefixes) {
         const prefixDir = path.join(blobsDir, prefix)
         const stat = await fs.stat(prefixDir)
         if (!stat.isDirectory()) continue
-        
+
         const hashes = await fs.readdir(prefixDir)
         for (const hash of hashes) {
           if (!hash.endsWith(".blob")) continue
           const fullHash = hash.slice(0, -5) // Remove .blob
           if (knownRefs.has(fullHash)) continue
-          
+
           // Orphan found - delete it
           await fs.unlink(path.join(prefixDir, hash)).catch(() => {})
           deleted++
         }
-        
+
         // Cleanup empty prefix dir
         const remaining = await fs.readdir(prefixDir).catch(() => [])
         if (remaining.length === 0) {
           await fs.rmdir(prefixDir).catch(() => {})
         }
       }
-    } catch {
+    } catch (err) {
       // Blobs dir doesn't exist yet
+      Log.create({ service: "truncation" }).warn("blob cleanup skipped", { error: String(err) })
     }
-    
+
     return deleted
   }
 
@@ -138,13 +139,13 @@ export namespace Truncate {
   /**
    * Bounded capture for message payloads.
    * Stores full output if over preview cap, returns bounded preview + ref.
-   * 
+   *
    * Write order: Full output -> Blob storage first, then return preview + ref
    */
   export async function boundedCapture(output: string): Promise<BoundedResult> {
     const lines = output.split("\n")
     const totalBytes = Buffer.byteLength(output, "utf-8")
-    
+
     // If under caps, no truncation needed
     if (lines.length <= MESSAGE_PREVIEW_MAX_LINES && totalBytes <= MESSAGE_PREVIEW_MAX_BYTES) {
       return {
@@ -155,43 +156,43 @@ export namespace Truncate {
         previewBytes: totalBytes,
       }
     }
-    
+
     // Full output exceeds caps - store full output, return bounded preview
     const fullBytes = totalBytes
-    
+
     // Only store full output if under the hard cap
     let ref: string | undefined
     if (totalBytes <= FULL_OUTPUT_MAX_BYTES) {
       const hash = computeHash(output)
       const blobPath = getBlobPath(hash)
-      
+
       // Ensure directory exists
       await fs.mkdir(getBlobDir(hash), { recursive: true }).catch(() => {})
-      
+
       // Write full output to blob storage
       await Filesystem.write(blobPath, output)
       ref = hash
     }
-    
+
     // Generate bounded preview (last N lines so errors are visible)
     const previewLines: string[] = []
     const previewBytesLimit = MESSAGE_PREVIEW_MAX_BYTES
     let previewBytes = 0
-    
+
     // Take from end of output (tail) to show recent errors
     for (let i = lines.length - 1; i >= 0 && previewLines.length < MESSAGE_PREVIEW_MAX_LINES; i--) {
       const line = lines[i]!
       const lineBytes = Buffer.byteLength(line, "utf-8") + (previewLines.length > 0 ? 1 : 0)
-      
+
       if (previewBytes + lineBytes > previewBytesLimit) break
-      
+
       previewLines.unshift(line) // Add to front
       previewBytes += lineBytes
     }
-    
+
     const preview = previewLines.join("\n")
     const hasMore = ref !== undefined || totalBytes > previewBytes
-    
+
     return {
       preview,
       hasMore,
@@ -208,11 +209,12 @@ export namespace Truncate {
    */
   export async function retrieveFullOutput(ref: string): Promise<string | null> {
     if (!ref) return null
-    
+
     const blobPath = getBlobPath(ref)
     try {
       return await Filesystem.readText(blobPath)
-    } catch {
+    } catch (err) {
+      Log.create({ service: "truncation" }).warn("failed to retrieve full output", { ref, error: String(err) })
       return null
     }
   }

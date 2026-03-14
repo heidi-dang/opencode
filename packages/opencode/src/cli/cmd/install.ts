@@ -6,6 +6,7 @@ import { Process } from "../../util/process"
 import { Filesystem } from "../../util/filesystem"
 import path from "path"
 import { git } from "@/util/git"
+import { Config } from "../../config/config"
 
 interface InstallArgs {
   localRepo: boolean
@@ -140,6 +141,18 @@ async function installFromLocalRepo() {
     prompts.log.error(installResult.stderr.toString())
     prompts.outro("Done")
     return
+  }
+
+  // Set the local UI dist path in the global config
+  const uiDist = path.join(repoRoot, "packages", "app", "dist")
+  if (await Filesystem.exists(uiDist)) {
+    spinner.message("Configuring local UI...")
+    await Config.updateGlobal({
+      server: {
+        uiDist,
+      }
+    })
+    prompts.log.success(`Configured local UI at ${uiDist}`)
   }
 
   spinner.stop("Local install complete")

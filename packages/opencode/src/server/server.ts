@@ -8,6 +8,10 @@ import { streamSSE } from "hono/streaming"
 import { proxy } from "hono/proxy"
 import { basicAuth } from "hono/basic-auth"
 import z from "zod"
+import fs from "fs/promises"
+import path from "path"
+import mime from "mime-types"
+import { Config } from "../config/config"
 import { Provider } from "../provider/provider"
 import { NamedError } from "@opencode-ai/util/error"
 import { LSP } from "../lsp"
@@ -556,6 +560,16 @@ export namespace Server {
       )
       .all("/*", async (c) => {
         const path = c.req.path
+        const config = await Config.get()
+
+        if (config.server?.uiDist) {
+          const localPath = path.join(config.server.uiDist, path === "/" ? "index.html" : path)
+          if (await Filesystem.exists(localPath)) {
+            const data = await fs.readFile(localPath)
+            const type = mime.lookup(localPath) || "application/octet-stream"
+            return c.body(data, 200, { "Content-Type": type })
+          }
+        }
 
         const response = await proxy(`https://app.opencode.ai${path}`, {
           ...c.req,
@@ -566,7 +580,7 @@ export namespace Server {
         })
         response.headers.set(
           "Content-Security-Policy",
-          "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; media-src 'self' data:; connect-src 'self' data:",
+          "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: https:; script-src 'self' 'wasm-unsafe-eval' 'unsafe-inline' 'unsafe-eval' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https: blob:; font-src 'self' data: https:; media-src 'self' data: https: blob:; connect-src 'self' data: https: wss: ws:;",
         )
         return response
       })

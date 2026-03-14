@@ -13,13 +13,43 @@ export interface RAGIndex {
 export class CodebaseRAG {
   private static log = Log.create({ service: "codebase.rag" })
   private static index: RAGIndex | null = null
+  private static indexRoot: string | null = null
+  private static readonly INDEX_TTL_MS = 60 * 60 * 1000 // 1 hour
+
+  /**
+   * Clear the cached index to free memory
+   * Call this when done with RAG operations or to force reindex
+   */
+  static clearCache(): void {
+    this.index = null
+    this.indexRoot = null
+    this.log.info("RAG index cache cleared")
+  }
+
+  /**
+   * Check if cached index is stale (expired TTL or different root)
+   */
+  private static isCacheStale(root: string): boolean {
+    if (!this.index || this.indexRoot !== root) return true
+    const age = Date.now() - this.index.lastIndexed
+    return age > this.INDEX_TTL_MS
+  }
 
   static async getIndex(root: string): Promise<RAGIndex> {
-    if (this.index) return this.index
+    // Return cached index if fresh
+    if (this.index && !this.isCacheStale(root)) {
+      return this.index
+    }
+
+    // Check if we need to reindex due to staleness
+    if (this.index && this.isCacheStale(root)) {
+      this.clearCache()
+    }
 
     const indexPath = path.join(root, ".opencode", "rag", "index.json")
     if (await Filesystem.exists(indexPath)) {
       this.index = await Filesystem.readJson(indexPath)
+      this.indexRoot = root
       return this.index!
     }
 
@@ -54,7 +84,7 @@ export class CodebaseRAG {
 
     this.index = {
       chunks: allChunks,
-      lastIndexed: Date.now()
+      lastIndexed: Date.now(),
     }
 
     const indexPath = path.join(root, ".opencode", "rag", "index.json")
@@ -67,20 +97,19 @@ export class CodebaseRAG {
     const normalizedQuery = query.toLowerCase()
 
     // 1. Exact Name Match (Highest priority)
-    const exactMatches = sessionIndex.chunks.filter(c => 
-      c.name.toLowerCase() === normalizedQuery
-    )
+    const exactMatches = sessionIndex.chunks.filter((c) => c.name.toLowerCase() === normalizedQuery)
 
     // 2. Partial Name Match
-    const partialNameMatches = sessionIndex.chunks.filter(c => 
-      !exactMatches.includes(c) && c.name.toLowerCase().includes(normalizedQuery)
+    const partialNameMatches = sessionIndex.chunks.filter(
+      (c) => !exactMatches.includes(c) && c.name.toLowerCase().includes(normalizedQuery),
     )
 
     // 3. Content Match
-    const contentMatches = sessionIndex.chunks.filter(c => 
-      !exactMatches.includes(c) && 
-      !partialNameMatches.includes(c) && 
-      c.content.toLowerCase().includes(normalizedQuery)
+    const contentMatches = sessionIndex.chunks.filter(
+      (c) =>
+        !exactMatches.includes(c) &&
+        !partialNameMatches.includes(c) &&
+        c.content.toLowerCase().includes(normalizedQuery),
     )
 
     return [...exactMatches, ...partialNameMatches, ...contentMatches].slice(0, limit)

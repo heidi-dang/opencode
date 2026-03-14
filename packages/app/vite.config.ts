@@ -17,46 +17,41 @@ export default defineConfig({
         // Use function-based config instead of glob patterns for reliability
         manualChunks(id) {
           // Skip node_modules
-          if (id.includes('node_modules')) return undefined
-          
+          if (id.includes("node_modules")) return undefined
+
           // Split agent configs
-          if (id.includes('/context/agent') || id.includes('/message-timeline')) {
-            return 'agent-configs'
+          if (id.includes("/context/agent") || id.includes("/message-timeline")) {
+            return "agent-configs"
           }
           // Split UI components
-          if (id.includes('/components/') || id.includes('/pages/')) {
-            return 'ui-components'
+          if (id.includes("/components/") || id.includes("/pages/")) {
+            return "ui-components"
           }
           // Split context providers (excluding agent)
-          if (id.includes('/context/') && !id.includes('/context/agent')) {
-            return 'context'
+          if (id.includes("/context/") && !id.includes("/context/agent")) {
+            return "context"
           }
           // Split utilities
-          if (id.includes('/utils/')) {
-            return 'utils'
+          if (id.includes("/utils/")) {
+            return "utils"
           }
           return undefined
-        }
-      }
+        },
+      },
     },
     // PERFORMANCE: Optimize chunk size and loading
     chunkSizeWarningLimit: 1000,
     minify: "terser",
     terserOptions: {
       compress: {
-        // PERFORMANCE: Remove console logs in production
-        drop_console: true,
+        // PERFORMANCE: Remove console.log in production but preserve error/warn for debugging
+        drop_console: ["log", "debug", "trace"],
         drop_debugger: true,
-      }
-    }
+      },
+    },
   },
   // PERFORMANCE: Optimize dependencies
   optimizeDeps: {
-    include: [
-      "solid-js",
-      "@solidjs/router",
-      "@kobalte/core",
-      "@opencode-ai/ui"
-    ]
-  }
+    include: ["solid-js", "@solidjs/router", "@kobalte/core", "@opencode-ai/ui"],
+  },
 })

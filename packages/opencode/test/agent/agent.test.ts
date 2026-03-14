@@ -564,13 +564,13 @@ description: Permission skill.
   }
 })
 
-test("defaultAgent returns build when no default_agent config", async () => {
+test("defaultAgent returns heidi when no default_agent config", async () => {
   await using tmp = await tmpdir()
   await Instance.provide({
     directory: tmp.path,
     fn: async () => {
       const agent = await Agent.defaultAgent()
-      expect(agent).toBe("build")
+      expect(agent).toBe("heidi")
     },
   })
 })
@@ -652,29 +652,27 @@ test("defaultAgent throws when default_agent points to non-existent agent", asyn
   })
 })
 
-test("defaultAgent returns plan when build is disabled and default_agent not set", async () => {
+test("defaultAgent returns plan when default_agent is explicitly set to plan", async () => {
   await using tmp = await tmpdir({
     config: {
-      agent: {
-        build: { disable: true },
-      },
+      default_agent: "plan",
     },
   })
   await Instance.provide({
     directory: tmp.path,
     fn: async () => {
       const agent = await Agent.defaultAgent()
-      // build is disabled, so it should return plan (next primary agent)
       expect(agent).toBe("plan")
     },
   })
 })
 
-test("defaultAgent throws when all primary agents are disabled", async () => {
+test("defaultAgent throws when default_agent points to disabled agent", async () => {
   await using tmp = await tmpdir({
     config: {
+      default_agent: "heidi",
       agent: {
-        build: { disable: true },
+        heidi: { disable: true },
         plan: { disable: true },
       },
     },
@@ -682,8 +680,8 @@ test("defaultAgent throws when all primary agents are disabled", async () => {
   await Instance.provide({
     directory: tmp.path,
     fn: async () => {
-      // build and plan are disabled, no primary-capable agents remain
-      await expect(Agent.defaultAgent()).rejects.toThrow("no primary visible agent found")
+      // heidi is the default but disabled, so it should throw
+      await expect(Agent.defaultAgent()).rejects.toThrow('default agent "heidi" not found')
     },
   })
 })

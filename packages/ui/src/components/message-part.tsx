@@ -89,6 +89,16 @@ function ShellSubmessage(props: { text: string; animate?: boolean }) {
   )
 }
 
+// Type-safe helpers for ToolState - avoids 'as any' casts
+// ToolState is a discriminated union where error/title only exist on certain statuses
+function getToolError(state: ToolPart["state"]): string | undefined {
+  return state.status === "error" ? (state as { error?: string }).error : undefined
+}
+
+function getToolTitle(state: ToolPart["state"]): string | undefined {
+  return (state as { title?: string }).title
+}
+
 interface Diagnostic {
   range: {
     start: { line: number; character: number }
@@ -1244,7 +1254,7 @@ PART_MAPPING["tool"] = function ToolPartDisplay(props) {
     <Show when={!hideQuestion()}>
       <div data-component="tool-part-wrapper">
         <Switch>
-          <Match when={part().state.status === "error" && (part().state as any).error}>
+          <Match when={part().state.status === "error" && getToolError(part().state)}>
             {(error) => {
               const cleaned = error().replace("Error: ", "")
               if (part().tool === "question" && cleaned.includes("dismissed this question")) {
@@ -1642,14 +1652,14 @@ ToolRegistry.register({
     const data = useData()
     const i18n = useI18n()
     const location = useLocation()
-    
+
     // Proper type for task metadata from subagents
     interface TaskMetadata {
       sessionId?: string
       model?: { modelID?: string }
       [key: string]: unknown
     }
-    
+
     // PERFORMANCE: Combine reactive computations to reduce overhead
     const taskInfo = createMemo(() => {
       const meta = props.metadata as TaskMetadata | undefined
@@ -1657,7 +1667,7 @@ ToolRegistry.register({
       const modelId = meta?.model?.modelID || "unknown"
       const subagentType = props.input.subagent_type || "sub"
       const isRunning = props.status === "pending" || props.status === "running"
-      
+
       return {
         childSessionId: childId,
         modelID: modelId,
@@ -1668,19 +1678,19 @@ ToolRegistry.register({
           const value = props.input.description
           if (typeof value === "string" && value) return value
           return childId
-        })()
+        })(),
       }
     })
 
     // PERFORMANCE: Limit array size to prevent memory leaks
     const MAX_MESSAGES = 1000
     const MAX_TOOLS = 500
-    
+
     const messages = createMemo(() => {
       const allMessages = data.store.message[taskInfo().childSessionId ?? ""] ?? []
       return allMessages.slice(-MAX_MESSAGES)
     })
-    
+
     const tools = createMemo(() => {
       return messages()
         .flatMap((msg) =>
@@ -1694,20 +1704,20 @@ ToolRegistry.register({
     // PERFORMANCE: Combine current action computation
     const currentAction = createMemo(() => {
       if (!taskInfo().running) return undefined
-      
-      const lastTool = tools().findLast((x) => (x.state as any).title)
+
+      const lastTool = tools().findLast((x) => getToolTitle(x.state))
       if (lastTool) {
         const toolName = lastTool.tool.charAt(0).toUpperCase() + lastTool.tool.slice(1)
-        const title = (lastTool.state as any).title
+        const title = getToolTitle(lastTool.state)
         return `↳ ${toolName} ${title}`
       }
-      
+
       if (tools().length > 0) {
         const last = tools().at(-1)!
         const toolName = last.tool.charAt(0).toUpperCase() + last.tool.slice(1)
         return `↳ ${toolName} working...`
       }
-      
+
       return undefined
     })
 

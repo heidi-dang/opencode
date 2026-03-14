@@ -4,12 +4,26 @@ import { Instance } from "../project/instance"
 import { Log } from "@/util/log"
 import { PermissionNext } from "../permission/next"
 import { Config } from "../config/config"
+import { generateObject, generateText } from "ai"
 import z from "zod"
 import * as fs from "fs/promises"
 import path from "path"
 
 export namespace ToolForge {
   const log = Log.create({ service: "tool.forge" })
+
+  // Type definitions for AI responses
+  interface ToolAnalysis {
+    needsTool: boolean
+    suggestedTool?: {
+      name: string
+      description: string
+      category: "utility" | "analysis" | "automation" | "integration" | "custom"
+      parameters: Record<string, unknown>
+      code: string
+    }
+    reasoning: string
+  }
 
   export interface ToolTemplate {
     name: string
@@ -40,7 +54,7 @@ export namespace ToolForge {
    */
   export async function analyzeTaskRequirement(task: string): Promise<ToolTemplate | null> {
     const config = await Config.get()
-    const analysis = await (config as any).client.generateObject({
+    const result = await generateObject({
       model: "opencode/gpt-4o-mini",
       prompt: `Analyze this task and determine if a custom tool is needed:
 
@@ -60,40 +74,46 @@ Respond with JSON:
 }`,
       schema: z.object({
         needsTool: z.boolean(),
-        suggestedTool: z.object({
-          name: z.string(),
-          description: z.string(),
-          category: z.enum(["utility", "analysis", "automation", "integration", "custom"]),
-          parameters: z.record(z.string(), z.any()),
-          code: z.string()
-        }).optional(),
-        reasoning: z.string()
-      })
+        suggestedTool: z
+          .object({
+            name: z.string(),
+            description: z.string(),
+            category: z.enum(["utility", "analysis", "automation", "integration", "custom"]),
+            parameters: z.record(z.string(), z.unknown()),
+            code: z.string(),
+          })
+          .optional(),
+        reasoning: z.string(),
+      }),
     })
 
-    if (!analysis.needsTool) return null
-    return (analysis as any).suggestedTool || null
+    const analysis: ToolAnalysis = result as unknown as ToolAnalysis
+    if (!analysis.needsTool || !analysis.suggestedTool) return null
+    return {
+      ...analysis.suggestedTool,
+      permissions: [],
+    }
   }
 
   /**
    * Generate and validate a new tool
    */
   export async function forgeTool(template: ToolTemplate): Promise<ForgedTool> {
-    const toolId = `custom-${template.name.toLowerCase().replace(/\s+/g, '-')}`
-    
+    const toolId = `custom-${template.name.toLowerCase().replace(/\s+/g, "-")}`
+
     // Generate complete tool implementation
     const implementation = await generateToolImplementation(template)
-    
+
     // Validate the generated code
     const validation = await validateToolImplementation(implementation)
-    
+
     const forgedTool: ForgedTool = {
       id: toolId,
       template,
       created: Date.now(),
       usage: 0,
       lastUsed: 0,
-      validated: validation.isValid
+      validated: validation.isValid,
     }
 
     // Store the forged tool
@@ -101,7 +121,7 @@ Respond with JSON:
     state.tools[toolId] = forgedTool
 
     log.info("Forged new tool", { toolId, name: template.name, validated: validation.isValid })
-    
+
     return forgedTool
   }
 
@@ -133,63 +153,177 @@ Generate the complete tool code that would work in the OpenCode ecosystem:
 ${template.code}
 
 Complete the implementation with proper error handling, validation, and OpenCode patterns.`
-    
-    const result = await (config as any).client.generateText({
+
+    const result = await generateText({
       model: "opencode/gpt-4o",
       prompt,
-      temperature: 0.3
+      temperature: 0.3,
     })
 
-    return result
+    return result.text
   }
 
   /**
    * Validate generated tool implementation
+   * Uses safe syntax analysis without code execution
    */
   async function validateToolImplementation(code: string): Promise<{ isValid: boolean; errors: string[] }> {
     const errors: string[] = []
 
-    // Basic syntax validation
-    try {
-      new Function(code)
-    } catch (err) {
-      errors.push(`Syntax error: ${err}`)
+    // Safe syntax validation using regex-based analysis
+    // Check for common syntax issues without executing code
+    const syntaxIssues = analyzeSyntax(code)
+    if (syntaxIssues.length > 0) {
+      errors.push(...syntaxIssues)
     }
 
-    // Security validation
+    // Security validation - check for dangerous patterns
     const dangerousPatterns = [
-      /eval\s*\(/gi,
-      /Function\s*\(/gi,
-      /require\s*\(/gi,
-      /import\s*.*fs/gi,
-      /exec\s*\(/gi,
-      /child_process/gi
+      { pattern: /eval\s*\(/gi, name: "eval()" },
+      { pattern: /\beval\s*\(/gi, name: "eval (with word boundary)" },
+      { pattern: /Function\s*\(/gi, name: "Function constructor" },
+      { pattern: /require\s*\(\s*['"]/gi, name: "require()" },
+      { pattern: /import\s*\(\s*['"]/gi, name: "dynamic import()" },
+      { pattern: /\bexec\s*\(/gi, name: "exec()" },
+      { pattern: /child_process/gi, name: "child_process module" },
+      { pattern: /\bspawn\s*\(/gi, name: "spawn()" },
+      { pattern: /\bexecFile\s*\(/gi, name: "execFile()" },
+      { pattern: /process\.exit/gi, name: "process.exit" },
+      { pattern: /process\.env/gi, name: "process.env access" },
+      { pattern: /__dirname/gi, name: "__dirname access" },
+      { pattern: /__filename/gi, name: "__filename access" },
+      { pattern: /global\./gi, name: "global scope access" },
+      { pattern: /globalThis\./gi, name: "globalThis access" },
     ]
 
-    for (const pattern of dangerousPatterns) {
+    for (const { pattern, name } of dangerousPatterns) {
+      // Reset lastIndex to ensure global patterns work correctly
+      pattern.lastIndex = 0
       if (pattern.test(code)) {
-        errors.push(`Potentially dangerous code pattern detected`)
+        errors.push(`Security: Dangerous pattern detected: ${name}`)
+      }
+    }
+
+    // Check for obfuscation attempts
+    const obfuscationPatterns = [
+      { pattern: /\[(?:['"`]\w+['"`]\s*)+]\s*\[\s*['"`]/gi, name: "array bracket notation obfuscation" },
+      { pattern: /String\.fromCharCode/gi, name: "String.fromCharCode obfuscation" },
+      { pattern: /atob\s*\(/gi, name: "atob obfuscation" },
+      { pattern: /\bthis\s*\[\s*['"/]/gi, name: "bracket notation property access" },
+    ]
+
+    for (const { pattern, name } of obfuscationPatterns) {
+      pattern.lastIndex = 0
+      if (pattern.test(code)) {
+        errors.push(`Security: Obfuscation pattern detected: ${name}`)
       }
     }
 
     // OpenCode pattern validation
     const requiredPatterns = [
-      /Tool\.define/,
-      /export\s+const\s+\w+Tool/,
-      /parameters:\s*z\.object/,
-      /execute:\s*async/
+      { pattern: /Tool\.define/, name: "Tool.define" },
+      { pattern: /export\s+const\s+\w+Tool/, name: "export const ...Tool" },
+      { pattern: /parameters:\s*z\.object/, name: "parameters: z.object" },
+      { pattern: /execute:\s*async/, name: "execute: async" },
     ]
 
-    for (const pattern of requiredPatterns) {
+    for (const { pattern, name } of requiredPatterns) {
+      pattern.lastIndex = 0
       if (!pattern.test(code)) {
-        errors.push(`Missing required OpenCode tool pattern`)
+        errors.push(`Missing required OpenCode pattern: ${name}`)
       }
     }
 
     return {
       isValid: errors.length === 0,
-      errors
+      errors,
     }
+  }
+
+  /**
+   * Safely analyze TypeScript/JavaScript syntax without execution
+   */
+  function analyzeSyntax(code: string): string[] {
+    const errors: string[] = []
+
+    // Track braces, brackets, and parentheses
+    let braceCount = 0
+    let bracketCount = 0
+    let parenCount = 0
+    let inString = false
+    let stringChar = ""
+    let prevChar = ""
+
+    for (let i = 0; i < code.length; i++) {
+      const char = code[i]
+      const nextChar = code[i + 1]
+
+      // Handle string detection
+      if (!inString) {
+        if ((char === '"' || char === "'" || char === "`") && prevChar !== "\\") {
+          inString = true
+          stringChar = char
+        }
+      } else if (char === stringChar && prevChar !== "\\") {
+        inString = false
+        stringChar = ""
+      }
+
+      if (inString) {
+        prevChar = char
+        continue
+      }
+
+      // Track bracket matching
+      switch (char) {
+        case "{":
+          braceCount++
+          break
+        case "}":
+          braceCount--
+          break
+        case "[":
+          bracketCount++
+          break
+        case "]":
+          bracketCount--
+          break
+        case "(":
+          parenCount++
+          break
+        case ")":
+          parenCount--
+          break
+      }
+
+      // Check for obvious syntax errors
+      if (braceCount < 0) {
+        errors.push(`Syntax: Unexpected closing brace at position ${i}`)
+        braceCount = 0
+      }
+      if (bracketCount < 0) {
+        errors.push(`Syntax: Unexpected closing bracket at position ${i}`)
+        bracketCount = 0
+      }
+      if (parenCount < 0) {
+        errors.push(`Syntax: Unexpected closing parenthesis at position ${i}`)
+        parenCount = 0
+      }
+
+      prevChar = char
+    }
+
+    // Check for unclosed brackets at end
+    if (braceCount > 0) errors.push(`Syntax: ${braceCount} unclosed brace(s)`)
+    if (bracketCount > 0) errors.push(`Syntax: ${bracketCount} unclosed bracket(s)`)
+    if (parenCount > 0) errors.push(`Syntax: ${parenCount} unclosed parenthesis(s)`)
+
+    // Check for common issues
+    if (code.includes(";;;")) errors.push("Syntax: Multiple semicolons detected")
+    if (code.includes(",,")) errors.push("Syntax: Multiple commas detected")
+    if (/^\s*$/.test(code) || code.trim().length === 0) errors.push("Syntax: Empty code")
+
+    return errors
   }
 
   /**
@@ -204,36 +338,46 @@ Complete the implementation with proper error handling, validation, and OpenCode
 
       // Import and register the tool
       const toolModule = await import(path.join(tempDir, `${forgedTool.id}.ts`))
-      
+
       // Find the tool export
       for (const [name, toolDef] of Object.entries(toolModule)) {
-        if (name.includes("Tool") && typeof toolDef === "object" && (toolDef as any).id) {
+        // Type for dynamically imported tool definition
+        interface DynamicToolDef {
+          id?: string
+          parameters?: Record<string, unknown>
+          execute?: (args: unknown, ctx: unknown) => Promise<unknown>
+        }
+
+        if (name.includes("Tool") && typeof toolDef === "object" && (toolDef as DynamicToolDef).id) {
+          const typedToolDef = toolDef as DynamicToolDef
           const toolInfo: Tool.Info = {
             id: forgedTool.id,
             init: async (ctx) => ({
-              parameters: z.object((toolDef as any).parameters || {}),
+              parameters: z.object(typedToolDef.parameters || {}),
               description: forgedTool.template.description,
               execute: async (args, ctx) => {
                 // Track usage
                 await trackToolUsage(forgedTool.id)
-                
+
                 // Execute the tool
                 try {
-                  const result = await (toolDef as any).execute(args, ctx)
+                  const result = typedToolDef.execute
+                    ? await typedToolDef.execute(args, ctx)
+                    : "Tool executed but no output returned"
                   return {
                     title: "",
                     output: typeof result === "string" ? result : JSON.stringify(result),
-                    metadata: { forgedTool: true, toolName: forgedTool.template.name }
+                    metadata: { forgedTool: true, toolName: forgedTool.template.name },
                   }
                 } catch (error) {
                   log.error("Forged tool execution failed", { toolId: forgedTool.id, error })
                   throw error
                 }
               },
-              formatValidationError: (error) => `Validation error: ${error.message}`
-            })
+              formatValidationError: (error) => `Validation error: ${error.message}`,
+            }),
           }
-          
+
           await ToolRegistry.register(toolInfo)
           log.info("Registered forged tool", { toolId: forgedTool.id })
           break
@@ -251,7 +395,7 @@ Complete the implementation with proper error handling, validation, and OpenCode
   async function trackToolUsage(toolId: string): Promise<void> {
     const state = await forgeStorage()
     state.usage[toolId] = (state.usage[toolId] || 0) + 1
-    
+
     // Update last used timestamp
     if (state.tools[toolId]) {
       state.tools[toolId].lastUsed = Date.now()
@@ -270,21 +414,23 @@ Complete the implementation with proper error handling, validation, and OpenCode
   /**
    * Get tool usage analytics
    */
-  export async function getToolAnalytics(): Promise<Record<string, { usage: number; lastUsed: number; efficiency: number }>> {
+  export async function getToolAnalytics(): Promise<
+    Record<string, { usage: number; lastUsed: number; efficiency: number }>
+  > {
     const state = await forgeStorage()
     const analytics: Record<string, { usage: number; lastUsed: number; efficiency: number }> = {}
-    
+
     for (const [toolId, usage] of Object.entries(state.usage)) {
       const tool = state.tools[toolId]
       const efficiency = tool ? calculateEfficiency(tool, usage) : 0
-      
+
       analytics[toolId] = {
         usage,
         lastUsed: tool?.lastUsed || 0,
-        efficiency
+        efficiency,
       }
     }
-    
+
     return analytics
   }
 
@@ -294,12 +440,15 @@ Complete the implementation with proper error handling, validation, and OpenCode
   function calculateEfficiency(tool: ForgedTool, usage: number): number {
     if (!tool.validated) return 0
     if (usage === 0) return 0
-    
+
     const daysSinceCreation = (Date.now() - tool.created) / (1000 * 60 * 60 * 24)
     const usagePerDay = usage / Math.max(daysSinceCreation, 1)
-    
+
     // Efficiency score: 0-100 based on validation, usage frequency, and recency
-    return Math.min(100, (tool.validated ? 50 : 0) + Math.min(30, usagePerDay * 10) + Math.min(20, daysSinceCreation < 7 ? 20 : 0))
+    return Math.min(
+      100,
+      (tool.validated ? 50 : 0) + Math.min(30, usagePerDay * 10) + Math.min(20, daysSinceCreation < 7 ? 20 : 0),
+    )
   }
 
   /**
@@ -309,17 +458,17 @@ Complete the implementation with proper error handling, validation, and OpenCode
     const state = await forgeStorage()
     const now = Date.now()
     const toolsToRemove: string[] = []
-    
+
     for (const [toolId, tool] of Object.entries(state.tools)) {
       const ageInDays = (now - tool.created) / (1000 * 60 * 60 * 24)
       const daysSinceLastUse = (now - tool.lastUsed) / (1000 * 60 * 60 * 24)
-      
+
       // Remove tools older than maxAge days with no usage in the last 7 days
       if (ageInDays > maxAge && daysSinceLastUse > 7 && tool.usage < 3) {
         toolsToRemove.push(toolId)
       }
     }
-    
+
     for (const toolId of toolsToRemove) {
       delete state.tools[toolId]
       delete state.usage[toolId]
@@ -336,6 +485,6 @@ Complete the implementation with proper error handling, validation, and OpenCode
     registerForgedTool,
     getForgedTools,
     getToolAnalytics,
-    cleanupUnusedTools
+    cleanupUnusedTools,
   }
 }
