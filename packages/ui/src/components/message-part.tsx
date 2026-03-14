@@ -1654,23 +1654,42 @@ ToolRegistry.register({
     })
     const running = createMemo(() => props.status === "pending" || props.status === "running")
 
-    const messages = createMemo(() => data.store.message[childSessionId() ?? ""] ?? [])
+    // PERFORMANCE: Limit array size to prevent memory leaks
+    const MAX_MESSAGES = 1000
+    const MAX_TOOLS = 500
+    
+    const messages = createMemo(() => {
+      const allMessages = data.store.message[childSessionId() ?? ""] ?? []
+      return allMessages.slice(-MAX_MESSAGES)
+    })
+    
     const tools = createMemo(() => {
-      return messages().flatMap((msg) =>
-        (data.store.part[msg.id] ?? [])
-          .filter((part): part is ToolPart => part.type === "tool")
-          .map((part) => ({ tool: part.tool, state: part.state })),
-      )
+      return messages()
+        .flatMap((msg) =>
+          (data.store.part[msg.id] ?? [])
+            .filter((part): part is ToolPart => part.type === "tool")
+            .map((part) => ({ tool: part.tool, state: part.state })),
+        )
+        .slice(-MAX_TOOLS)
     })
 
+    // PERFORMANCE: Combine current action computation
     const currentAction = createMemo(() => {
       if (!running()) return undefined
-      const last = tools().findLast((x) => (x.state as any).title)
-      if (last) return `↳ ${last.tool.charAt(0).toUpperCase() + last.tool.slice(1)} ${(last.state as any).title}`
-      if (tools().length > 0) {
-        const lastTool = tools().at(-1)!
-        return `↳ ${lastTool.tool.charAt(0).toUpperCase() + lastTool.tool.slice(1)} working...`
+      
+      const lastTool = tools().findLast((x) => (x.state as any).title)
+      if (lastTool) {
+        const toolName = lastTool.tool.charAt(0).toUpperCase() + lastTool.tool.slice(1)
+        const title = (lastTool.state as any).title
+        return `↳ ${toolName} ${title}`
       }
+      
+      if (tools().length > 0) {
+        const last = tools().at(-1)!
+        const toolName = last.tool.charAt(0).toUpperCase() + last.tool.slice(1)
+        return `↳ ${toolName} working...`
+      }
+      
       return undefined
     })
 
