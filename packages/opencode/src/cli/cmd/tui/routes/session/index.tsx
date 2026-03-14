@@ -2002,12 +2002,13 @@ function Task(props: ToolProps<typeof TaskTool>) {
   })
 
   const content = createMemo(() => {
-    if (!props.input.description) return ""
-    let content = [`Task ${props.input.description}`]
+    const subagentName = props.part.state.metadata?.subagent_type || "sub"
+    const modelInfo = props.part.state.metadata?.model?.modelID || "unknown"
+    let content = [`Call ${subagentName} sub agents (${modelInfo})`]
 
     if (isRunning() && tools().length > 0) {
-      // content[0] += ` · ${tools().length} toolcalls`
-      if (current()) content.push(`↳ ${Locale.titlecase(current()!.tool)} ${(current()!.state as any).title}`)
+      if (current()) content.push(`↳ ${Locale.titlecase(current()!.tool)} ${(current()!.state as any).title || "working..."}`)
+      else if (tools().length > 0) content.push(`↳ ${Locale.titlecase(tools().at(-1)!.tool)} working...`)
       else content.push(`↳ ${tools().length} toolcalls`)
     }
 
@@ -2018,9 +2019,16 @@ function Task(props: ToolProps<typeof TaskTool>) {
     return content.join("\n")
   })
 
+  const iconColor = createMemo(() => {
+    const subagentName = props.part.state.metadata?.subagent_type
+    if (!subagentName) return theme.text
+    return local.agent.color(subagentName)
+  })
+
   return (
     <InlineTool
       icon="│"
+      iconColor={iconColor()}
       spinner={isRunning()}
       complete={props.input.description}
       pending="Delegating..."
