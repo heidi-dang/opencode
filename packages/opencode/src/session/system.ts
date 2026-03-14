@@ -13,6 +13,8 @@ import type { Provider } from "@/provider/provider"
 import type { Agent } from "@/agent/agent"
 import { PermissionNext } from "@/permission/next"
 import { Skill } from "@/skill"
+import { ContextScout } from "../agent/intelligence/scout"
+import { ContextLoader } from "../agent/intelligence/loader"
 
 export namespace SystemPrompt {
   export function instructions() {
@@ -54,6 +56,28 @@ export namespace SystemPrompt {
         `</directories>`,
       ].join("\n"),
     ]
+  }
+
+  export async function intelligence(agent: Agent.Info, tags: string[] = []) {
+    if (agent.name !== "heidi") return []
+
+    const root = Instance.worktree
+    const patterns = await ContextScout.discover(root)
+    await ContextScout.persist(root, patterns)
+
+    const context = await ContextLoader.load(root, tags)
+    if (context.length === 0) return []
+
+    return [
+      `<intelligence>`,
+      `  Discovered Stack: ${patterns.stack.join(", ")}`,
+      `  Conventions: ${patterns.conventions.join(", ")}`,
+      `  Project Structure: ${patterns.dirs.join(", ")}`,
+      `</intelligence>`,
+      `<context>`,
+      ...context.map(item => `  <file name="${item.name}">\n${item.content}\n  </file>`),
+      `</context>`
+    ].join("\n")
   }
 
   export async function skills(agent: Agent.Info) {

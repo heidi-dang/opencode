@@ -661,13 +661,20 @@ export namespace SessionPrompt {
       await Plugin.trigger("experimental.chat.messages.transform", {}, { messages: msgs })
 
       // Build system prompt, adding structured output instruction if needed
+      const format = lastUser.format ?? { type: "text" }
+      const lastUserWithParts = msgs.findLast((m) => m.info.role === "user")
+      const tags =
+        lastUserWithParts?.parts
+          .filter((p) => p.type === "text")
+          .map((p) => (p as MessageV2.TextPart).text) ?? []
       const skills = await SystemPrompt.skills(agent)
+      const intelligence = await SystemPrompt.intelligence(agent, tags)
       const system = [
         ...(await SystemPrompt.environment(model)),
         ...(skills ? [skills] : []),
+        ...intelligence,
         ...(await InstructionPrompt.system()),
-      ]
-      const format = lastUser.format ?? { type: "text" }
+      ] as string[]
       if (format.type === "json_schema") {
         system.push(STRUCTURED_OUTPUT_SYSTEM_PROMPT)
       }
@@ -718,7 +725,62 @@ export namespace SessionPrompt {
         }
       }
 
-      if (result === "stop") break
+      if (result === "stop") {
+        // Automatic Auditor Trigger for Build Agent
+        if (agent.name === "build" && !processor.message.error) {
+          const alreadyAudited = msgs.some((m) =>
+            m.parts.some((p) => p.type === "subtask" && p.agent === "auditor"),
+          )
+          if (!alreadyAudited) {
+            await Session.updatePart({
+              id: PartID.ascending(),
+              messageID: processor.message.id,
+              sessionID,
+              type: "subtask",
+              agent: "auditor",
+              description:
+                "Perform a final audit of the implementation, running tests and verifying requirements.",
+              prompt:
+                "Please review the changes made by the build agent. Run any necessary tests, verify that all requirements from implementation_plan.md are met, and provide a final score from 0-100.",
+            } satisfies MessageV2.SubtaskPart)
+            // Re-enter loop to process the subtask
+            continue
+          }
+        }
+        break
+      }
+
+      // Automatic Deep Code Review Trigger
+      if (agent.name === "heidi" && !processor.message.error) {
+        const parts = await MessageV2.parts(processor.message.id)
+        const wrotePlan = parts.some(
+          (p) =>
+            p.type === "tool" &&
+            p.tool === "write_to_file" &&
+            p.state.status === "completed" &&
+            JSON.stringify(p.state.input).includes("implementation_plan.md"),
+        )
+
+        if (wrotePlan) {
+          const alreadyReviewed = msgs.some((m) =>
+            m.parts.some((p) => p.type === "subtask" && p.agent === "reviewer"),
+          )
+          if (!alreadyReviewed) {
+            await Session.updatePart({
+              id: PartID.ascending(),
+              messageID: processor.message.id,
+              sessionID,
+              type: "subtask",
+              agent: "reviewer",
+              description:
+                "Review the proposed implementation plan for architectural integrity and potential bugs.",
+              prompt:
+                "Please review the implementation_plan.md file and provide feedback on its correctness, security, and performance. Assign a score from 0-100.",
+            } satisfies MessageV2.SubtaskPart)
+          }
+        }
+      }
+
       if (result === "compact") {
         await SessionCompaction.create({
           sessionID,

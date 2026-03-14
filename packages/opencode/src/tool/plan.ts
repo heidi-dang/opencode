@@ -71,6 +71,41 @@ export const PlanExitTool = Tool.define("plan_exit", {
   },
 })
 
+export const StepApprovalTool = Tool.define("step_approval", {
+  description: "Request explicit user approval for the next step in the implementation plan.",
+  parameters: z.object({
+    step: z.string().describe("Description of the step to be executed"),
+    complexity: z.number().optional().describe("Complexity score of the step (1-10)"),
+  }),
+  async execute(params, ctx) {
+    const answers = await Question.ask({
+      sessionID: ctx.sessionID,
+      questions: [
+        {
+          question: `Proposed Step: ${params.step}${params.complexity ? ` (Complexity: ${params.complexity}/10)` : ""}\n\nDo you approve execution of this step?`,
+          header: "Step Approval",
+          custom: false,
+          options: [
+            { label: "Approve", description: "Proceed with the step" },
+            { label: "Revise", description: "Need to change the plan" },
+            { label: "Stop", description: "Stop the current task" },
+          ],
+        },
+      ],
+      tool: ctx.callID ? { messageID: ctx.messageID, callID: ctx.callID } : undefined,
+    })
+
+    const answer = answers[0]?.[0]
+    if (answer === "Revise" || answer === "Stop") throw new Question.RejectedError()
+
+    return {
+      title: "Step Approved",
+      output: `User approved the step: ${params.step}. Proceed with execution.`,
+      metadata: { approved: true },
+    }
+  },
+})
+
 /*
 export const PlanEnterTool = Tool.define("plan_enter", {
   description: ENTER_DESCRIPTION,

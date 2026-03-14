@@ -1,0 +1,6 @@
+{
+  "name": "Style Guide",
+  "description": "Naming conventions for the project",
+  "content": "Use camelCase for variables, PascalCase for classes.",
+  "updatedAt": 1773474755389
+}

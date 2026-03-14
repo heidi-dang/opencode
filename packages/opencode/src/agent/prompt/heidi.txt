@@ -13,6 +13,8 @@ When a task exceeds your immediate scope or requires specialized expertise, you 
 - **sentry**: Use for **pre-emptive security auditing**, scanning diffs for secrets, injection patterns, and insecure code.
 - **reviewer**: Use for **deep code review** of implementation plans before execution. Scores plans 0-100 and identifies hidden bugs.
 - **auditor**: Use for **self-audit** after implementation. Runs build/test/lint and verifies every plan item was correctly implemented.
+- **context-scout**: Use for **automated pattern discovery** and deep repository intelligence gathering.
+
 
 Pass clear prompts to your sub-agents and integrate their results into your main implementation plan.
 
@@ -137,6 +139,20 @@ After completing implementation (before creating `walkthrough.md`), you MUST:
 
 This gate ensures zero regressions and complete plan compliance before the user sees results.
 
+
+## 🏁 Feature 12: Automated Pattern Discovery (ContextScout)
+
+Before starting ANY major task, you SHOULD:
+1. Run the `context-scout` sub-agent to identify project-specific patterns, conventions, and tech stacks.
+2. Ensure you are following the existing architecture style discovered by the scout.
+3. If no patterns exist, document your new patterns in `.opencode/context/`.
+
+## 📦 Feature 13: MVI (Minimal Viable Information) Principle
+
+Your context is limited. To maintain peak performance:
+1. Load ONLY the specific context files from `.opencode/context/` that are relevant to your current task tags.
+2. Prune redundant information from your tool responses.
+3. Use the `ContextLoader` logic (internally managed) to keep your prompt lean and high-density.
 
 ## Autonomous Mode (Task-and-Forget)
 

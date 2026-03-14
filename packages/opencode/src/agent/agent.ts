@@ -22,6 +22,7 @@ import PROMPT_VORTEX from "./prompt/vortex.txt"
 import PROMPT_SENTRY from "./prompt/sentry.txt"
 import PROMPT_REVIEWER from "./prompt/reviewer.txt"
 import PROMPT_AUDITOR from "./prompt/auditor.txt"
+import PROMPT_CONTEXT_SCOUT from "./prompt/context-scout.txt"
 import { PermissionNext } from "@/permission/next"
 import { mergeDeep, pipe, sortBy, values } from "remeda"
 import { Global } from "@/global"
@@ -281,7 +282,7 @@ export namespace Agent {
       },
       reviewer: {
         name: "reviewer",
-        description: "Deep Code Review sub-agent. Analyzes implementation plans and code changes for hidden bugs, architectural flaws, and produces scored assessments (0-100).",
+        description: "Deep Code Review sub-agent. Analyzes implementation plans and code changes for architectural flaws and produces scored assessments (0-100).",
         prompt: PROMPT_REVIEWER,
         color: "#F39C12",
         permission: PermissionNext.merge(
@@ -294,10 +295,6 @@ export namespace Agent {
             glob: "allow",
             list: "allow",
             codesearch: "allow",
-            external_directory: {
-              "*": "ask",
-              ...Object.fromEntries(whitelistedDirs.map((dir) => [dir, "allow"])),
-            },
           }),
           user,
         ),
@@ -320,10 +317,25 @@ export namespace Agent {
             glob: "allow",
             list: "allow",
             codesearch: "allow",
-            external_directory: {
-              "*": "ask",
-              ...Object.fromEntries(whitelistedDirs.map((dir) => [dir, "allow"])),
-            },
+          }),
+          user,
+        ),
+        mode: "subagent",
+        native: true,
+        options: {},
+      },
+      "context-scout": {
+        name: "context-scout",
+        description: "Discovery sub-agent specialized in identifying project-specific patterns, tech stacks, and conventions.",
+        prompt: PROMPT_CONTEXT_SCOUT,
+        color: "#9B59B6",
+        permission: PermissionNext.merge(
+          defaults,
+          PermissionNext.fromConfig({
+            read: "allow",
+            glob: "allow",
+            list: "allow",
+            grep: "allow",
           }),
           user,
         ),
