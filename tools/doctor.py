@@ -18,6 +18,11 @@ from pathlib import Path
 from typing import List, Optional
 
 
+def get_project_root() -> Path:
+    """Get the project root directory (parent of tools/)."""
+    return Path(__file__).parent.parent
+
+
 class DoctorCheck:
     """Base class for doctor checks."""
     
@@ -44,10 +49,10 @@ class ImplementationDocCheck(DoctorCheck):
     description = "Check that performance implementation doc exists"
     
     def run(self) -> bool:
+        root = get_project_root()
         doc_paths = [
-            Path("docs/implementation-tool-output-performance.md"),
-            Path("implementation-tool-output-performance.md"),
-            Path("../oh-my-opencode-heidi/docs/implementation-tool-output-performance.md"),
+            root / "docs/implementation-tool-output-performance.md",
+            root / "implementation-tool-output-performance.md",
         ]
         
         for doc_path in doc_paths:
@@ -67,10 +72,10 @@ class BoundedOutputFieldsCheck(DoctorCheck):
     description = "Check for bounded output metadata fields in code"
     
     def run(self) -> bool:
-        # Look in the opencode packages
+        # Look in the opencode packages - use project root for absolute paths
+        root = get_project_root()
         search_paths = [
-            Path("packages/opencode/src/session/message-v2.ts"),
-            Path("../opencode/packages/opencode/src/session/message-v2.ts"),
+            root / "packages/opencode/src/session/message-v2.ts",
         ]
         
         required_fields = [
@@ -106,12 +111,11 @@ class BlobStorageCheck(DoctorCheck):
     description = "Check for blob storage module"
     
     def run(self) -> bool:
+        root = get_project_root()
         search_paths = [
-            Path("packages/opencode/src/storage/blob.ts"),
-            Path("../opencode/packages/opencode/src/storage/blob.ts"),
+            root / "packages/opencode/src/storage/blob.ts",
             # Also check in truncation.ts where it's implemented
-            Path("packages/opencode/src/tool/truncation.ts"),
-            Path("../opencode/packages/opencode/src/tool/truncation.ts"),
+            root / "packages/opencode/src/tool/truncation.ts",
         ]
         
         for storage_path in search_paths:
@@ -143,9 +147,9 @@ class DeltaBatcherCheck(DoctorCheck):
     description = "Check for PartDelta batching implementation"
     
     def run(self) -> bool:
+        root = get_project_root()
         search_paths = [
-            Path("packages/app/src/context/run/delta-batcher.ts"),
-            Path("../opencode/packages/app/src/context/run/delta-batcher.ts"),
+            root / "packages/app/src/context/run/delta-batcher.ts",
         ]
         
         for batcher_path in search_paths:
@@ -170,10 +174,9 @@ class LiveRunStoreCheck(DoctorCheck):
     description = "Check for live run store with capped recent-steps"
     
     def run(self) -> bool:
+        root = get_project_root()
         search_paths = [
-            Path("packages/app/src/context/run.ts"),
-            Path("packages/app/src/context/run/index.ts"),
-            Path("../opencode/packages/app/src/context/run.ts"),
+            root / "packages/app/src/context/run/index.ts",
         ]
         
         for store_path in search_paths:
@@ -199,9 +202,9 @@ class TerminalFlushCheck(DoctorCheck):
     
     def run(self) -> bool:
         # This is harder to check - look for flush-related code
+        root = get_project_root()
         search_paths = [
-            Path("packages/app/src/context/run"),
-            Path("../opencode/packages/app/src/context/run"),
+            root / "packages/app/src/context/run",
         ]
         
         for run_path in search_paths:
@@ -237,9 +240,9 @@ class TUIOptimizationCheck(DoctorCheck):
     description = "Check for TUI tools() memo optimization"
     
     def run(self) -> bool:
+        root = get_project_root()
         search_paths = [
-            Path("packages/opencode/src/cli/cmd/tui/routes/session/index.tsx"),
-            Path("../opencode/packages/opencode/src/cli/cmd/tui/routes/session/index.tsx"),
+            root / "packages/opencode/src/cli/cmd/tui/routes/session/index.tsx",
         ]
         
         for tui_path in search_paths:
@@ -250,7 +253,7 @@ class TUIOptimizationCheck(DoctorCheck):
             
             # Check for OLD bad pattern: flatMap with filter and map
             if "flatMap" in content and "filter" in content and "map" in content:
-                # Look for the specific pattern in tools memo
+                # Look for the specific pattern in tools createMemo
                 import re
                 # Check if there's still a flatMap pattern in tools createMemo
                 if re.search(r'const tools = createMemo.*?flatMap.*?filter.*?map', content, re.DOTALL):
@@ -281,9 +284,9 @@ class OutputRetrievalAPICheck(DoctorCheck):
     description = "Check for tool output retrieval API endpoint"
     
     def run(self) -> bool:
+        root = get_project_root()
         search_paths = [
-            Path("packages/opencode/src/server/routes/session.ts"),
-            Path("../opencode/packages/opencode/src/server/routes/session.ts"),
+            root / "packages/opencode/src/server/routes/session.ts",
         ]
         
         for route_path in search_paths:
@@ -309,9 +312,9 @@ class LiveRunProviderCheck(DoctorCheck):
     description = "Check for LiveRunProvider in app"
     
     def run(self) -> bool:
+        root = get_project_root()
         search_paths = [
-            Path("packages/app/src/app.tsx"),
-            Path("../opencode/packages/app/src/app.tsx"),
+            root / "packages/app/src/app.tsx",
         ]
         
         for app_path in search_paths:
@@ -356,21 +359,8 @@ def run_doctor(checks: Optional[List[DoctorCheck]] = None, verbose: bool = False
     print("=" * 60)
     print()
     
-    # Find repo root dynamically
-    script_dir = Path(__file__).parent.resolve()
-    
-    # Try multiple strategies to find repo root
-    possible_roots = [
-        script_dir.parent,                           # tools/ -> repo root
-        script_dir.parent.parent,                    # tools/.. -> repo root  
-        Path("/home/heidi/work/opencode"),           # absolute path
-    ]
-    
-    repo_root = None
-    for candidate in possible_roots:
-        if candidate.exists() and (candidate / "packages").exists():
-            repo_root = candidate
-            break
+    # Find repo root dynamically using the helper function
+    repo_root = get_project_root()
     
     if repo_root:
         os.chdir(repo_root)

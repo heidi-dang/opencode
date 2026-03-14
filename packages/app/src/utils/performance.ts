@@ -13,6 +13,11 @@ export class PerformanceMonitor {
 
   constructor() {
     this.setupObservers()
+    // Cleanup on page unload to prevent memory leaks
+    if (typeof window !== 'undefined') {
+      window.addEventListener('unload', () => this.cleanup())
+      window.addEventListener('beforeunload', () => this.cleanup())
+    }
   }
 
   private setupObservers() {

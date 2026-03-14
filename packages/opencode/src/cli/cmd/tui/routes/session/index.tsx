@@ -1982,12 +1982,23 @@ function Task(props: ToolProps<typeof TaskTool>) {
 
   const messages = createMemo(() => sync.data.message[props.metadata.sessionId ?? ""] ?? [])
 
+  // Proper type for tool state with title (ToolStateCompleted)
+  interface ToolStateWithTitle {
+    status: string
+    title?: string
+    input?: Record<string, unknown>
+    output?: string
+    metadata?: Record<string, unknown>
+    time?: { start: number; end: number }
+    attachments?: unknown[]
+  }
+
   // OPTIMIZED: Use incremental approach instead of flatMap over all messages
   // Old pattern: messages().flatMap(m => parts.filter(...).map(...))
   // This was O(messages × parts) on every render
   const tools = createMemo(() => {
     const msgList = messages()
-    const result: Array<{ tool: string; state: any }> = []
+    const result: Array<{ tool: string; state: ToolStateWithTitle }> = []
     
     // Iterate once through messages, building result incrementally
     for (let i = 0; i < msgList.length; i++) {
@@ -1998,14 +2009,14 @@ function Task(props: ToolProps<typeof TaskTool>) {
       for (let j = 0; j < parts.length; j++) {
         const part = parts[j]!
         if (part.type === "tool") {
-          result.push({ tool: part.tool, state: part.state })
+          result.push({ tool: part.tool, state: part.state as ToolStateWithTitle })
         }
       }
     }
     return result
   })
 
-  const current = createMemo(() => tools().findLast((x) => (x.state as any).title))
+  const current = createMemo(() => tools().findLast((x) => x.state.title))
 
   const isRunning = createMemo(() => props.part.state.status === "running")
 
@@ -2016,14 +2027,22 @@ function Task(props: ToolProps<typeof TaskTool>) {
     return assistant - first
   })
 
+  // Proper type for task metadata from subagents
+  interface TaskMetadata {
+    subagent_type?: string
+    model?: { modelID?: string }
+  }
+
   const content = createMemo(() => {
-    const meta = props.part.state.status !== "pending" ? (props.part.state.metadata as any) : {}
+    const meta: TaskMetadata = props.part.state.status !== "pending" 
+      ? (props.part.state.metadata as TaskMetadata ?? {})
+      : {}
     const subagentName = meta?.subagent_type || "sub"
     const modelInfo = meta?.model?.modelID || "unknown"
     let content = [`Call ${subagentName} sub agents (${modelInfo})`]
 
     if (isRunning() && tools().length > 0) {
-      if (current()) content.push(`↳ ${Locale.titlecase(current()!.tool)} ${(current()!.state as any).title || "working..."}`)
+      if (current()) content.push(`↳ ${Locale.titlecase(current()!.tool)} ${current()!.state.title || "working..."}`)
       else if (tools().length > 0) content.push(`↳ ${Locale.titlecase(tools().at(-1)!.tool)} working...`)
       else content.push(`↳ ${tools().length} toolcalls`)
     }
@@ -2036,7 +2055,9 @@ function Task(props: ToolProps<typeof TaskTool>) {
   })
 
   const iconColor = createMemo(() => {
-    const meta = props.part.state.status !== "pending" ? (props.part.state.metadata as any) : {}
+    const meta: TaskMetadata = props.part.state.status !== "pending"
+      ? (props.part.state.metadata as TaskMetadata ?? {})
+      : {}
     const subagentName = meta?.subagent_type
     if (!subagentName) return theme.text
     return local.agent.color(subagentName)

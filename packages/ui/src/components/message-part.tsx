@@ -1642,10 +1642,19 @@ ToolRegistry.register({
     const data = useData()
     const i18n = useI18n()
     const location = useLocation()
+    
+    // Proper type for task metadata from subagents
+    interface TaskMetadata {
+      sessionId?: string
+      model?: { modelID?: string }
+      [key: string]: unknown
+    }
+    
     // PERFORMANCE: Combine reactive computations to reduce overhead
     const taskInfo = createMemo(() => {
-      const childId = props.metadata.sessionId as string | undefined
-      const modelId = (props.metadata as any)?.model?.modelID || "unknown"
+      const meta = props.metadata as TaskMetadata | undefined
+      const childId = meta?.sessionId as string | undefined
+      const modelId = meta?.model?.modelID || "unknown"
       const subagentType = props.input.subagent_type || "sub"
       const isRunning = props.status === "pending" || props.status === "running"
       
