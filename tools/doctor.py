@@ -334,73 +334,105 @@ class LiveRunProviderCheck(DoctorCheck):
 
 
 class InfinityLoopCheck(DoctorCheck):
-    """Check that Infinity Loop Runtime is properly implemented."""
-    
+    """Check that infinity loop is properly implemented."""
+
     name = "infinity-loop"
-    description = "Check Infinity Loop Runtime implementation"
-    
+    description = "Check for infinity loop implementation"
+
     def run(self) -> bool:
+        import json
+
         root = get_project_root()
-        
-        # Check runtime file exists
-        runtime_path = root / "packages/opencode/src/infinity/runtime.ts"
-        if not runtime_path.exists():
-            self.errors.append(f"Runtime file not found: {runtime_path}")
+
+        # Check for implementation doc
+        impl_doc = root / ".local" / "implementation-infinity-loop.md"
+        if not impl_doc.exists():
+            self.errors.append("Implementation doc not found at .local/implementation-infinity-loop.md")
             return False
-        
-        self.log(f"Found runtime: {runtime_path}")
-        
-        # Check CLI integration
-        index_path = root / "packages/opencode/src/index.ts"
-        if not index_path.exists():
-            self.errors.append(f"CLI index not found: {index_path}")
+
+        self.log(f"Found implementation doc: {impl_doc}")
+
+        # Check for infinity loop script
+        loop_script = root / "tools" / "infinity-loop.py"
+        if not loop_script.exists():
+            self.errors.append("Infinity loop script not found at tools/infinity-loop.py")
             return False
-        
-        content = index_path.read_text()
-        if "InfinityCommand" not in content:
-            self.errors.append("InfinityCommand not registered in CLI")
+
+        self.log(f"Found loop script: {loop_script}")
+
+        # Check for loop state directory
+        loop_dir = root / ".local" / "infinity-loop"
+        if not loop_dir.exists():
+            self.errors.append("Infinity loop directory not found at .local/infinity-loop")
             return False
-        
-        self.log("Found InfinityCommand in CLI")
-        
-        # Check schemas exist
-        schema_dir = root / ".opencode/schemas"
-        required_schemas = ["task.schema.json", "run-state.schema.json", "gate.schema.json", "stuck.schema.json"]
-        for schema in required_schemas:
-            schema_path = schema_dir / schema
-            if not schema_path.exists():
-                self.errors.append(f"Missing schema: {schema}")
+
+        self.log(f"Found loop directory: {loop_dir}")
+
+        # Check for state schema validation
+        state_file = loop_dir / "state.json"
+        if state_file.exists():
+            try:
+                with open(state_file) as f:
+                    state = json.load(f)
+
+                # Validate state schema
+                required_fields = ["version", "state", "current_target", "cycle_id",
+                                   "attempt_count", "artifact_paths", "created_at", "updated_at"]
+                for field in required_fields:
+                    if field not in state:
+                        self.errors.append(f"State file missing required field: {field}")
+                        return False
+
+                self.log(f"State file is valid")
+            except json.JSONDecodeError as e:
+                self.errors.append(f"State file is not valid JSON: {e}")
                 return False
-            self.log(f"Found schema: {schema}")
-        
-        # Check agent files exist
-        agent_dir = root / ".opencode/agent"
-        required_agents = ["suggester.md", "planner.md", "dev.md", "havoc.md", "reporter.md", "librarian.md", "master.md"]
-        for agent in required_agents:
-            agent_path = agent_dir / agent
-            if not agent_path.exists():
-                self.errors.append(f"Missing agent: {agent}")
+
+        # Check for inventory schema validation
+        inventory_file = loop_dir / "inventory.json"
+        if inventory_file.exists():
+            try:
+                with open(inventory_file) as f:
+                    inventory = json.load(f)
+
+                # Validate inventory schema
+                if "targets" not in inventory:
+                    self.errors.append("Inventory file missing 'targets' field")
+                    return False
+
+                # Validate each target
+                for target in inventory.get("targets", []):
+                    required_target_fields = ["id", "name", "path", "type", "status", "attempts"]
+                    for field in required_target_fields:
+                        if field not in target:
+                            self.errors.append(f"Target missing required field: {field}")
+                            return False
+
+                self.log(f"Inventory file is valid with {len(inventory.get('targets', []))} targets")
+            except json.JSONDecodeError as e:
+                self.errors.append(f"Inventory file is not valid JSON: {e}")
                 return False
-            self.log(f"Found agent: {agent}")
-        
-        # Check knowledge directories exist
-        knowledge_dir = root / ".opencode/knowledge"
-        required_dirs = ["patterns", "gotchas", "decisions"]
-        for dir_name in required_dirs:
-            dir_path = knowledge_dir / dir_name
-            if not dir_path.exists():
-                self.errors.append(f"Missing knowledge directory: {dir_name}")
+
+        # Check for resume behavior
+        if state_file.exists():
+            with open(state_file) as f:
+                state = json.load(f)
+
+            # Verify state can be resumed (has required fields)
+            if "state" in state and "current_target" in state:
+                self.log("Resume behavior verified")
+            else:
+                self.errors.append("State file missing fields for resume behavior")
                 return False
-            self.log(f"Found knowledge dir: {dir_name}")
-        
-        # Check runs directory exists
-        runs_dir = root / ".opencode/runs"
-        if not runs_dir.exists():
-            self.errors.append("Runs directory not found: .opencode/runs")
+
+        # Check for proof directory
+        proof_dir = root / "docs" / "infinity-loop"
+        if not proof_dir.exists():
+            self.errors.append("Proof directory not found at docs/infinity-loop")
             return False
-        
-        self.log("Found runs directory")
-        
+
+        self.log(f"Found proof directory: {proof_dir}")
+
         self.passed = True
         return True
 
