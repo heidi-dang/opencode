@@ -109,44 +109,44 @@ class PerformanceStore {
 
   // O(1) tool lookups
   getLatestTool(sessionId: string): ToolInfo | undefined {
-    return store.latestToolBySession[sessionId]
+    return this.store.latestToolBySession[sessionId]
   }
 
   getActiveTask(sessionId: string): TaskInfo | undefined {
-    return store.activeTaskBySession[sessionId]
+    return this.store.activeTaskBySession[sessionId]
   }
 
   getLatestStreamingPart(sessionId: string): PartInfo | undefined {
-    return store.latestStreamingPartBySession[sessionId]
+    return this.store.latestStreamingPartBySession[sessionId]
   }
 
   getToolParts(messageId: string): ToolInfo[] {
-    return store.toolPartsByMessage[messageId] || []
+    return this.store.toolPartsByMessage[messageId] || []
   }
 
   // Mutations with index updates
   addMessage(message: Message) {
-    setStore('messages', message.id, message)
+    this.setStore('messages', message.id, message)
     
     // Update session index
-    const sessionMessages = store.messageIdsBySession[message.sessionId] || []
+    const sessionMessages = this.store.messageIdsBySession[message.sessionId] || []
     if (!sessionMessages.includes(message.id)) {
-      setStore('messageIdsBySession', message.sessionId, [...sessionMessages, message.id])
+      this.setStore('messageIdsBySession', message.sessionId, [...sessionMessages, message.id])
     }
     
     // Initialize parts index
-    if (!store.partIdsByMessage[message.id]) {
-      setStore('partIdsByMessage', message.id, [])
+    if (!this.store.partIdsByMessage[message.id]) {
+      this.setStore('partIdsByMessage', message.id, [])
     }
   }
 
   addPart(part: Part) {
-    setStore('parts', part.id, part)
+    this.setStore('parts', part.id, part)
     
     // Update message index
-    const messageParts = store.partIdsByMessage[part.messageId] || []
+    const messageParts = this.store.partIdsByMessage[part.messageId] || []
     if (!messageParts.includes(part.id)) {
-      setStore('partIdsByMessage', part.messageId, [...messageParts, part.id])
+      this.setStore('partIdsByMessage', part.messageId, [...messageParts, part.id])
     }
     
     // Update tool index if it's a tool part
@@ -162,10 +162,10 @@ class PerformanceStore {
       
       const sessionId = this.getMessage(part.messageId)?.sessionId
       if (sessionId) {
-        setStore('latestToolBySession', sessionId, toolInfo)
+        this.setStore('latestToolBySession', sessionId, toolInfo)
         
-        const messageTools = store.toolPartsByMessage[part.messageId] || []
-        setStore('toolPartsByMessage', part.messageId, [...messageTools, toolInfo])
+        const messageTools = this.store.toolPartsByMessage[part.messageId] || []
+        this.setStore('toolPartsByMessage', part.messageId, [...messageTools, toolInfo])
       }
     }
     
@@ -173,14 +173,14 @@ class PerformanceStore {
     if (part.streaming) {
       const sessionId = this.getMessage(part.messageId)?.sessionId
       if (sessionId) {
-        setStore('latestStreamingPartBySession', sessionId, {
+        this.setStore('latestStreamingPartBySession', sessionId, {
           partId: part.id,
           messageId: part.messageId,
           type: part.type,
           status: part.status,
           streaming: true
         })
-        setStore('activeStreamingSessions', sessions => new Set([...sessions, sessionId]))
+        this.setStore('activeStreamingSessions', sessions => new Set([...sessions, sessionId]))
       }
     }
   }
