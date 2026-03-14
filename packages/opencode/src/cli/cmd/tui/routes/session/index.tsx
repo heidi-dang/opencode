@@ -2002,7 +2002,7 @@ function Task(props: ToolProps<typeof TaskTool>) {
   })
 
   const content = createMemo(() => {
-    const meta = props.part.state.metadata as any
+    const meta = props.part.state.status !== "pending" ? (props.part.state.metadata as any) : {}
     const subagentName = meta?.subagent_type || "sub"
     const modelInfo = meta?.model?.modelID || "unknown"
     let content = [`Call ${subagentName} sub agents (${modelInfo})`]
@@ -2021,7 +2021,7 @@ function Task(props: ToolProps<typeof TaskTool>) {
   })
 
   const iconColor = createMemo(() => {
-    const meta = props.part.state.metadata as any
+    const meta = props.part.state.status !== "pending" ? (props.part.state.metadata as any) : {}
     const subagentName = meta?.subagent_type
     if (!subagentName) return theme.text
     return local.agent.color(subagentName)
