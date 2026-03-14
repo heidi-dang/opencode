@@ -2002,8 +2002,9 @@ function Task(props: ToolProps<typeof TaskTool>) {
   })
 
   const content = createMemo(() => {
-    const subagentName = props.part.state.metadata?.subagent_type || "sub"
-    const modelInfo = props.part.state.metadata?.model?.modelID || "unknown"
+    const meta = props.part.state.metadata as any
+    const subagentName = meta?.subagent_type || "sub"
+    const modelInfo = meta?.model?.modelID || "unknown"
     let content = [`Call ${subagentName} sub agents (${modelInfo})`]
 
     if (isRunning() && tools().length > 0) {
@@ -2020,7 +2021,8 @@ function Task(props: ToolProps<typeof TaskTool>) {
   })
 
   const iconColor = createMemo(() => {
-    const subagentName = props.part.state.metadata?.subagent_type
+    const meta = props.part.state.metadata as any
+    const subagentName = meta?.subagent_type
     if (!subagentName) return theme.text
     return local.agent.color(subagentName)
   })
