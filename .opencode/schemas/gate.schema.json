@@ -1,0 +1,64 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "GateResult",
+  "description": "Schema for Reporter gate result bundles",
+  "type": "object",
+  "required": ["task_id", "run_id", "result", "gates", "rollback_executed"],
+  "properties": {
+    "task_id": {
+      "type": "string",
+      "pattern": "^task-\\d{4}-\\d{2}-\\d{2}-\\d{3}$"
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^run-\\d{4}-\\d{2}-\\d{2}-\\d{3}$"
+    },
+    "result": {
+      "type": "string",
+      "enum": ["pass", "fail", "blocked", "retry_with_actions"],
+      "description": "Overall gate evaluation result"
+    },
+    "gates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "status", "details"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "enum": ["cloud_ci", "security", "visual", "benchmark"],
+            "description": "Gate name"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["pass", "fail", "skipped"]
+          },
+          "details": {
+            "type": "string",
+            "description": "Human-readable gate result details"
+          }
+        }
+      },
+      "description": "Individual gate results"
+    },
+    "rollback_executed": {
+      "type": "boolean",
+      "description": "Whether an automated git revert was executed"
+    },
+    "retry_actions": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Specific actions to take before retrying (only when result is retry_with_actions)"
+    },
+    "benchmark_data": {
+      "type": "object",
+      "description": "A/B benchmark comparison data (when applicable)",
+      "properties": {
+        "winner": { "type": "string" },
+        "variant_a": { "type": "object" },
+        "variant_b": { "type": "object" }
+      }
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "RunState",
+  "description": "Schema for live execution state per run in .opencode/runs/<run-id>/state.json",
+  "type": "object",
+  "required": ["run_id", "task_id", "status", "workers", "created_at", "updated_at"],
+  "properties": {
+    "run_id": {
+      "type": "string",
+      "pattern": "^run-\\d{4}-\\d{2}-\\d{2}-\\d{3}$"
+    },
+    "task_id": {
+      "type": "string",
+      "pattern": "^task-\\d{4}-\\d{2}-\\d{2}-\\d{3}$"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["planning", "assigned", "in_progress", "stuck", "ready_for_reporter", "gating", "passed", "failed", "rolled_back"],
+      "description": "Current run status"
+    },
+    "workers": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Assigned Dev worker IDs (e.g., dev-1, dev-2)"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "escalated_to_master": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether this run was escalated to Master"
+    },
+    "gate_result": {
+      "$ref": "gate.schema.json",
+      "description": "Gate result bundle from Reporter (populated after gating)"
+    }
+  },
+  "additionalProperties": false
+}

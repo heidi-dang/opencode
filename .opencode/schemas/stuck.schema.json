@@ -1,0 +1,57 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "StuckPacket",
+  "description": "Schema for structured stuck packets emitted by Dev agents",
+  "type": "object",
+  "required": ["type", "task_id", "worker_id", "attempt_count", "failure_signature", "files_touched", "checks_failed", "recent_actions", "ask"],
+  "properties": {
+    "type": {
+      "type": "string",
+      "const": "stuck"
+    },
+    "task_id": {
+      "type": "string",
+      "pattern": "^task-\\d{4}-\\d{2}-\\d{2}-\\d{3}$"
+    },
+    "worker_id": {
+      "type": "string",
+      "description": "Identifier of the Dev worker (e.g., dev-1, dev-2)"
+    },
+    "attempt_count": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Number of attempts made before getting stuck"
+    },
+    "failure_signature": {
+      "type": "string",
+      "description": "Short slug describing the failure pattern"
+    },
+    "files_touched": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Files that were modified or inspected during attempts"
+    },
+    "checks_failed": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["command", "error_excerpt"],
+        "properties": {
+          "command": { "type": "string" },
+          "error_excerpt": { "type": "string" }
+        }
+      },
+      "description": "List of failed checks with commands and error excerpts"
+    },
+    "recent_actions": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Actions taken during recent attempts"
+    },
+    "ask": {
+      "type": "string",
+      "description": "Specific question or request for help"
+    }
+  },
+  "additionalProperties": false
+}
