@@ -1,5 +1,5 @@
 import { createSignal, createResource } from "solid-js"
-import { sdk } from "@/context/sdk"
+import { useSDK } from "@/context/sdk"
 
 /**
  * Hook to retrieve full tool output on demand

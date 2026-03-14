@@ -176,7 +176,7 @@ export function createTerminalFlushRules(batcher: ReturnType<typeof createDeltaB
  */
 export function createDeltaTracker() {
   const [deltas, setDeltas] = createSignal<Map<string, string>>(new Map())
-  let batchTimeout: number | undefined
+  let batchTimeout: ReturnType<typeof setTimeout> | undefined
 
   function addDelta(key: string, delta: string) {
     setDeltas((prev) => {

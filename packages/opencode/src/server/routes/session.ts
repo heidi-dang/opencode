@@ -1021,7 +1021,7 @@ export const SessionRoutes = lazy(() =>
         })
         return c.json(true)
       },
-    ),
+    )
     // Tool output retrieval endpoint
     .get(
       "/:sessionID/tool-output/:messageID/:partID",
@@ -1037,7 +1037,7 @@ export const SessionRoutes = lazy(() =>
         const { messageID, partID } = c.req.valid("param")
         
         // Get the part from the database
-        const part = await Database.use((db) =>
+        const part = Database.use((db) =>
           db.select().from(PartTable).where(eq(PartTable.id, partID)).get()
         )
         
@@ -1046,14 +1046,14 @@ export const SessionRoutes = lazy(() =>
         }
         
         // Check if part has outputRef
-        const data = part.data as any
+        const data = part.data as Record<string, unknown>
         if (!data?.outputRef) {
           return c.json({ error: "No full output available", output: data?.output ?? "" })
         }
         
         // Retrieve full output from blob storage
         const { Truncate } = await import("@/tool/truncation")
-        const fullOutput = await Truncate.retrieveFullOutput(data.outputRef)
+        const fullOutput = await Truncate.retrieveFullOutput(data.outputRef as string)
         
         return c.json({
           output: fullOutput ?? data.output ?? "",

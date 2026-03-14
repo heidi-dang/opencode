@@ -1642,41 +1642,69 @@ ToolRegistry.register({
     const data = useData()
     const i18n = useI18n()
     const location = useLocation()
-    const childSessionId = () => props.metadata.sessionId as string | undefined
-    const modelID = () => (props.metadata as any)?.model?.modelID || "unknown"
-    const subagent = () => props.input.subagent_type || "sub"
-
-    const title = createMemo(() => `Call ${subagent()} sub agents (${modelID()})`)
-    const subtitle = createMemo(() => {
-      const value = props.input.description
-      if (typeof value === "string" && value) return value
-      return childSessionId()
-    })
-    const running = createMemo(() => props.status === "pending" || props.status === "running")
-
-    const messages = createMemo(() => data.store.message[childSessionId() ?? ""] ?? [])
-    const tools = createMemo(() => {
-      return messages().flatMap((msg) =>
-        (data.store.part[msg.id] ?? [])
-          .filter((part): part is ToolPart => part.type === "tool")
-          .map((part) => ({ tool: part.tool, state: part.state })),
-      )
-    })
-
-    const currentAction = createMemo(() => {
-      if (!running()) return undefined
-      const last = tools().findLast((x) => (x.state as any).title)
-      if (last) return `↳ ${last.tool.charAt(0).toUpperCase() + last.tool.slice(1)} ${(last.state as any).title}`
-      if (tools().length > 0) {
-        const lastTool = tools().at(-1)!
-        return `↳ ${lastTool.tool.charAt(0).toUpperCase() + lastTool.tool.slice(1)} working...`
+    // PERFORMANCE: Combine reactive computations to reduce overhead
+    const taskInfo = createMemo(() => {
+      const childId = props.metadata.sessionId as string | undefined
+      const modelId = (props.metadata as any)?.model?.modelID || "unknown"
+      const subagentType = props.input.subagent_type || "sub"
+      const isRunning = props.status === "pending" || props.status === "running"
+      
+      return {
+        childSessionId: childId,
+        modelID: modelId,
+        subagent: subagentType,
+        running: isRunning,
+        title: `Call ${subagentType} sub agents (${modelId})`,
+        subtitle: (() => {
+          const value = props.input.description
+          if (typeof value === "string" && value) return value
+          return childId
+        })()
       }
+    })
+
+    // PERFORMANCE: Limit array size to prevent memory leaks
+    const MAX_MESSAGES = 1000
+    const MAX_TOOLS = 500
+    
+    const messages = createMemo(() => {
+      const allMessages = data.store.message[taskInfo().childSessionId ?? ""] ?? []
+      return allMessages.slice(-MAX_MESSAGES)
+    })
+    
+    const tools = createMemo(() => {
+      return messages()
+        .flatMap((msg) =>
+          (data.store.part[msg.id] ?? [])
+            .filter((part): part is ToolPart => part.type === "tool")
+            .map((part) => ({ tool: part.tool, state: part.state })),
+        )
+        .slice(-MAX_TOOLS)
+    })
+
+    // PERFORMANCE: Combine current action computation
+    const currentAction = createMemo(() => {
+      if (!taskInfo().running) return undefined
+      
+      const lastTool = tools().findLast((x) => (x.state as any).title)
+      if (lastTool) {
+        const toolName = lastTool.tool.charAt(0).toUpperCase() + lastTool.tool.slice(1)
+        const title = (lastTool.state as any).title
+        return `↳ ${toolName} ${title}`
+      }
+      
+      if (tools().length > 0) {
+        const last = tools().at(-1)!
+        const toolName = last.tool.charAt(0).toUpperCase() + last.tool.slice(1)
+        return `↳ ${toolName} working...`
+      }
+      
       return undefined
     })
 
-    const href = createMemo(() => sessionLink(childSessionId(), location.pathname, data.sessionHref))
+    const href = createMemo(() => sessionLink(taskInfo().childSessionId, location.pathname, data.sessionHref))
 
-    const titleContent = () => <TextShimmer text={title()} active={running()} />
+    const titleContent = () => <TextShimmer text={taskInfo().title} active={taskInfo().running} />
 
     const trigger = () => (
       <div data-slot="basic-tool-tool-info-structured">
@@ -1691,7 +1719,7 @@ ToolRegistry.register({
               </span>
             </Show>
           </div>
-          <Show when={subtitle()}>
+          <Show when={taskInfo().subtitle}>
             <Switch>
               <Match when={href()}>
                 <a
@@ -1700,11 +1728,11 @@ ToolRegistry.register({
                   href={href()!}
                   onClick={(e) => e.stopPropagation()}
                 >
-                  {subtitle()}
+                  {taskInfo().subtitle}
                 </a>
               </Match>
               <Match when={true}>
-                <span data-slot="basic-tool-tool-subtitle">{subtitle()}</span>
+                <span data-slot="basic-tool-tool-subtitle">{taskInfo().subtitle}</span>
               </Match>
             </Switch>
           </Show>

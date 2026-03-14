@@ -9,6 +9,7 @@ import { Scheduler } from "../scheduler"
 import { Filesystem } from "../util/filesystem"
 import { Glob } from "../util/glob"
 import { ToolID } from "./schema"
+import { Log } from "../util/log"
 
 export namespace Truncate {
   export const MAX_LINES = 2000

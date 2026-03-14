@@ -29,7 +29,7 @@ export function createLiveRunProvider() {
   
   // Subscribe to SDK events
   onMount(() => {
-    const unsubscribe = sdk.on((event) => {
+    const unsubscribe = sdk.event.listen((event: { type: string; directory?: string; details?: Record<string, unknown>; properties?: Record<string, unknown> }) => {
       handleSDKEvent(event)
     })
     
