@@ -4,7 +4,9 @@ import { Instance } from "../project/instance"
 import { Log } from "@/util/log"
 import { PermissionNext } from "../permission/next"
 import { Config } from "../config/config"
-import { generateObject, generateText } from "ai"
+import { Provider } from "../provider/provider"
+import { ProviderID, ModelID } from "../provider/schema"
+import { generateObject, generateText, type CoreMessage } from "ai"
 import z from "zod"
 import * as fs from "fs/promises"
 import path from "path"
@@ -54,8 +56,12 @@ export namespace ToolForge {
    */
   export async function analyzeTaskRequirement(task: string): Promise<ToolTemplate | null> {
     const config = await Config.get()
+    const [pId, mId] = (config.model || "opencode/gpt-4o-mini").split("/")
+    const modelInfo = await Provider.getModel(ProviderID.make(pId), ModelID.make(mId))
+    const model = await Provider.getLanguage(modelInfo)
+
     const result = await generateObject({
-      model: "opencode/gpt-4o-mini",
+      model,
       prompt: `Analyze this task and determine if a custom tool is needed:
 
 Task: "${task}"
@@ -130,6 +136,10 @@ Respond with JSON:
    */
   async function generateToolImplementation(template: ToolTemplate): Promise<string> {
     const config = await Config.get()
+    const [pId, mId] = (config.model || "opencode/gpt-4o").split("/")
+    const modelInfo = await Provider.getModel(ProviderID.make(pId), ModelID.make(mId))
+    const model = await Provider.getLanguage(modelInfo)
+
     const prompt = `
 Create a complete TypeScript tool implementation for OpenCode based on this template:
 
@@ -155,7 +165,7 @@ ${template.code}
 Complete the implementation with proper error handling, validation, and OpenCode patterns.`
 
     const result = await generateText({
-      model: "opencode/gpt-4o",
+      model,
       prompt,
       temperature: 0.3,
     })

@@ -16,26 +16,27 @@ export default defineConfig({
       output: {
         // Use function-based config instead of glob patterns for reliability
         manualChunks(id) {
-          // Skip node_modules
-          if (id.includes("node_modules")) return undefined
+          if (id.includes("node_modules")) {
+            if (id.includes("remeda")) return "vendor-remeda"
+            if (id.includes("zod")) return "vendor-zod"
+            if (id.includes("solid-js")) return "vendor-solid"
+            if (id.includes("@kobalte")) return "vendor-kobalte"
+            if (id.includes("fuzzysort")) return "vendor-fuzzysort"
+            return "vendor"
+          }
 
-          // Split agent configs
           if (id.includes("/context/agent") || id.includes("/message-timeline")) {
             return "agent-configs"
           }
-          // Split UI components
           if (id.includes("/components/") || id.includes("/pages/")) {
             return "ui-components"
           }
-          // Split context providers (excluding agent)
           if (id.includes("/context/") && !id.includes("/context/agent")) {
             return "context"
           }
-          // Split utilities
           if (id.includes("/utils/")) {
             return "utils"
           }
-          return undefined
         },
       },
     },
