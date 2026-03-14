@@ -559,19 +559,19 @@ export namespace Server {
         },
       )
       .all("/*", async (c) => {
-        const path = c.req.path
+        const reqPath = c.req.path
         const config = await Config.get()
 
         if (config.server?.uiDist) {
-          const localPath = path.join(config.server.uiDist, path === "/" ? "index.html" : path)
+          const localPath = path.join(config.server.uiDist, reqPath === "/" ? "index.html" : reqPath)
           if (await Filesystem.exists(localPath)) {
             const data = await fs.readFile(localPath)
             const type = mime.lookup(localPath) || "application/octet-stream"
-            return c.body(data, 200, { "Content-Type": type })
+            return c.body(new Uint8Array(data), 200, { "Content-Type": type })
           }
         }
 
-        const response = await proxy(`https://app.opencode.ai${path}`, {
+        const response = await proxy(`https://app.opencode.ai${reqPath}`, {
           ...c.req,
           headers: {
             ...c.req.raw.headers,
