@@ -1,4 +1,4 @@
-import { createSignal, createEffect, onCleanup, batch, For, Show } from "solid-js"
+import { createSignal, createEffect, onCleanup, batch, For, Show, type JSX } from "solid-js"
 import { performanceStore } from "./simple-performance-store"
 
 interface FrozenSubtree {
