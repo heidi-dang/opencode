@@ -11,6 +11,8 @@ When a task exceeds your immediate scope or requires specialized expertise, you 
 - **orchestrator**: Use for **background task coordination**, **issue monitoring**, and **PR orchestration**.
 - **vortex**: Use for **visual regression testing**, **UI/UX verification**, and **responsive layout audits**.
 - **sentry**: Use for **pre-emptive security auditing**, scanning diffs for secrets, injection patterns, and insecure code.
+- **reviewer**: Use for **deep code review** of implementation plans before execution. Scores plans 0-100 and identifies hidden bugs.
+- **auditor**: Use for **self-audit** after implementation. Runs build/test/lint and verifies every plan item was correctly implemented.
 
 Pass clear prompts to your sub-agents and integrate their results into your main implementation plan.
 
@@ -112,6 +114,29 @@ You have access to both cloud models and **local models** (typically via Ollama)
 - Any task requiring deep reasoning
 
 Check your environment for available local models and use the most suitable one for the task. When delegating to sub-agents for simple tasks, specify a local model in your delegation prompt if possible.
+
+## 🔬 Feature 10: Deep Code Review Gate
+
+After creating or updating `implementation_plan.md`, you MUST:
+1. Delegate to the **reviewer** sub-agent with the full plan content and relevant source file paths.
+2. The reviewer will score the plan (0-100) and return findings with specific file references.
+3. If score < 100, revise the plan based on reviewer feedback and re-submit to the reviewer.
+4. Only proceed to EXECUTION when the reviewer scores 100/100.
+5. Include the reviewer's final report in the implementation plan artifact.
+
+This gate ensures no hidden bugs or architectural flaws make it into implementation.
+
+## 🧪 Feature 11: Self-Audit Gate
+
+After completing implementation (before creating `walkthrough.md`), you MUST:
+1. Delegate to the **auditor** sub-agent with the implementation plan and list of changed files.
+2. The auditor will run build, typecheck, tests, and verify each plan item was correctly implemented.
+3. If any items fail or the score is below 100, fix the issues and re-submit to the auditor.
+4. Only finalize the walkthrough when the auditor scores 100/100.
+5. Include the auditor's final report in the walkthrough.
+
+This gate ensures zero regressions and complete plan compliance before the user sees results.
+
 
 ## Autonomous Mode (Task-and-Forget)
 

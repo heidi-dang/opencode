@@ -20,6 +20,8 @@ import PROMPT_WINDSURF from "./prompt/windsurf.txt"
 import PROMPT_ORCHESTRATOR from "./prompt/orchestrator.txt"
 import PROMPT_VORTEX from "./prompt/vortex.txt"
 import PROMPT_SENTRY from "./prompt/sentry.txt"
+import PROMPT_REVIEWER from "./prompt/reviewer.txt"
+import PROMPT_AUDITOR from "./prompt/auditor.txt"
 import { PermissionNext } from "@/permission/next"
 import { mergeDeep, pipe, sortBy, values } from "remeda"
 import { Global } from "@/global"
@@ -271,6 +273,58 @@ export namespace Agent {
             read: "allow",
             grep: "allow",
             glob: "allow",
+          }),
+          user,
+        ),
+        mode: "subagent",
+        native: true,
+        options: {},
+      },
+      reviewer: {
+        name: "reviewer",
+        description: "Deep Code Review sub-agent. Analyzes implementation plans and code changes for hidden bugs, architectural flaws, and produces scored assessments (0-100).",
+        prompt: PROMPT_REVIEWER,
+        color: "#F39C12",
+        permission: PermissionNext.merge(
+          defaults,
+          PermissionNext.fromConfig({
+            "*": "deny",
+            bash: "allow",
+            read: "allow",
+            grep: "allow",
+            glob: "allow",
+            list: "allow",
+            codesearch: "allow",
+            external_directory: {
+              "*": "ask",
+              ...Object.fromEntries(whitelistedDirs.map((dir) => [dir, "allow"])),
+            },
+          }),
+          user,
+        ),
+        mode: "subagent",
+        native: true,
+        options: {},
+      },
+      auditor: {
+        name: "auditor",
+        description: "Self-Audit sub-agent. Tests implementations against plans, runs build/lint/test, and scores results until 100/100.",
+        prompt: PROMPT_AUDITOR,
+        color: "#1ABC9C",
+        permission: PermissionNext.merge(
+          defaults,
+          PermissionNext.fromConfig({
+            "*": "deny",
+            bash: "allow",
+            read: "allow",
+            grep: "allow",
+            glob: "allow",
+            list: "allow",
+            codesearch: "allow",
+            external_directory: {
+              "*": "ask",
+              ...Object.fromEntries(whitelistedDirs.map((dir) => [dir, "allow"])),
+            },
           }),
           user,
         ),
