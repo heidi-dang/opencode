@@ -1,0 +1,58 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Task",
+  "description": "Schema for backlog items in .opencode/queue.json",
+  "type": "object",
+  "required": ["id", "title", "source", "priority", "category", "scope", "acceptance", "constraints", "status"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^task-\\d{4}-\\d{2}-\\d{2}-\\d{3}$",
+      "description": "Unique task identifier: task-YYYY-MM-DD-NNN"
+    },
+    "title": {
+      "type": "string",
+      "maxLength": 120,
+      "description": "Short descriptive title"
+    },
+    "source": {
+      "type": "string",
+      "enum": ["internal_audit", "external_triage", "tech_radar", "cost_profile", "post_mortem"],
+      "description": "Origin of the task"
+    },
+    "priority": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5,
+      "description": "1 = highest priority, 5 = lowest"
+    },
+    "category": {
+      "type": "string",
+      "enum": ["stability", "performance", "feature", "cost", "security"],
+      "description": "Task category"
+    },
+    "scope": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "description": "Affected file paths or package scopes"
+    },
+    "acceptance": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "description": "Specific measurable acceptance criteria"
+    },
+    "constraints": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Boundaries the implementation must respect"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["queued", "in_progress", "stuck", "ready_for_reporter", "passed", "failed", "rolled_back"],
+      "description": "Current task status"
+    }
+  },
+  "additionalProperties": false
+}
