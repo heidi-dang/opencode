@@ -1643,18 +1643,36 @@ ToolRegistry.register({
     const i18n = useI18n()
     const location = useLocation()
     const childSessionId = () => props.metadata.sessionId as string | undefined
-    const type = createMemo(() => {
-      const raw = props.input.subagent_type
-      if (typeof raw !== "string" || !raw) return undefined
-      return raw[0]!.toUpperCase() + raw.slice(1)
-    })
-    const title = createMemo(() => agentTitle(i18n, type()))
+    const modelID = () => (props.metadata as any)?.model?.modelID || "unknown"
+    const subagent = () => props.input.subagent_type || "sub"
+
+    const title = createMemo(() => `Call ${subagent()} sub agents (${modelID()})`)
     const subtitle = createMemo(() => {
       const value = props.input.description
       if (typeof value === "string" && value) return value
       return childSessionId()
     })
     const running = createMemo(() => props.status === "pending" || props.status === "running")
+
+    const messages = createMemo(() => data.store.message[childSessionId() ?? ""] ?? [])
+    const tools = createMemo(() => {
+      return messages().flatMap((msg) =>
+        (data.store.part[msg.id] ?? [])
+          .filter((part): part is ToolPart => part.type === "tool")
+          .map((part) => ({ tool: part.tool, state: part.state })),
+      )
+    })
+
+    const currentAction = createMemo(() => {
+      if (!running()) return undefined
+      const last = tools().findLast((x) => (x.state as any).title)
+      if (last) return `↳ ${last.tool.charAt(0).toUpperCase() + last.tool.slice(1)} ${(last.state as any).title}`
+      if (tools().length > 0) {
+        const lastTool = tools().at(-1)!
+        return `↳ ${lastTool.tool.charAt(0).toUpperCase() + lastTool.tool.slice(1)} working...`
+      }
+      return undefined
+    })
 
     const href = createMemo(() => sessionLink(childSessionId(), location.pathname, data.sessionHref))
 
@@ -1663,9 +1681,16 @@ ToolRegistry.register({
     const trigger = () => (
       <div data-slot="basic-tool-tool-info-structured">
         <div data-slot="basic-tool-tool-info-main">
-          <span data-slot="basic-tool-tool-title" class="capitalize agent-title">
-            {titleContent()}
-          </span>
+          <div style="display: flex; flex-direction: column; gap: 2px;">
+            <span data-slot="basic-tool-tool-title" class="agent-title">
+              {titleContent()}
+            </span>
+            <Show when={currentAction()}>
+              <span data-slot="basic-tool-tool-subtitle" class="text-text-weak">
+                {currentAction()}
+              </span>
+            </Show>
+          </div>
           <Show when={subtitle()}>
             <Switch>
               <Match when={href()}>
