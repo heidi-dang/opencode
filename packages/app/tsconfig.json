@@ -13,14 +13,12 @@
     "allowJs": true,
     "resolveJsonModule": true,
     "strict": true,
-    "noEmit": false,
-    "emitDeclarationOnly": true,
-    "outDir": "node_modules/.ts-dist",
+    "noEmit": true,
     "isolatedModules": true,
     "paths": {
       "@/*": ["./src/*"]
     }
   },
   "include": ["src", "package.json"],
-  "exclude": ["dist", "ts-dist"]
+  "exclude": ["dist", "ts-dist", "node_modules/.ts-dist"]
 }

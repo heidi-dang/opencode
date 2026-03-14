@@ -333,6 +333,78 @@ class LiveRunProviderCheck(DoctorCheck):
         return False
 
 
+class InfinityLoopCheck(DoctorCheck):
+    """Check that Infinity Loop Runtime is properly implemented."""
+    
+    name = "infinity-loop"
+    description = "Check Infinity Loop Runtime implementation"
+    
+    def run(self) -> bool:
+        root = get_project_root()
+        
+        # Check runtime file exists
+        runtime_path = root / "packages/opencode/src/infinity/runtime.ts"
+        if not runtime_path.exists():
+            self.errors.append(f"Runtime file not found: {runtime_path}")
+            return False
+        
+        self.log(f"Found runtime: {runtime_path}")
+        
+        # Check CLI integration
+        index_path = root / "packages/opencode/src/index.ts"
+        if not index_path.exists():
+            self.errors.append(f"CLI index not found: {index_path}")
+            return False
+        
+        content = index_path.read_text()
+        if "InfinityCommand" not in content:
+            self.errors.append("InfinityCommand not registered in CLI")
+            return False
+        
+        self.log("Found InfinityCommand in CLI")
+        
+        # Check schemas exist
+        schema_dir = root / ".opencode/schemas"
+        required_schemas = ["task.schema.json", "run-state.schema.json", "gate.schema.json", "stuck.schema.json"]
+        for schema in required_schemas:
+            schema_path = schema_dir / schema
+            if not schema_path.exists():
+                self.errors.append(f"Missing schema: {schema}")
+                return False
+            self.log(f"Found schema: {schema}")
+        
+        # Check agent files exist
+        agent_dir = root / ".opencode/agent"
+        required_agents = ["suggester.md", "planner.md", "dev.md", "havoc.md", "reporter.md", "librarian.md", "master.md"]
+        for agent in required_agents:
+            agent_path = agent_dir / agent
+            if not agent_path.exists():
+                self.errors.append(f"Missing agent: {agent}")
+                return False
+            self.log(f"Found agent: {agent}")
+        
+        # Check knowledge directories exist
+        knowledge_dir = root / ".opencode/knowledge"
+        required_dirs = ["patterns", "gotchas", "decisions"]
+        for dir_name in required_dirs:
+            dir_path = knowledge_dir / dir_name
+            if not dir_path.exists():
+                self.errors.append(f"Missing knowledge directory: {dir_name}")
+                return False
+            self.log(f"Found knowledge dir: {dir_name}")
+        
+        # Check runs directory exists
+        runs_dir = root / ".opencode/runs"
+        if not runs_dir.exists():
+            self.errors.append("Runs directory not found: .opencode/runs")
+            return False
+        
+        self.log("Found runs directory")
+        
+        self.passed = True
+        return True
+
+
 def get_all_checks(verbose: bool = False) -> List[DoctorCheck]:
     """Return all available checks."""
     return [
@@ -345,6 +417,7 @@ def get_all_checks(verbose: bool = False) -> List[DoctorCheck]:
         TUIOptimizationCheck(verbose),
         OutputRetrievalAPICheck(verbose),
         LiveRunProviderCheck(verbose),
+        InfinityLoopCheck(verbose),
     ]
 
 

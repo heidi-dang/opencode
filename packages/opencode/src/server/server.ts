@@ -561,13 +561,26 @@ export namespace Server {
       .all("/*", async (c) => {
         const reqPath = c.req.path
         const config = await Config.get()
+        const csp =
+          "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: https:; script-src 'self' 'wasm-unsafe-eval' 'unsafe-inline' 'unsafe-eval' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https: blob:; font-src 'self' data: https:; media-src 'self' data: https: blob:; connect-src 'self' data: https: wss: ws:;"
 
         if (config.server?.uiDist) {
-          const localPath = path.join(config.server.uiDist, reqPath === "/" ? "index.html" : reqPath)
-          if (await Filesystem.exists(localPath)) {
-            const data = await fs.readFile(localPath)
-            const type = mime.lookup(localPath) || "application/octet-stream"
-            return c.body(new Uint8Array(data), 200, { "Content-Type": type })
+          const uiDist = path.resolve(config.server.uiDist)
+          const targetPath = reqPath === "/" ? "index.html" : reqPath.replace(/^\/+/, "")
+          const localPath = path.resolve(uiDist, targetPath)
+
+          // Security: Prevent path traversal
+          if (localPath.startsWith(uiDist)) {
+            if (await Filesystem.exists(localPath)) {
+              const data = await fs.readFile(localPath)
+              const type = mime.lookup(localPath) || "application/octet-stream"
+              return c.body(new Uint8Array(data), 200, {
+                "Content-Type": type,
+                "Content-Security-Policy": csp,
+              })
+            }
+          } else {
+            log.warn("Path traversal attempt blocked", { reqPath, uiDist })
           }
         }
 
@@ -578,10 +591,7 @@ export namespace Server {
             host: "app.opencode.ai",
           },
         })
-        response.headers.set(
-          "Content-Security-Policy",
-          "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: https:; script-src 'self' 'wasm-unsafe-eval' 'unsafe-inline' 'unsafe-eval' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https: blob:; font-src 'self' data: https:; media-src 'self' data: https: blob:; connect-src 'self' data: https: wss: ws:;",
-        )
+        response.headers.set("Content-Security-Policy", csp)
         return response
       })
   }

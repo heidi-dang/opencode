@@ -32,7 +32,7 @@ export function LiveStreamingLane(props: LiveStreamingLaneProps): JSX.Element {
             <TextShimmer text="Processing..." active={true} />
             <div class="streaming-indicator" />
           </div>
-          
+
           {/* Active streaming content */}
           <StreamingContent partId={latestStreamingPart()?.partId} />
         </div>
@@ -44,21 +44,13 @@ export function LiveStreamingLane(props: LiveStreamingLaneProps): JSX.Element {
 // Frozen history lane for completed content
 export function FrozenHistoryLane(props: { sessionId: string }): JSX.Element {
   const sessionMessages = useSessionMessages(props.sessionId)
-  
+
   // Only show completed messages in history
-  const completedMessages = () => 
-    sessionMessages().filter(msg => msg.completed)
+  const completedMessages = () => sessionMessages().filter((msg) => msg.completed)
 
   return (
     <div data-component="frozen-history-lane" class="frozen-history-container">
-      <For each={completedMessages()}>
-        {(message) => (
-          <FrozenMessage 
-            messageId={message.id}
-            frozen={true}
-          />
-        )}
-      </For>
+      <For each={completedMessages()}>{(message) => <FrozenMessage messageId={message.id} frozen={true} />}</For>
     </div>
   )
 }
@@ -67,54 +59,44 @@ export function FrozenHistoryLane(props: { sessionId: string }): JSX.Element {
 function FrozenMessage(props: FrozenMessageProps): JSX.Element {
   // Frozen messages don't subscribe to live updates
   // They render once with stable props and never re-render
-  const [messageSnapshot, setMessageSnapshot] = createSignal(() => {
-    // Capture snapshot on mount, never update
-    const message = performanceStore.getMessage(props.messageId)
-    return message ? { ...message } : null
-  })
+  const [messageSnapshot, setMessageSnapshot] = createSignal<{
+    id: string
+    sessionId: string
+    type: "assistant" | "system" | "user"
+    content?: string
+    timestamp: number
+    completed: boolean
+  } | null>(null)
 
-  const [partsSnapshot, setPartsSnapshot] = createSignal(() => {
-    // Capture parts snapshot on mount
-    const parts = performanceStore.getMessageParts(props.messageId)
-    return parts.map((part: any) => ({ ...part }))
-  })
+  const [partsSnapshot, setPartsSnapshot] = createSignal<any[]>([])
 
   // Capture snapshots on mount only
   createEffect(() => {
-    setMessageSnapshot(() => {
-      const message = performanceStore.getMessage(props.messageId)
-      return message ? { ...message } : null
-    })
-    setPartsSnapshot(() => {
-      const parts = performanceStore.getMessageParts(props.messageId)
-      return parts.map((part: any) => ({ ...part }))
-    })
+    const message = performanceStore.getMessage(props.messageId)
+    setMessageSnapshot(message ? { ...message } : null)
+
+    const parts = performanceStore.getMessageParts(props.messageId)
+    setPartsSnapshot(parts.map((part: any) => ({ ...part })))
   })
 
   return (
-    <div 
-      data-component="frozen-message" 
+    <div
+      data-component="frozen-message"
       data-message-id={props.messageId}
       class="frozen-message"
       style={{
         "content-visibility": "auto",
-        "contain": "layout paint style",
-        "contain-intrinsic-size": "0 200px"
+        contain: "layout paint style",
+        "contain-intrinsic-size": "0 200px",
       }}
     >
       <div class="message-header">
         <span class="message-type">{messageSnapshot()?.type}</span>
-        <span class="message-time">
-          {new Date(messageSnapshot()?.timestamp || 0).toLocaleTimeString()}
-        </span>
+        <span class="message-time">{new Date(messageSnapshot()?.timestamp || 0).toLocaleTimeString()}</span>
       </div>
-      
+
       <div class="message-content">
-        <For each={partsSnapshot()}>
-          {(part) => (
-            <FrozenPart part={part} />
-          )}
-        </For>
+        <For each={partsSnapshot()}>{(part) => <FrozenPart part={part} />}</For>
       </div>
     </div>
   )
@@ -124,14 +106,14 @@ function FrozenMessage(props: FrozenMessageProps): JSX.Element {
 function FrozenPart(props: { part: any }): JSX.Element {
   // Different rendering based on part type
   switch (props.part.type) {
-    case 'text':
+    case "text":
       return (
         <div class="frozen-text-part">
           <pre>{props.part.content}</pre>
         </div>
       )
-    
-    case 'tool':
+
+    case "tool":
       return (
         <div class="frozen-tool-part">
           <div class="tool-header">
@@ -145,8 +127,8 @@ function FrozenPart(props: { part: any }): JSX.Element {
           </Show>
         </div>
       )
-    
-    case 'reasoning':
+
+    case "reasoning":
       return (
         <div class="frozen-reasoning-part">
           <details>
@@ -155,7 +137,7 @@ function FrozenPart(props: { part: any }): JSX.Element {
           </details>
         </div>
       )
-    
+
     default:
       return (
         <div class="frozen-unknown-part">
@@ -167,36 +149,36 @@ function FrozenPart(props: { part: any }): JSX.Element {
 
 // Streaming content component
 function StreamingContent(props: { partId?: string }): JSX.Element {
-  const part = () => props.partId ? performanceStore.getPart(props.partId) : null
-  
+  const part = () => (props.partId ? performanceStore.getPart(props.partId) : null)
+
   if (!props.partId || !part()) {
     return <div class="streaming-placeholder">Waiting for content...</div>
   }
 
   const currentPart = part()!
-  
+
   switch (currentPart.type) {
-    case 'text':
+    case "text":
       return (
         <div class="streaming-text">
           <StreamingTextContent part={currentPart} />
         </div>
       )
-    
-    case 'tool':
+
+    case "tool":
       return (
         <div class="streaming-tool">
           <StreamingToolContent part={currentPart} />
         </div>
       )
-    
-    case 'reasoning':
+
+    case "reasoning":
       return (
         <div class="streaming-reasoning">
           <StreamingReasoningContent part={currentPart} />
         </div>
       )
-    
+
     default:
       return (
         <div class="streaming-unknown">
@@ -224,8 +206,8 @@ function StreamingToolContent(props: { part: any }): JSX.Element {
     <BasicTool
       icon="console"
       trigger={{
-        title: props.part.metadata?.tool || 'unknown',
-        subtitle: props.part.status
+        title: props.part.metadata?.tool || "unknown",
+        subtitle: props.part.status,
       }}
       status={props.part.status}
     >
@@ -262,7 +244,7 @@ export function SplitMessageLane(props: { sessionId: string }): JSX.Element {
     <div data-component="split-message-lane" class="split-message-lane">
       {/* Live streaming lane - always on top */}
       <LiveStreamingLane sessionId={props.sessionId} />
-      
+
       {/* Frozen history lane - below */}
       <FrozenHistoryLane sessionId={props.sessionId} />
     </div>
@@ -274,21 +256,21 @@ export function useLanePerformance(sessionId: string) {
   const [laneMetrics, setLaneMetrics] = createSignal({
     liveRenders: 0,
     frozenRenders: 0,
-    lastSwitchTime: 0
+    lastSwitchTime: 0,
   })
 
-  let lastState = 'unknown'
+  let lastState = "unknown"
 
   createEffect(() => {
     const streamingPart = performanceStore.getLatestStreamingPart(sessionId)
-    const currentState = streamingPart?.streaming ? 'live' : 'frozen'
-    
+    const currentState = streamingPart?.streaming ? "live" : "frozen"
+
     if (currentState !== lastState) {
-      setLaneMetrics(prev => ({
+      setLaneMetrics((prev) => ({
         ...prev,
         lastSwitchTime: Date.now(),
-        liveRenders: currentState === 'live' ? prev.liveRenders + 1 : prev.liveRenders,
-        frozenRenders: currentState === 'frozen' ? prev.frozenRenders + 1 : prev.frozenRenders
+        liveRenders: currentState === "live" ? prev.liveRenders + 1 : prev.liveRenders,
+        frozenRenders: currentState === "frozen" ? prev.frozenRenders + 1 : prev.frozenRenders,
       }))
       lastState = currentState
     }

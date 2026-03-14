@@ -1,4 +1,5 @@
 import { createSignal, createEffect, onCleanup } from "solid-js"
+import { Message, Part, ToolInfo, TaskInfo, PartInfo } from "./performance-store"
 
 // Simple performance store implementation without SolidJS store issues
 class SimplePerformanceStore {
@@ -24,12 +25,12 @@ class SimplePerformanceStore {
 
   getSessionMessages(sessionId: string): Message[] {
     const messageIds = this.messageIdsBySession.get(sessionId) || []
-    return messageIds.map(id => this.messages.get(id)).filter(Boolean) as Message[]
+    return messageIds.map((id) => this.messages.get(id)).filter(Boolean) as Message[]
   }
 
   getMessageParts(messageId: string): Part[] {
     const partIds = this.partIdsByMessage.get(messageId) || []
-    return partIds.map(id => this.parts.get(id)).filter(Boolean) as Part[]
+    return partIds.map((id) => this.parts.get(id)).filter(Boolean) as Part[]
   }
 
   // O(1) tool lookups
@@ -52,13 +53,13 @@ class SimplePerformanceStore {
   // Mutations with index updates
   addMessage(message: Message) {
     this.messages.set(message.id, message)
-    
+
     // Update session index
     const sessionMessages = this.messageIdsBySession.get(message.sessionId) || []
     if (!sessionMessages.includes(message.id)) {
       this.messageIdsBySession.set(message.sessionId, [...sessionMessages, message.id])
     }
-    
+
     // Initialize parts index
     if (!this.partIdsByMessage.has(message.id)) {
       this.partIdsByMessage.set(message.id, [])
@@ -67,33 +68,33 @@ class SimplePerformanceStore {
 
   addPart(part: Part) {
     this.parts.set(part.id, part)
-    
+
     // Update message index
     const messageParts = this.partIdsByMessage.get(part.messageId) || []
     if (!messageParts.includes(part.id)) {
       this.partIdsByMessage.set(part.messageId, [...messageParts, part.id])
     }
-    
+
     // Update tool index if it's a tool part
-    if (part.type === 'tool') {
+    if (part.type === "tool") {
       const toolInfo: ToolInfo = {
         partId: part.id,
-        tool: part.metadata?.tool || 'unknown',
+        tool: part.metadata?.tool || "unknown",
         status: part.status,
         title: part.metadata?.title,
         error: part.metadata?.error,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       }
-      
+
       const sessionId = this.getMessage(part.messageId)?.sessionId
       if (sessionId) {
         this.latestToolBySession.set(sessionId, toolInfo)
-        
+
         const messageTools = this.toolPartsByMessage.get(part.messageId) || []
         this.toolPartsByMessage.set(part.messageId, [...messageTools, toolInfo])
       }
     }
-    
+
     // Update streaming tracking
     if (part.streaming) {
       const sessionId = this.getMessage(part.messageId)?.sessionId
@@ -103,7 +104,7 @@ class SimplePerformanceStore {
           messageId: part.messageId,
           type: part.type,
           status: part.status,
-          streaming: true
+          streaming: true,
         })
         this.activeStreamingSessions.add(sessionId)
       }
@@ -113,12 +114,12 @@ class SimplePerformanceStore {
   updatePart(partId: string, updates: Partial<Part>) {
     const part = this.parts.get(partId)
     if (!part) return
-    
+
     const updatedPart = { ...part, ...updates }
     this.parts.set(partId, updatedPart)
-    
+
     // Update tool index if it's a tool part
-    if (part.type === 'tool') {
+    if (part.type === "tool") {
       const sessionId = this.getMessage(part.messageId)?.sessionId
       if (sessionId && this.latestToolBySession.get(sessionId)?.partId === partId) {
         const updatedTool = {
@@ -126,12 +127,12 @@ class SimplePerformanceStore {
           status: updates.status || part.status,
           title: updates.metadata?.title || part.metadata?.title,
           error: updates.metadata?.error || part.metadata?.error,
-          timestamp: Date.now()
+          timestamp: Date.now(),
         }
         this.latestToolBySession.set(sessionId, updatedTool)
       }
     }
-    
+
     // Update streaming tracking
     if (updates.streaming === false && part.streaming) {
       const sessionId = this.getMessage(part.messageId)?.sessionId
@@ -139,27 +140,27 @@ class SimplePerformanceStore {
         const updatedStreaming = {
           ...this.latestStreamingPartBySession.get(sessionId)!,
           streaming: false,
-          status: updates.status || part.status
+          status: updates.status || part.status,
         }
         this.latestStreamingPartBySession.set(sessionId, updatedStreaming)
       }
     }
-    
+
     // Mark completed
     if (updates.completed === true && !part.completed) {
       const completedPart = { ...updatedPart, completed: true }
       this.parts.set(partId, completedPart)
-      
+
       // Check if all parts in message are completed
       const messageParts = this.getMessageParts(part.messageId)
-      const allCompleted = messageParts.every(p => p.completed)
-      
+      const allCompleted = messageParts.every((p) => p.completed)
+
       if (allCompleted) {
         const message = this.getMessage(part.messageId)
         if (message) {
           const completedMessage = { ...message, completed: true }
           this.messages.set(part.messageId, completedMessage)
-          
+
           const sessionId = message.sessionId
           if (sessionId) {
             this.completedSessions.add(sessionId)
@@ -184,25 +185,26 @@ class SimplePerformanceStore {
   }
 
   // Cleanup old data
-  cleanup(olderThanMs: number = 30 * 60 * 1000) { // 30 minutes
+  cleanup(olderThanMs: number = 30 * 60 * 1000) {
+    // 30 minutes
     const cutoff = Date.now() - olderThanMs
     const messageIdsToRemove: string[] = []
-    
+
     for (const [messageId, message] of this.messages.entries()) {
       if (message.timestamp < cutoff && message.completed) {
         messageIdsToRemove.push(messageId)
       }
     }
-    
+
     // Remove old messages and their parts
     for (const messageId of messageIdsToRemove) {
       const partIds = this.partIdsByMessage.get(messageId) || []
-      
+
       // Remove parts
       for (const partId of partIds) {
         this.parts.delete(partId)
       }
-      
+
       // Remove indexes
       this.partIdsByMessage.delete(messageId)
       this.toolPartsByMessage.delete(messageId)
