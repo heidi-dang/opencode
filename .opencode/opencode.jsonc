@@ -4,6 +4,14 @@
     "opencode": {
       "options": {},
     },
+    "ollama": {
+      "models": {
+        "qwen3": { "name": "qwen3" },
+        "qwen2.5-coder": { "name": "qwen2.5-coder" },
+        "deepseek-coder": { "name": "deepseek-coder" },
+        "codellama": { "name": "codellama" }
+      }
+    }
   },
   "permission": {
     "edit": {
@@ -14,5 +22,7 @@
   "tools": {
     "github-triage": false,
     "github-pr-search": false,
+    "websearch": true,
+    "codesearch": true
   },
 }

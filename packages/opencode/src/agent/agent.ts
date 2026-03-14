@@ -14,6 +14,12 @@ import PROMPT_COMPACTION from "./prompt/compaction.txt"
 import PROMPT_EXPLORE from "./prompt/explore.txt"
 import PROMPT_SUMMARY from "./prompt/summary.txt"
 import PROMPT_TITLE from "./prompt/title.txt"
+import PROMPT_HEIDI from "./prompt/heidi.txt"
+import PROMPT_ANTIGRAVITY from "./prompt/antigravity.txt"
+import PROMPT_WINDSURF from "./prompt/windsurf.txt"
+import PROMPT_ORCHESTRATOR from "./prompt/orchestrator.txt"
+import PROMPT_VORTEX from "./prompt/vortex.txt"
+import PROMPT_SENTRY from "./prompt/sentry.txt"
 import { PermissionNext } from "@/permission/next"
 import { mergeDeep, pipe, sortBy, values } from "remeda"
 import { Global } from "@/global"
@@ -154,6 +160,123 @@ export namespace Agent {
         options: {},
         mode: "subagent",
         native: true,
+      },
+      heidi: {
+        name: "heidi",
+        description: "Advanced Agentic Coding assistant. Full autonomy with mandatory planning and task tracking.",
+        prompt: PROMPT_HEIDI,
+        color: "#FFD700",
+        steps: 30,
+        permission: PermissionNext.merge(
+          defaults,
+          PermissionNext.fromConfig({
+            "*": "allow",
+            bash: "allow",
+            edit: "allow",
+            read: "allow",
+            websearch: "allow",
+            webfetch: "allow",
+            codesearch: "allow",
+            task: "allow",
+          }),
+          user,
+        ),
+        mode: "primary",
+        native: true,
+        options: {},
+      },
+      antigravity: {
+        name: "antigravity",
+        description: "Specialized in complex research, cross-platform architecture, and long-term project planning.",
+        prompt: PROMPT_ANTIGRAVITY,
+        color: "#FFFFFF",
+        permission: PermissionNext.merge(
+          defaults,
+          PermissionNext.fromConfig({
+            websearch: "allow",
+            webfetch: "allow",
+            codesearch: "allow",
+            read: "allow",
+          }),
+          user,
+        ),
+        mode: "subagent",
+        native: true,
+        options: {},
+      },
+      windsurf: {
+        name: "windsurf",
+        description: "Specialized in autonomous repository-wide refactors and large-scale code changes.",
+        prompt: PROMPT_WINDSURF,
+        color: "#3498DB",
+        permission: PermissionNext.merge(
+          defaults,
+          PermissionNext.fromConfig({
+            "*": "allow",
+            bash: "allow",
+            edit: "allow",
+            read: "allow",
+          }),
+          user,
+        ),
+        mode: "subagent",
+        native: true,
+        options: {},
+      },
+      orchestrator: {
+        name: "orchestrator",
+        description: "Specialized in background task coordination, issue monitoring, and PR orchestration.",
+        prompt: PROMPT_ORCHESTRATOR,
+        color: "#8E44AD",
+        permission: PermissionNext.merge(
+          defaults,
+          PermissionNext.fromConfig({
+            bash: "allow",
+            github_pr_search: "allow",
+            github_triage: "allow",
+          }),
+          user,
+        ),
+        mode: "subagent",
+        native: true,
+        options: {},
+      },
+      vortex: {
+        name: "vortex",
+        description: "Visual Regression sub-agent. Compares UI screenshots against design specs to detect layout and styling issues.",
+        prompt: PROMPT_VORTEX,
+        color: "#E74C3C",
+        permission: PermissionNext.merge(
+          defaults,
+          PermissionNext.fromConfig({
+            bash: "allow",
+            read: "allow",
+            edit: "allow",
+          }),
+          user,
+        ),
+        mode: "subagent",
+        native: true,
+        options: {},
+      },
+      sentry: {
+        name: "sentry",
+        description: "Pre-emptive Security Auditor. Scans diffs for hardcoded secrets, injection patterns, and insecure dependencies.",
+        prompt: PROMPT_SENTRY,
+        color: "#27AE60",
+        permission: PermissionNext.merge(
+          defaults,
+          PermissionNext.fromConfig({
+            bash: "allow",
+            read: "allow",
+            grep: "allow",
+            glob: "allow",
+          }),
+          user,
+        ),
+        mode: "subagent",
+        native: true,
+        options: {},
       },
       compaction: {
         name: "compaction",

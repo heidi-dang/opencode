@@ -17,18 +17,21 @@ Options:
     -h, --help              Display this help message
     -v, --version <version> Install a specific version (e.g., 1.0.180)
     -b, --binary <path>     Install from a local binary instead of downloading
+        --local-repo        Install from current local repository (for development)
         --no-modify-path    Don't modify shell config files (.zshrc, .bashrc, etc.)
 
 Examples:
     curl -fsSL https://opencode.ai/install | bash
     curl -fsSL https://opencode.ai/install | bash -s -- --version 1.0.180
     ./install --binary /path/to/opencode
+    ./install --local-repo
 EOF
 }
 
 requested_version=${VERSION:-}
 no_modify_path=false
 binary_path=""
+local_repo=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -56,6 +59,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --no-modify-path)
             no_modify_path=true
+            shift
+            ;;
+        --local-repo)
+            local_repo=true
             shift
             ;;
         *)
@@ -351,8 +358,56 @@ install_from_binary() {
     chmod 755 "${INSTALL_DIR}/opencode"
 }
 
+install_from_local_repo() {
+    print_message info "\n${MUTED}Installing ${NC}opencode ${MUTED}from local repository...${NC}"
+    
+    # Check if we're in a git repository
+    if ! git rev-parse --git-dir > /dev/null 2>&1; then
+        print_message error "Not in a git repository"
+        exit 1
+    fi
+    
+    # Get repository root
+    REPO_ROOT=$(git rev-parse --show-toplevel)
+    print_message info "${MUTED}Repository root: ${NC}$REPO_ROOT"
+    
+    # Check if this looks like the opencode repository
+    if [ ! -f "$REPO_ROOT/package.json" ]; then
+        print_message error "No package.json found in repository root"
+        exit 1
+    fi
+    
+    # Check package.json name
+    if ! grep -q '"name": "opencode"' "$REPO_ROOT/package.json"; then
+        print_message error "This doesn't appear to be the opencode repository"
+        exit 1
+    fi
+    
+    print_message info "${MUTED}Building local version...${NC}"
+    
+    # Build the project
+    cd "$REPO_ROOT"
+    if ! bun run --cwd packages/opencode build; then
+        print_message error "Failed to build the project"
+        exit 1
+    fi
+    
+    print_message info "${MUTED}Installing locally built version...${NC}"
+    
+    # Create a wrapper script that calls local development version
+    printf '#!/usr/bin/env bash\n# OpenCode local development wrapper\nSCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd"\nREPO_ROOT="$SCRIPT_DIR/../.."\n\n# Check if we are in development mode\nif [ -f "$REPO_ROOT/packages/opencode/src/index.ts" ]; then\n    cd "$REPO_ROOT"\n    exec bun run --cwd packages/opencode --conditions=browser src/index.ts "$@"\nelse\n    echo "Error: Development files not found"\n    exit 1\nfi\n' > "${INSTALL_DIR}/opencode"
+    
+    chmod 755 "${INSTALL_DIR}/opencode"
+    print_message info "${MUTED}Created development wrapper${NC}"
+    
+    specific_version="local"
+    print_message info "${MUTED}Local install completed successfully!${NC}"
+}
+
 if [ -n "$binary_path" ]; then
     install_from_binary
+elif [ "$local_repo" = true ]; then
+    install_from_local_repo
 else
     check_version
     download_and_install

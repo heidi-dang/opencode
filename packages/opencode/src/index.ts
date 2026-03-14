@@ -8,6 +8,7 @@ import { ProvidersCommand } from "./cli/cmd/providers"
 import { AgentCommand } from "./cli/cmd/agent"
 import { UpgradeCommand } from "./cli/cmd/upgrade"
 import { UninstallCommand } from "./cli/cmd/uninstall"
+import { InstallCommand } from "./cli/cmd/install"
 import { ModelsCommand } from "./cli/cmd/models"
 import { UI } from "./cli/ui"
 import { Installation } from "./installation"
@@ -138,6 +139,7 @@ let cli = yargs(hideBin(process.argv))
   .command(ConsoleCommand)
   .command(ProvidersCommand)
   .command(AgentCommand)
+  .command(InstallCommand)
   .command(UpgradeCommand)
   .command(UninstallCommand)
   .command(ServeCommand)
