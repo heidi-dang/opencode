@@ -18,5 +18,5 @@
     "strict": true,
     "types": ["solid-js"]
   },
-  "exclude": ["**/*.stories.*", "**/*.mdx"]
+  "exclude": ["**/*.stories.*", "**/*.mdx", "script/**", "**/*.test.ts", "**/*.test.tsx"]
 }
