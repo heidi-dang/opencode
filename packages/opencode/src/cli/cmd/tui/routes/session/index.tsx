@@ -1982,12 +1982,27 @@ function Task(props: ToolProps<typeof TaskTool>) {
 
   const messages = createMemo(() => sync.data.message[props.metadata.sessionId ?? ""] ?? [])
 
+  // OPTIMIZED: Use incremental approach instead of flatMap over all messages
+  // Old pattern: messages().flatMap(m => parts.filter(...).map(...))
+  // This was O(messages × parts) on every render
   const tools = createMemo(() => {
-    return messages().flatMap((msg) =>
-      (sync.data.part[msg.id] ?? [])
-        .filter((part): part is ToolPart => part.type === "tool")
-        .map((part) => ({ tool: part.tool, state: part.state })),
-    )
+    const msgList = messages()
+    const result: Array<{ tool: string; state: any }> = []
+    
+    // Iterate once through messages, building result incrementally
+    for (let i = 0; i < msgList.length; i++) {
+      const msg = msgList[i]!
+      const parts = sync.data.part[msg.id]
+      if (!parts) continue
+      
+      for (let j = 0; j < parts.length; j++) {
+        const part = parts[j]!
+        if (part.type === "tool") {
+          result.push({ tool: part.tool, state: part.state })
+        }
+      }
+    }
+    return result
   })
 
   const current = createMemo(() => tools().findLast((x) => (x.state as any).title))

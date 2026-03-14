@@ -9,7 +9,7 @@ import { SessionPrompt } from "../../session/prompt"
 import { SessionCompaction } from "../../session/compaction"
 import { SessionRevert } from "../../session/revert"
 import { SessionStatus } from "@/session/status"
-import { SessionSummary } from "@/session/summary"
+import { SessionSummary } from "../../session/summary"
 import { Todo } from "../../session/todo"
 import { Agent } from "../../agent/agent"
 import { Snapshot } from "@/snapshot"
@@ -19,6 +19,8 @@ import { PermissionID } from "@/permission/schema"
 import { ModelID, ProviderID } from "@/provider/schema"
 import { errors } from "../error"
 import { lazy } from "../../util/lazy"
+import { Database, eq } from "@/storage/db"
+import { PartTable } from "@/storage/schema"
 
 const log = Log.create({ service: "server" })
 
@@ -1018,6 +1020,47 @@ export const SessionRoutes = lazy(() =>
           reply: c.req.valid("json").response,
         })
         return c.json(true)
+      },
+    ),
+    // Tool output retrieval endpoint
+    .get(
+      "/:sessionID/tool-output/:messageID/:partID",
+      describeRoute({
+        summary: "Retrieve full tool output",
+      }),
+      validator("param", z.object({
+        sessionID: SessionID.zod,
+        messageID: MessageID.zod,
+        partID: PartID.zod,
+      })),
+      async (c) => {
+        const { messageID, partID } = c.req.valid("param")
+        
+        // Get the part from the database
+        const part = await Database.use((db) =>
+          db.select().from(PartTable).where(eq(PartTable.id, partID)).get()
+        )
+        
+        if (!part) {
+          return c.json({ error: "Part not found" }, 404)
+        }
+        
+        // Check if part has outputRef
+        const data = part.data as any
+        if (!data?.outputRef) {
+          return c.json({ error: "No full output available", output: data?.output ?? "" })
+        }
+        
+        // Retrieve full output from blob storage
+        const { Truncate } = await import("@/tool/truncation")
+        const fullOutput = await Truncate.retrieveFullOutput(data.outputRef)
+        
+        return c.json({
+          output: fullOutput ?? data.output ?? "",
+          outputRef: data.outputRef,
+          outputBytes: data.outputBytes,
+          outputHasMore: data.outputHasMore,
+        })
       },
     ),
 )

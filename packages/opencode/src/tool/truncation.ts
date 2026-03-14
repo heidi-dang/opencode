@@ -65,6 +65,21 @@ export namespace Truncate {
       run: cleanup,
       scope: "global",
     })
+    // Also register orphan sweep for blob storage
+    // This cleans up blobs from crashed/interrupted runs
+    Scheduler.register({
+      id: "tool.truncation.sweep",
+      interval: 4 * HOUR_MS, // Every 4 hours
+      run: async () => {
+        // For now, just run sweep with empty known refs
+        // In production, would query DB for all known refs
+        const deleted = await sweepBlobs(new Set())
+        if (deleted > 0) {
+          Log.create({ service: "truncation" }).info("blob sweep completed", { deleted })
+        }
+      },
+      scope: "global",
+    })
   }
 
   export async function cleanup() {

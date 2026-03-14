@@ -468,6 +468,9 @@ export namespace SessionPrompt {
         assistantMessage.time.completed = Date.now()
         await Session.updateMessage(assistantMessage)
         if (result && part.state.status === "running") {
+          // Use bounded capture to prevent unbounded output in message payload
+          const bounded = await Truncate.boundedCapture(result.output ?? "")
+          
           await Session.updatePart({
             ...part,
             state: {
@@ -475,12 +478,18 @@ export namespace SessionPrompt {
               input: part.state.input,
               title: result.title,
               metadata: result.metadata,
-              output: result.output,
+              output: bounded.preview,  // Bounded preview for message
               attachments,
               time: {
                 ...part.state.time,
                 end: Date.now(),
               },
+              // Bounded output metadata
+              outputHasMore: bounded.hasMore,
+              outputRef: bounded.ref,
+              outputBytes: bounded.fullBytes,
+              previewLines: bounded.previewLines,
+              previewBytes: bounded.previewBytes,
             },
           } satisfies MessageV2.ToolPart)
         }
@@ -1700,6 +1709,9 @@ NOTE: At any point in time through this workflow you should feel free to ask the
     msg.time.completed = Date.now()
     await Session.updateMessage(msg)
     if (part.state.status === "running") {
+      // Use bounded capture to prevent unbounded output in message payload
+      const bounded = await Truncate.boundedCapture(output)
+      
       part.state = {
         status: "completed",
         time: {
@@ -1712,7 +1724,13 @@ NOTE: At any point in time through this workflow you should feel free to ask the
           output,
           description: "",
         },
-        output,
+        output: bounded.preview,  // Bounded preview for message
+        // Bounded output metadata
+        outputHasMore: bounded.hasMore,
+        outputRef: bounded.ref,
+        outputBytes: bounded.fullBytes,
+        previewLines: bounded.previewLines,
+        previewBytes: bounded.previewBytes,
       }
       await Session.updatePart(part)
     }

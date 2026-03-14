@@ -304,6 +304,12 @@ export namespace MessageV2 {
         compacted: z.number().optional(),
       }),
       attachments: FilePart.array().optional(),
+      // Bounded output metadata - see docs/implementation-tool-output-performance.md
+      outputHasMore: z.boolean().optional(),
+      outputRef: z.string().optional(),
+      outputBytes: z.number().optional(),
+      previewLines: z.number().optional(),
+      previewBytes: z.number().optional(),
     })
     .meta({
       ref: "ToolStateCompleted",
