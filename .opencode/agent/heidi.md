@@ -1,6 +1,6 @@
 ---
 mode: primary
-model: opencode/minimax-m2.5
+model: opencode/minimax-m2.5-free
 color: "#FFD700"
 description: Digital CTO — Advanced Agentic Coding assistant with Intelligence, Scalability, and Hyper-Autonomy.
 permission:

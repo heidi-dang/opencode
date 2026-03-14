@@ -455,6 +455,7 @@ export namespace Config {
         result[config.name] = parsed.data
         continue
       }
+      log.error("Invalid agent config", { path: item, issues: parsed.error.issues, data: config })
       throw new InvalidError({ path: item, issues: parsed.error.issues }, { cause: parsed.error })
     }
     return result
@@ -730,6 +731,8 @@ export namespace Config {
         .optional()
         .describe("Hide this subagent from the @ autocomplete menu (default: false, only applies to mode: subagent)"),
       options: z.record(z.string(), z.any()).optional(),
+      topP: z.number().optional(),
+      native: z.boolean().optional(),
       color: z
         .union([
           z.string().regex(/^#[0-9a-fA-F]{6}$/, "Invalid hex color format"),
@@ -1457,5 +1460,3 @@ export namespace Config {
     return state().then((x) => x.directories)
   }
 }
-Filesystem.write
-Filesystem.write

@@ -6,10 +6,11 @@
     },
     "ollama": {
       "models": {
-        "qwen3": { "name": "qwen3" },
-        "qwen2.5-coder": { "name": "qwen2.5-coder" },
-        "deepseek-coder": { "name": "deepseek-coder" },
-        "codellama": { "name": "codellama" }
+        "qwen3:8b": { "name": "qwen3:8b", "reasoning": false },
+        "qwen3": { "name": "qwen3", "reasoning": false },
+        "qwen2.5-coder": { "name": "qwen2.5-coder", "reasoning": false },
+        "deepseek-coder": { "name": "deepseek-coder", "reasoning": false },
+        "codellama": { "name": "codellama", "reasoning": false }
       }
     }
   },

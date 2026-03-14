@@ -52,6 +52,7 @@ export namespace SessionProcessor {
           try {
             let currentText: MessageV2.TextPart | undefined
             let reasoningMap: Record<string, MessageV2.ReasoningPart> = {}
+            SessionStatus.set(input.sessionID, { type: "connecting" })
             const stream = await LLM.stream(streamInput)
 
             for await (const value of stream.fullStream) {
