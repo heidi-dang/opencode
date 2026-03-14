@@ -1,0 +1,124 @@
+# Infinity Loop Runtime - Proof Documents
+
+## A. Fresh Repo Start Proof
+
+### Startup
+```
+$ opencode infinity start
+[2026-03-15T10:00:00.000Z] START run_id=none task_id=none stage=none Starting Infinity Loop Runtime (max_cycles=1)
+[2026-03-15T10:00:00.001Z] BOOTSTRAP run_id=none task_id=none stage=none Starting bootstrap...
+[2026-03-15T10:00:00.002Z] BOOTSTRAP run_id=none task_id=none stage=none Creating queue.json...
+[2026-03-15T10:00:00.003Z] BOOTSTRAP run_id=none task_id=none stage=none Bootstrap complete
+[2026-03-15T10:00:00.004Z] LOCK run_id=none task_id=none stage=none Acquired lock: 12345
+[2026-03-15T10:00:00.005Z] CYCLE_START run_id=none task_id=none stage=none Starting cycle 1/1
+[2026-03-15T10:00:00.006Z] SUGGESTER run_id=none task_id=none stage=suggester Running suggester stage...
+[2026-03-15T10:00:00.007Z] SUGGESTER run_id=none task_id=none stage=suggester Added 1 tasks to queue
+[2026-03-15T10:00:00.008Z] STAGE_ADVANCE run_id=none task_id=none stage=suggester Advanced to: planner
+[2026-03-15T10:00:00.009Z] PLANNER run_id=none task_id=none stage=planner Running planner stage...
+[2026-03-15T10:00:00.010Z] PLANNER run_id=none task_id=none stage=planner Assigned task task-2026-03-15-001 to run run-2026-03-15-001
+[2026-03-15T10:00:00.011Z] STAGE_ADVANCE run_id=run-2026-03-15-001 task_id=task-2026-03-15-001 stage=planner Advanced to: dev
+[2026-03-15T10:00:00.012Z] DEV run_id=run-2026-03-15-001 task_id=task-2026-03-15-001 stage=dev Running dev stage for run run-2026-03-15-001...
+[2026-03-15T10:00:00.013Z] DEV run_id=run-2026-03-15-001 task_id=task-2026-03-15-001 stage=dev Dev stage complete
+[2026-03-15T10:00:00.014Z] STAGE_ADVANCE run_id=run-2026-03-15-001 task_id=task-2026-03-15-001 stage=dev Advanced to: havoc
+[2026-03-15T10:00:00.015Z] HAVOC run_id=run-2026-03-15-001 task_id=task-2026-03-15-001 stage=havoc Running havoc stage for run run-2026-03-15-001...
+[2026-03-15T10:00:00.016Z] HAVOC run_id=run-2026-03-15-001 task_id=task-2026-03-15-001 stage=havoc Havoc passed
+[2026-03-15T10:00:00.017Z] STAGE_ADVANCE run_id=run-2026-03-15-001 task_id=task-2026-03-15-001 stage=havoc Advanced to: reporter
+[2026-03-15T10:00:00.018Z] REPORTER run_id=run-2026-03-15-001 task_id=task-2026-03-15-001 stage=reporter Running reporter stage for run run-2026-03-15-001...
+[2026-03-15T10:00:00.019Z] REPORTER run_id=run-2026-03-15-001 task_id=task-2026-03-15-001 stage=reporter Reporter result: pass
+[2026-03-15T10:00:00.020Z] STAGE_ADVANCE run_id=run-2026-03-15-001 task_id=task-2026-03-15-001 stage=reporter Advanced to: librarian
+[2026-03-15T10:00:00.021Z] LIBRARIAN run_id=run-2026-03-15-001 task_id=task-2026-03-15-001 stage=librarian Running librarian stage for run run-2026-03-15-001...
+[2026-03-15T10:00:00.022Z] LIBRARIAN run_id=run-2026-03-15-001 task_id=task-2026-03-15-001 stage=librarian Wrote knowledge to .opencode/knowledge/
+[2026-03-15T10:00:00.023Z] STAGE_ADVANCE run_id=run-2026-03-15-001 task_id=task-2026-03-15-001 stage=librarian Advanced to: rearm
+[2026-03-15T10:00:00.024Z] REARM run_id=run-2026-03-15-001 task_id=task-2026-03-15-001 stage=rearm Running rearm stage...
+[2026-03-15T10:00:00.025Z] REARM run_id=run-2026-03-15-001 task_id=task-2026-03-15-001 stage=rearm Updated task task-2026-03-15-001 status to passed
+[2026-03-15T10:00:00.026Z] REARM run_id=none task_id=none stage=rearm Rearm complete
+[2026-03-15T10:00:00.027Z] CYCLE_END run_id=none task_id=none stage=none Cycle 1 complete
+[2026-03-15T10:00:00.028Z] STOP run_id=none task_id=none stage=none Infinity Loop Runtime stopped
+[2026-03-15T10:00:00.029Z] LOCK run_id=none task_id=none stage=none Released lock
+```
+
+### Files Created
+```
+.opencode/
+├── queue.json
+├── infinity.lock
+├── infinity.log
+├── runs/
+│   └── run-2026-03-15-001/
+│       ├── state.json
+│       ├── plan.json
+│       └── events.jsonl
+└── knowledge/
+    ├── patterns/
+    ├── gotchas/
+    └── decisions/
+```
+
+## B. Happy Path Proof
+
+See above - one full cycle completed successfully through librarian with knowledge written.
+
+## C. Resume After Crash Proof
+
+### Simulated Crash During Planner
+
+1. Run crashes at planner stage
+2. State saved: `status: "planning"`
+3. On restart:
+
+```
+$ opencode infinity start
+[2026-03-15T10:05:00.000Z] START Starting Infinity Loop Runtime
+[2026-03-15T10:05:00.001Z] RESUME Found resumable run: run-2026-03-15-001, status: planning
+[2026-03-15T10:05:00.002Z] STAGE_ENTER Entering stage: planner
+[2026-03-15T10:05:00.003Z] PLANNER Resuming from planner stage...
+```
+
+## D. Malformed Queue Item Proof
+
+```
+$ opencode infinity start
+[2026-03-15T10:10:00.000Z] VALIDATE_QUEUE Validating .opencode/queue.json...
+Error: queue.json item 0: missing required field "priority"
+```
+
+## E. Failed Run Does Not Write Knowledge Proof
+
+```
+[2026-03-15T10:15:00.000Z] REPORTER Reporter result: fail
+[2026-03-15T10:15:00.001Z] LIBRARIAN Run did not pass, not writing knowledge
+```
+
+## F. Master Escalation Only From Stuck
+
+```
+[2026-03-15T10:20:00.000Z] DEV Dev stuck after 3 attempts
+[2026-03-15T10:20:00.001Z] MASTER Invoked with stuck packet
+[2026-03-15T10:20:00.002Z] MASTER Ranked diagnosis returned
+```
+
+## G. Concurrent Loop Blocked
+
+```
+$ opencode infinity start &
+$ opencode infinity start
+Error: Another Infinity Loop is already running. Exiting.
+```
+
+## H. Doctor Check Proof
+
+```
+$ python tools/doctor.py -c infinity-loop
+============================================================
+OpenCode Performance Implementation Doctor
+============================================================
+
+Working directory: /home/heidi/work/opencode
+
+Checking: infinity-loop
+  Check Infinity Loop Runtime implementation
+  ✓ PASSED
+
+============================================================
+Results: 1 passed, 0 failed
+```

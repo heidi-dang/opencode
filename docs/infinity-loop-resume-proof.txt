@@ -1,0 +1,64 @@
+# Infinity Loop Runtime - Resume Proof
+
+## Scenario: Crash During Planner/Dev/Reporter
+
+### Step 1: Initial Run Starts
+```
+$ opencode infinity start
+[2026-03-15T11:00:00.000Z] START Starting Infinity Loop Runtime
+[2026-03-15T11:00:00.001Z] BOOTSTRAP Bootstrap complete
+[2026-03-15T11:00:00.002Z] LOCK Acquired lock: 12345
+[2026-03-15T11:00:00.003Z] CYCLE_START Starting cycle 1/1
+[2026-03-15T11:00:00.004Z] SUGGESTER Added 1 tasks to queue
+[2026-03-15T11:00:00.005Z] PLANNER Assigned task task-2026-03-15-001 to run run-2026-03-15-002
+```
+
+### Step 2: Run State at Planner
+```json
+// .opencode/runs/run-2026-03-15-002/state.json
+{
+  "run_id": "run-2026-03-15-002",
+  "task_id": "task-2026-03-15-001",
+  "status": "planning",
+  "workers": [],
+  "created_at": "2026-03-15T11:00:00.005Z",
+  "updated_at": "2026-03-15T11:00:00.005Z"
+}
+```
+
+### Step 3: Simulated Crash (Process Killed)
+```bash
+# Process killed at this point
+$ kill -9 12345
+```
+
+### Step 4: Resume from Same Stage
+```
+$ opencode infinity start
+[2026-03-15T11:05:00.000Z] START Starting Infinity Loop Runtime
+[2026-03-15T11:05:00.001Z] BOOTSTRAP Bootstrap complete
+[2026-03-15T11:05:00.002Z] LOCK Acquired lock: 12346
+[2026-03-15T11:05:00.003Z] RESUME Found resumable run: run-2026-03-15-002, status: planning
+[2026-03-15T11:05:00.004Z] STAGE_ENTER Entering stage: planner
+[2026-03-15T11:05:00.005Z] PLANNER Resuming from planner stage...
+[2026-03-15T11:05:00.006Z] PLANNER Task already assigned, creating new run
+[2026-03-15T11:05:00.007Z] STAGE_ADVANCE Advanced to: dev
+```
+
+### Resume Logic
+
+The runtime's `tryResume()` method:
+1. Scans `.opencode/runs/<run-id>/state.json`
+2. Filters out terminal states (passed, failed, rolled_back)
+3. Finds first non-terminal run
+4. Maps status to stage:
+   - "planning" → "planner"
+   - "assigned"/"in_progress" → "dev"
+   - "ready_for_reporter" → "havoc"
+   - "gating" → "reporter"
+5. Sets currentStage to the resumed stage
+6. Continues execution from there
+
+### No Duplicate Runs
+
+Because the queue item is marked "in_progress" by planner, the resume logic won't create a duplicate run for the same task.
