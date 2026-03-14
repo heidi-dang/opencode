@@ -2,10 +2,10 @@ import { createSignal, onCleanup } from "solid-js"
 
 /**
  * PartDelta Batcher - coalesces PartDelta events to reduce render frequency
- * 
+ *
  * Key: (messageID, partID) - NOT just runID
  * Different event types have different semantics and must not be coalesced incorrectly
- * 
+ *
  * Flush triggers:
  * - Terminal part update (running → completed/error)
  * - Run finish
@@ -30,7 +30,7 @@ export interface BatchedUpdate {
 }
 
 // Batching configuration
-const BATCH_WINDOW_MS = 50 // 50ms = 20fps minimum
+const BATCH_WINDOW_MS = 16 // 16ms = ~60fps target
 const MAX_BATCH_SIZE = 100
 
 export function createDeltaBatcher(options?: {
@@ -44,7 +44,7 @@ export function createDeltaBatcher(options?: {
 
   // Queue: Map<key, string[]> - accumulates deltas per (messageID, partID)
   const queue = new Map<DeltaKey, string[]>()
-  
+
   let flushTimeout: ReturnType<typeof setTimeout> | undefined
   let pending = false
 
@@ -83,7 +83,7 @@ export function createDeltaBatcher(options?: {
 
     // Coalesce: concatenate all deltas for each (messageID, partID)
     const updates: BatchedUpdate[] = []
-    
+
     for (const [key, deltas] of queue) {
       const [messageID, partID] = key.split(":")
       const combinedDelta = deltas.join("")
