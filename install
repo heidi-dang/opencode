@@ -395,7 +395,7 @@ install_from_local_repo() {
     print_message info "${MUTED}Installing locally built version...${NC}"
     
     # Create a wrapper script that calls local development version
-    printf '#!/usr/bin/env bash\n# OpenCode local development wrapper\nSCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd"\nREPO_ROOT="$SCRIPT_DIR/../.."\n\n# Check if we are in development mode\nif [ -f "$REPO_ROOT/packages/opencode/src/index.ts" ]; then\n    cd "$REPO_ROOT"\n    exec bun run --cwd packages/opencode --conditions=browser src/index.ts "$@"\nelse\n    echo "Error: Development files not found"\n    exit 1\nfi\n' > "${INSTALL_DIR}/opencode"
+    printf "#!/usr/bin/env bash\n# OpenCode local development wrapper\nREPO_ROOT=\"$REPO_ROOT\"\n\n# Check if we are in development mode\nif [ -f \"\$REPO_ROOT/packages/opencode/src/index.ts\" ]; then\n    cd \"\$REPO_ROOT\"\n    exec bun run --cwd packages/opencode --conditions=browser src/index.ts \"\$@\"\nelse\n    echo \"Error: Development files not found\"\n    exit 1\nfi\n" > "${INSTALL_DIR}/opencode"
     
     chmod 755 "${INSTALL_DIR}/opencode"
     print_message info "${MUTED}Created development wrapper${NC}"
