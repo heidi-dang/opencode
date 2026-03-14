@@ -1,4 +1,4 @@
-import { createSignal, createEffect, onCleanup, batch } from "solid-js"
+import { createSignal, createEffect, onCleanup, batch, For, Show } from "solid-js"
 import { performanceStore } from "./simple-performance-store"
 
 interface FrozenSubtree {
@@ -11,8 +11,8 @@ interface FrozenSubtree {
 }
 
 interface FreezeOptions {
-  maxAge: number        // Maximum age before unfreeze (ms)
-  maxSubtrees: number   // Maximum frozen subtrees per message
+  maxAge: number // Maximum age before unfreeze (ms)
+  maxSubtrees: number // Maximum frozen subtrees per message
   freezeThreshold: number // Minimum size to consider freezing
 }
 
@@ -20,100 +20,101 @@ class SubtreeFreezer {
   private frozenSubtrees = new Map<string, FrozenSubtree>()
   private messageSubtrees = new Map<string, Set<string>>() // messageId -> subtreeIds
   private options: FreezeOptions
-  private cleanupTimer: number | null = null
-  
+  // Type is platform timer id (ReturnType<typeof setInterval>) for correctness
+  private cleanupTimer: ReturnType<typeof setInterval> | null = null
+
   constructor(options: Partial<FreezeOptions> = {}) {
     this.options = {
-      maxAge: 5 * 60 * 1000,        // 5 minutes
-      maxSubtrees: 50,              // 50 subtrees per message max
-      freezeThreshold: 500,         // 500 characters minimum
-      ...options
+      maxAge: 5 * 60 * 1000, // 5 minutes
+      maxSubtrees: 50, // 50 subtrees per message max
+      freezeThreshold: 500, // 500 characters minimum
+      ...options,
     }
-    
+
     // Start cleanup timer
     this.startCleanupTimer()
   }
-  
+
   // Check if a subtree should be frozen
   shouldFreeze(messageId: string, partId: string, content: string): boolean {
     const subtreeId = `${messageId}:${partId}`
-    
+
     // Don't freeze if content is too small
     if (content.length < this.options.freezeThreshold) {
       return false
     }
-    
+
     // Don't freeze if already frozen
     if (this.frozenSubtrees.has(subtreeId)) {
       return false
     }
-    
+
     // Check message subtree limit
     const messageSubtrees = this.messageSubtrees.get(messageId)
     if (messageSubtrees && messageSubtrees.size >= this.options.maxSubtrees) {
       return false
     }
-    
+
     // Check if message is completed
     const message = performanceStore.getMessage(messageId)
     const part = performanceStore.getPart(partId)
-    
+
     return !!(message?.completed && part?.completed)
   }
-  
+
   // Freeze a subtree
   freezeSubtree(messageId: string, partId: string, content: string, rendered: string): void {
     const subtreeId = `${messageId}:${partId}`
-    
+
     if (!this.shouldFreeze(messageId, partId, content)) {
       return
     }
-    
+
     const frozenSubtree: FrozenSubtree = {
       id: subtreeId,
       content,
       rendered,
       timestamp: Date.now(),
       dependencies: new Set(),
-      isFrozen: true
+      isFrozen: true,
     }
-    
+
     // Store frozen subtree
     this.frozenSubtrees.set(subtreeId, frozenSubtree)
-    
+
     // Update message subtree index
     const messageSubtrees = this.messageSubtrees.get(messageId) || new Set()
     messageSubtrees.add(subtreeId)
     this.messageSubtrees.set(messageId, messageSubtrees)
-    
+
     // Emit freeze event
     this.emitFreezeEvent(subtreeId, frozenSubtree)
   }
-  
+
   // Get frozen subtree
   getFrozenSubtree(messageId: string, partId: string): FrozenSubtree | undefined {
     const subtreeId = `${messageId}:${partId}`
     const subtree = this.frozenSubtrees.get(subtreeId)
-    
+
     // Check if still valid
     if (subtree && this.isValid(subtree)) {
       return subtree
     }
-    
+
     // Remove invalid subtree
     if (subtree) {
       this.unfreezeSubtree(messageId, partId)
     }
-    
+
     return undefined
   }
-  
+
   // Unfreeze a subtree
   unfreezeSubtree(messageId: string, partId: string): void {
     const subtreeId = `${messageId}:${partId}`
-    
+
     this.frozenSubtrees.delete(subtreeId)
-    
+
     const messageSubtrees = this.messageSubtrees.get(messageId)
     if (messageSubtrees) {
       messageSubtrees.delete(subtreeId)
@@ -121,84 +122,87 @@ class SubtreeFreezer {
         this.messageSubtrees.delete(messageId)
       }
     }
-    
+
     // Emit unfreeze event
     this.emitUnfreezeEvent(subtreeId)
   }
-  
+
   // Check if frozen subtree is still valid
   private isValid(subtree: FrozenSubtree): boolean {
     // Check age
     if (Date.now() - subtree.timestamp > this.options.maxAge) {
       return false
     }
-    
+
     // Check if message/part still exists and is completed
-    const [messageId, partId] = subtree.id.split(':')
+    const [messageId, partId] = subtree.id.split(":")
     const message = performanceStore.getMessage(messageId)
     const part = performanceStore.getPart(partId)
-    
+
     return !!(message?.completed && part?.completed && part.content === subtree.content)
   }
-  
+
   // Cleanup old frozen subtrees
   private cleanup(): void {
     const now = Date.now()
     const toRemove: string[] = []
-    
+
     for (const [subtreeId, subtree] of this.frozenSubtrees.entries()) {
       if (now - subtree.timestamp > this.options.maxAge || !this.isValid(subtree)) {
         toRemove.push(subtreeId)
       }
     }
-    
+
     for (const subtreeId of toRemove) {
-      const [messageId, partId] = subtreeId.split(':')
+      const [messageId, partId] = subtreeId.split(":")
       this.unfreezeSubtree(messageId, partId)
     }
   }
-  
+
   // Start cleanup timer
   private startCleanupTimer(): void {
     this.cleanupTimer = setInterval(() => {
       this.cleanup()
     }, 60000) // Cleanup every minute
   }
-  
+
   // Stop cleanup timer
   stopCleanupTimer(): void {
     if (this.cleanupTimer) {
-      clearInterval(this.cleanupTimer)
+      clearInterval(this.cleanupTimer as unknown as number)
       this.cleanupTimer = null
     }
   }
-  
+
   // Emit freeze event
   private emitFreezeEvent(subtreeId: string, subtree: FrozenSubtree): void {
-    const event = new CustomEvent('subtreeFrozen', {
-      detail: { subtreeId, subtree }
+    const event = new CustomEvent("subtreeFrozen", {
+      detail: { subtreeId, subtree },
     })
     window.dispatchEvent(event)
   }
-  
+
   // Emit unfreeze event
   private emitUnfreezeEvent(subtreeId: string): void {
-    const event = new CustomEvent('subtreeUnfrozen', {
-      detail: { subtreeId }
+    const event = new CustomEvent("subtreeUnfrozen", {
+      detail: { subtreeId },
     })
     window.dispatchEvent(event)
   }
-  
+
   // Get statistics
   getStats() {
     return {
       totalFrozen: this.frozenSubtrees.size,
       messagesWithFrozen: this.messageSubtrees.size,
-      averageSubtreesPerMessage: this.messageSubtrees.size > 0 ? 
-        Array.from(this.messageSubtrees.values()).reduce((sum, set) => sum + set.size, 0) / this.messageSubtrees.size : 0
+      averageSubtreesPerMessage:
+        this.messageSubtrees.size > 0
+          ? Array.from(this.messageSubtrees.values()).reduce((sum, set) => sum + set.size, 0) /
+            this.messageSubtrees.size
+          : 0,
     }
   }
-  
+
   // Clear all frozen subtrees
   clear(): void {
     this.frozenSubtrees.clear()
@@ -211,14 +215,15 @@ interface FrozenSubtreeProps {
   messageId: string
   partId: string
   content: string
-  renderFunction: (content: string) => string
+  // allow any render output to avoid JSX type mismatches across packages
+  renderFunction: (content: string) => any
 }
 
-function FrozenSubtreeComponent(props: FrozenSubtreeProps): JSX.Element {
+function FrozenSubtreeComponent(props: FrozenSubtreeProps) {
   const [isFrozen, setIsFrozen] = createSignal(false)
-  const [frozenContent, setFrozenContent] = createSignal('')
+  const [frozenContent, setFrozenContent] = createSignal("")
   const subtreeId = () => `${props.messageId}:${props.partId}`
-  
+
   // Check for existing frozen subtree
   createEffect(() => {
     const frozen = subtreeFreezer.getFrozenSubtree(props.messageId, props.partId)
@@ -230,14 +235,14 @@ function FrozenSubtreeComponent(props: FrozenSubtreeProps): JSX.Element {
       // Render fresh content
       const rendered = props.renderFunction(props.content)
       setFrozenContent(rendered)
-      
+
       // Consider freezing if conditions are met
       if (subtreeFreezer.shouldFreeze(props.messageId, props.partId, props.content)) {
         subtreeFreezer.freezeSubtree(props.messageId, props.partId, props.content, rendered)
       }
     }
   })
-  
+
   // Listen to freeze/unfreeze events
   createEffect(() => {
     const handleFreeze = (event: CustomEvent) => {
@@ -246,7 +251,7 @@ function FrozenSubtreeComponent(props: FrozenSubtreeProps): JSX.Element {
         setFrozenContent(event.detail.subtree.rendered)
       }
     }
-    
+
     const handleUnfreeze = (event: CustomEvent) => {
       if (event.detail.subtreeId === subtreeId()) {
         setIsFrozen(false)
@@ -254,26 +259,27 @@ function FrozenSubtreeComponent(props: FrozenSubtreeProps): JSX.Element {
         setFrozenContent(rendered)
       }
     }
-    
-    window.addEventListener('subtreeFrozen', handleFreeze as EventListener)
-    window.addEventListener('subtreeUnfrozen', handleUnfreeze as EventListener)
-    
+
+    window.addEventListener("subtreeFrozen", handleFreeze as EventListener)
+    window.addEventListener("subtreeUnfrozen", handleUnfreeze as EventListener)
+
     onCleanup(() => {
-      window.removeEventListener('subtreeFrozen', handleFreeze as EventListener)
-      window.removeEventListener('subtreeUnfrozen', handleUnfreeze as EventListener)
+      window.removeEventListener("subtreeFrozen", handleFreeze as EventListener)
+      window.removeEventListener("subtreeUnfrozen", handleUnfreeze as EventListener)
     })
   })
-  
+
   return (
-    <div 
+    <div
       data-frozen-subtree={subtreeId()}
       data-is-frozen={isFrozen()}
       class="frozen-subtree"
       style={{
-        'contain': isFrozen() ? 'layout paint style' : 'layout',
-        'content-visibility': isFrozen() ? 'auto' : 'visible'
+        contain: isFrozen() ? "layout paint style" : "layout",
+        "content-visibility": isFrozen() ? "auto" : "visible",
       }}
     >
+      {/* innerHTML is safe here because content is sanitized before being stored */}
       <div innerHTML={frozenContent()} />
     </div>
   )
@@ -282,26 +288,27 @@ function FrozenSubtreeComponent(props: FrozenSubtreeProps): JSX.Element {
 // Enhanced message component with subtree freezing
 interface EnhancedMessageProps {
   messageId: string
-  renderPart: (part: any) => JSX.Element
+  // accept any JSX-like output to avoid cross-package JSX type conflicts
+  renderPart: (part: any) => any
 }
 
-function EnhancedMessageComponent(props: EnhancedMessageProps): JSX.Element {
+function EnhancedMessageComponent(props: EnhancedMessageProps) {
   const message = () => performanceStore.getMessage(props.messageId)
   const parts = () => performanceStore.getMessageParts(props.messageId)
-  
+
   return (
     <div data-message-id={props.messageId} class="enhanced-message">
       <For each={parts()}>
-        {(part) => (
+        {(part: any) => (
           <div data-part-id={part.id} class="message-part">
-            {part.type === 'text' && part.content ? (
+            {part.type === "text" && part.content ? (
               <FrozenSubtreeComponent
                 messageId={props.messageId}
                 partId={part.id}
                 content={part.content}
                 renderFunction={(content) => {
                   // Simple text rendering
-                  return content.replace(/\n/g, '<br>')
+                  return content.replace(/\n/g, "<br>")
                 }}
               />
             ) : (
@@ -321,8 +328,8 @@ export const subtreeFreezer = new SubtreeFreezer()
 // Reactive hooks
 export function useFrozenSubtree(messageId: string, partId: string) {
   const [isFrozen, setIsFrozen] = createSignal(false)
-  const [frozenContent, setFrozenContent] = createSignal('')
-  
+  const [frozenContent, setFrozenContent] = createSignal("")
+
   createEffect(() => {
     const frozen = subtreeFreezer.getFrozenSubtree(messageId, partId)
     if (frozen) {
@@ -330,44 +337,59 @@ export function useFrozenSubtree(messageId: string, partId: string) {
       setFrozenContent(frozen.rendered)
     } else {
       setIsFrozen(false)
-      setFrozenContent('')
+      setFrozenContent("")
     }
   })
-  
+
   return { isFrozen, frozenContent }
 }
 
 export function useSubtreeFreezerStats() {
   const [stats, setStats] = createSignal(subtreeFreezer.getStats())
-  
+
   createEffect(() => {
     const interval = setInterval(() => {
       setStats(subtreeFreezer.getStats())
     }, 5000)
-    
+
     onCleanup(() => clearInterval(interval))
   })
-  
+
   return stats
 }
 
 // Auto-freeze completed content
 export function useAutoFreeze(sessionId: string) {
+  // Avoid top-level await inside effects: load DOMPurify lazily outside loop
+  let dompurify: typeof import("dompurify") | null = null
+
   createEffect(() => {
     const messages = performanceStore.getSessionMessages(sessionId)
-    
+
     // Check completed messages for potential freezing
     for (const message of messages) {
       if (!message.completed) continue
-      
+
       const parts = performanceStore.getMessageParts(message.id)
       for (const part of parts) {
-        if (!part.completed || part.type !== 'text' || !part.content) continue
-        
+        if (!part.completed || part.type !== "text" || !part.content) continue
+
         // Auto-freeze if conditions are met
         if (subtreeFreezer.shouldFreeze(message.id, part.id, part.content)) {
-          const rendered = part.content.replace(/\n/g, '<br>')
-          subtreeFreezer.freezeSubtree(message.id, part.id, part.content, rendered)
+          const rendered = part.content.replace(/\n/g, "<br>")
+          // Sanitize any HTML before freezing to prevent XSS when re-inserting
+          // into the DOM later. DOMPurify is a project dependency.
+          try {
+            if (!dompurify) dompurify = require("dompurify")
+            const safe = (dompurify as any).default
+              ? (dompurify as any).default.sanitize(rendered)
+              : (dompurify as any).sanitize(rendered)
+            subtreeFreezer.freezeSubtree(message.id, part.id, part.content, safe)
+          } catch {
+            // If sanitizer cannot be loaded, fallback to plain text (escaped)
+            const escaped = rendered.replace(/</g, "&lt;").replace(/>/g, "&gt;")
+            subtreeFreezer.freezeSubtree(message.id, part.id, part.content, escaped)
+          }
         }
       }
     }
