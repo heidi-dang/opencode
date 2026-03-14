@@ -14,25 +14,28 @@ export default defineConfig({
     // PERFORMANCE: Implement bundle splitting for better caching
     rollupOptions: {
       output: {
-        manualChunks: {
-          // PERFORMANCE: Split agent configurations for better caching
-          "agent-configs": [
-            "./src/context/agent.ts",
-            "./src/pages/session/message-timeline.tsx"
-          ],
-          // PERFORMANCE: Split UI components
-          "ui-components": [
-            "./src/components/**/*.tsx",
-            "./src/pages/**/*.tsx"
-          ],
-          // PERFORMANCE: Split context providers
-          "context": [
-            "./src/context/**/*.tsx"
-          ],
-          // PERFORMANCE: Split utilities
-          "utils": [
-            "./src/utils/**/*.ts"
-          ]
+        // Use function-based config instead of glob patterns for reliability
+        manualChunks(id) {
+          // Skip node_modules
+          if (id.includes('node_modules')) return undefined
+          
+          // Split agent configs
+          if (id.includes('/context/agent') || id.includes('/message-timeline')) {
+            return 'agent-configs'
+          }
+          // Split UI components
+          if (id.includes('/components/') || id.includes('/pages/')) {
+            return 'ui-components'
+          }
+          // Split context providers (excluding agent)
+          if (id.includes('/context/') && !id.includes('/context/agent')) {
+            return 'context'
+          }
+          // Split utilities
+          if (id.includes('/utils/')) {
+            return 'utils'
+          }
+          return undefined
         }
       }
     },

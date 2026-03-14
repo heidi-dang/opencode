@@ -356,22 +356,27 @@ def run_doctor(checks: Optional[List[DoctorCheck]] = None, verbose: bool = False
     print("=" * 60)
     print()
     
-    # Change to repo root
-    repo_root = Path(__file__).parent.parent
-    if repo_root.exists() and (repo_root / "packages").exists():
+    # Find repo root dynamically
+    script_dir = Path(__file__).parent.resolve()
+    
+    # Try multiple strategies to find repo root
+    possible_roots = [
+        script_dir.parent,                           # tools/ -> repo root
+        script_dir.parent.parent,                    # tools/.. -> repo root  
+        Path("/home/heidi/work/opencode"),           # absolute path
+    ]
+    
+    repo_root = None
+    for candidate in possible_roots:
+        if candidate.exists() and (candidate / "packages").exists():
+            repo_root = candidate
+            break
+    
+    if repo_root:
         os.chdir(repo_root)
         print(f"Working directory: {os.getcwd()}")
     else:
-        # Try alternative paths
-        alt_paths = [
-            Path("../opencode"),
-            Path("/home/heidi/work/opencode"),
-        ]
-        for alt in alt_paths:
-            if alt.exists() and (alt / "packages").exists():
-                os.chdir(alt)
-                print(f"Working directory: {os.getcwd()}")
-                break
+        print("WARNING: Could not find repo root, using current directory")
     
     print()
     
