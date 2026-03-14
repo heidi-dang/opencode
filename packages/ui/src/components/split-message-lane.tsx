@@ -1,4 +1,5 @@
 import { Component, createSignal, createEffect, For, Show, splitProps, type JSX } from "solid-js"
+import { performanceStore } from "./performance-store"
 import { useLatestStreamingPart, useSessionMessages } from "./performance-store"
 import { TextShimmer } from "./text-shimmer"
 import { BasicTool } from "./basic-tool"
@@ -70,13 +71,13 @@ function FrozenMessage(props: FrozenMessageProps): JSX.Element {
     // Capture snapshot on mount, never update
     const message = performanceStore.getMessage(props.messageId)
     return message ? { ...message } : null
-  })()
+  })
 
   const [partsSnapshot] = createSignal(() => {
     // Capture parts snapshot on mount
     const parts = performanceStore.getMessageParts(props.messageId)
-    return parts.map(part => ({ ...part }))
-  })()
+    return parts.map((part: any) => ({ ...part }))
+  })
 
   return (
     <div 
@@ -90,9 +91,9 @@ function FrozenMessage(props: FrozenMessageProps): JSX.Element {
       }}
     >
       <div class="message-header">
-        <span class="message-type">{messageSnapshot()?.type}</span>
+        <span class="message-type">{messageSnapshot().type}</span>
         <span class="message-time">
-          {new Date(messageSnapshot()?.timestamp || 0).toLocaleTimeString()}
+          {new Date(messageSnapshot().timestamp || 0).toLocaleTimeString()}
         </span>
       </div>
       
@@ -209,14 +210,20 @@ function StreamingTextContent(props: { part: any }): JSX.Element {
 function StreamingToolContent(props: { part: any }): JSX.Element {
   return (
     <BasicTool
-      id={props.part.id}
-      tool={props.part.metadata?.tool || 'unknown'}
+      icon="console"
+      trigger={{
+        title: props.part.metadata?.tool || 'unknown',
+        subtitle: props.part.status
+      }}
       status={props.part.status}
-      title={props.part.metadata?.title}
-      output={props.part.content}
-      error={props.part.metadata?.error}
-      streaming={props.part.streaming}
-    />
+    >
+      <div class="tool-output">
+        <pre>{props.part.content}</pre>
+        <Show when={props.part.metadata?.error}>
+          <div class="tool-error">{props.part.metadata.error}</div>
+        </Show>
+      </div>
+    </BasicTool>
   )
 }
 

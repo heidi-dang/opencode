@@ -2,5 +2,4 @@
 export * from './context'
 export * from './hooks'
 export * from './pierre'
-export * from './styles'
 export * from './theme'
