@@ -45,7 +45,7 @@ export function createDeltaBatcher(options?: {
   // Queue: Map<key, string[]> - accumulates deltas per (messageID, partID)
   const queue = new Map<DeltaKey, string[]>()
   
-  let flushTimeout: number | undefined
+  let flushTimeout: ReturnType<typeof setTimeout> | undefined
   let pending = false
 
   /**

@@ -21,6 +21,7 @@ export interface ToolOutputRef {
 export function useToolOutputRetrieval() {
   const [loading, setLoading] = createSignal(false)
   const [error, setError] = createSignal<string | null>(null)
+  const sdk = useSDK()
   
   /**
    * Retrieve full output from blob storage
@@ -32,14 +33,12 @@ export function useToolOutputRetrieval() {
     
     try {
       // Call backend API to retrieve full output
-      // The backend will use retrieveFullOutput from truncation.ts
-      const response = await sdk.runAction("tool.retrieveOutput", {
-        messageID,
-        partID,
-      })
+      const url = `${sdk.url}/session/${messageID.split(":")[0]}/tool-output/${messageID}/${partID}`
+      const response = await fetch(url)
       
-      if (response?.data?.output) {
-        return response.data.output
+      if (response.ok) {
+        const data = await response.json()
+        return data.output || null
       }
       
       return null

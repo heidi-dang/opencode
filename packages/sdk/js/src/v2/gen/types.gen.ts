@@ -397,6 +397,11 @@ export type ToolStateCompleted = {
     compacted?: number
   }
   attachments?: Array<FilePart>
+  outputHasMore?: boolean
+  outputRef?: string
+  outputBytes?: number
+  previewLines?: number
+  previewBytes?: number
 }
 
 export type ToolStateError = {
@@ -3718,6 +3723,20 @@ export type PermissionRespondResponses = {
 }
 
 export type PermissionRespondResponse = PermissionRespondResponses[keyof PermissionRespondResponses]
+
+export type SessionToolOutputData = {
+  body?: never
+  path: {
+    sessionID: string
+    messageID: string
+    partID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/session/{sessionID}/tool-output/{messageID}/{partID}"
+}
 
 export type PermissionReplyData = {
   body?: {

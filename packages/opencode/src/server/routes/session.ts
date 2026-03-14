@@ -1027,6 +1027,7 @@ export const SessionRoutes = lazy(() =>
       "/:sessionID/tool-output/:messageID/:partID",
       describeRoute({
         summary: "Retrieve full tool output",
+        operationId: "session.toolOutput",
       }),
       validator("param", z.object({
         sessionID: SessionID.zod,

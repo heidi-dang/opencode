@@ -1,6 +1,6 @@
 import { Show, createSignal } from "solid-js"
 import { Button } from "@opencode-ai/ui/button"
-import { useToolOutputRetrieval, type ToolOutputProps } from "./output-retrieval"
+import { useToolOutputRetrieval, type ToolOutputProps } from "../context/run/output-retrieval"
 
 export function ToolOutputShowMore(props: ToolOutputProps) {
   const [showFull, setShowFull] = createSignal(false)
@@ -15,8 +15,9 @@ export function ToolOutputShowMore(props: ToolOutputProps) {
     setLoading(true)
     try {
       // Call the API to get full output
+      const sessionID = props.messageID.split(":")[0]
       const response = await fetch(
-        `/api/session/-/tool-output/${props.messageID}/${props.partID}`
+        `/api/session/${sessionID}/tool-output/${props.messageID}/${props.partID}`
       )
       const data = await response.json()
       if (data.output) {
@@ -54,7 +55,7 @@ export function ToolOutputShowMore(props: ToolOutputProps) {
       <Show when={hasMore()}>
         <Button
           variant="ghost"
-          size="sm"
+          size="small"
           onClick={toggleFull}
           disabled={loading()}
         >
