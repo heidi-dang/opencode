@@ -44,9 +44,53 @@ export interface IMarkedContext {
 }
 
 // Use createSimpleContext with the correct signature
-export const MarkedContext = createSimpleContext<IMarkedContext, {}>({
+export const MarkedContext = createSimpleContext<
+  IMarkedContext,
+  { nativeParser?: (markdown: string) => Promise<string> }
+>({
   name: "marked",
-  init: () => ({ parse: async () => "" }),
+  init: (props) => {
+    if (props.nativeParser) {
+      return {
+        async parse(markdown: string): Promise<string> {
+          const html = await props.nativeParser!(markdown)
+          const withMath = renderMathExpressions(html)
+          return highlightCodeBlocks(withMath)
+        },
+      }
+    }
+    // Default JS parser
+    const jsParser = marked.use({
+      gfm: true,
+      breaks: true,
+      renderer: {
+        link({ href, title, text }) {
+          const titleAttr = title ? ` title="${title}"` : ""
+          return `<a href="${href}"${titleAttr} class="external-link" target="_blank" rel="noopener noreferrer">${text}</a>`
+        },
+      },
+    })
+    jsParser.use(
+      markedKatex({
+        throwOnError: false,
+        nonStandard: true,
+      }),
+      markedShiki({
+        async highlight(code, lang) {
+          const validLang = lang && lang in bundledLanguages ? lang : "text"
+          return codeToHtml(code, {
+            lang: validLang,
+            theme: openCodeTheme,
+          })
+        },
+      }),
+    )
+    return {
+      parse: async (markdown: string) => {
+        return await jsParser.parse(markdown)
+      },
+    }
+  },
 })
 
 export function useMarked(): IMarkedContext {
@@ -54,45 +98,7 @@ export function useMarked(): IMarkedContext {
 }
 
 export function MarkedProvider(props: { children?: any; nativeParser?: (markdown: string) => Promise<string> }) {
-  const jsParser = marked.use({
-    gfm: true,
-    breaks: true,
-    renderer: {
-      link({ href, title, text }) {
-        const titleAttr = title ? ` title="${title}"` : ""
-        return `<a href="${href}"${titleAttr} class="external-link" target="_blank" rel="noopener noreferrer">${text}</a>`
-      },
-    },
-  })
-  jsParser.use(
-    markedKatex({
-      throwOnError: false,
-      nonStandard: true,
-    }),
-    markedShiki({
-      async highlight(code, lang) {
-        // Ensure lang is valid
-        const validLang = lang && lang in bundledLanguages ? lang : "text"
-        return codeToHtml(code, {
-          lang: validLang,
-          theme: openCodeTheme,
-        })
-      },
-    }),
-  )
-
-  if (props.nativeParser) {
-    const nativeParser = props.nativeParser
-    return {
-      async parse(markdown: string): Promise<string> {
-        const html = await nativeParser(markdown)
-        const withMath = renderMathExpressions(html)
-        return highlightCodeBlocks(withMath)
-      },
-    }
-  }
-
-  return jsParser
+  return <MarkedContext.provider nativeParser={props.nativeParser}>{props.children}</MarkedContext.provider>
 }
 
 // Helper function to render math expressions
