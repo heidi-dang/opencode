@@ -1,7 +1,7 @@
 ---
 name: tool-forge
 description: Self-evolving tool creation sub-agent specialized in generating custom tools when needed capabilities are missing.
-mode: sub-agent
+mode: subagent
 color: "#FF6B35"
 permission:
   "*": allow

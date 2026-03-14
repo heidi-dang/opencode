@@ -4,6 +4,7 @@ import { readdir } from "fs/promises"
 import { Global } from "../../global"
 import { TeamPatterns } from "./patterns"
 import { TokenOptimizer } from "./optimizer"
+import { CodebaseRAG } from "./rag"
 
 export interface ContextItem {
   name: string
@@ -45,6 +46,17 @@ export class ContextLoader {
         name: `patterns/${pattern.name}`,
         content: `${pattern.description}\n\n${pattern.content}`,
       })
+    }
+
+    // Load RAG Chunks based on tags
+    for (const tag of tags) {
+      const chunks = await CodebaseRAG.search(root, tag, 3)
+      for (const chunk of chunks) {
+        items.push({
+          name: `rag/${chunk.filePath.split("/").pop()}:${chunk.name}`,
+          content: TokenOptimizer.optimize(chunk.content, 2000),
+        })
+      }
     }
 
     return items
