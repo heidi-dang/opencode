@@ -1,6 +1,6 @@
 import { Component, createSignal, createEffect, For, Show, splitProps, type JSX } from "solid-js"
-import { performanceStore } from "./performance-store"
-import { useLatestStreamingPart, useSessionMessages } from "./performance-store"
+import { performanceStore } from "./simple-performance-store"
+import { useLatestStreamingPart, useSessionMessages } from "./simple-performance-store"
 import { TextShimmer } from "./text-shimmer"
 import { BasicTool } from "./basic-tool"
 
@@ -67,16 +67,28 @@ export function FrozenHistoryLane(props: { sessionId: string }): JSX.Element {
 function FrozenMessage(props: FrozenMessageProps): JSX.Element {
   // Frozen messages don't subscribe to live updates
   // They render once with stable props and never re-render
-  const [messageSnapshot] = createSignal(() => {
+  const [messageSnapshot, setMessageSnapshot] = createSignal(() => {
     // Capture snapshot on mount, never update
     const message = performanceStore.getMessage(props.messageId)
     return message ? { ...message } : null
   })
 
-  const [partsSnapshot] = createSignal(() => {
+  const [partsSnapshot, setPartsSnapshot] = createSignal(() => {
     // Capture parts snapshot on mount
     const parts = performanceStore.getMessageParts(props.messageId)
     return parts.map((part: any) => ({ ...part }))
+  })
+
+  // Capture snapshots on mount only
+  createEffect(() => {
+    setMessageSnapshot(() => {
+      const message = performanceStore.getMessage(props.messageId)
+      return message ? { ...message } : null
+    })
+    setPartsSnapshot(() => {
+      const parts = performanceStore.getMessageParts(props.messageId)
+      return parts.map((part: any) => ({ ...part }))
+    })
   })
 
   return (
@@ -91,9 +103,9 @@ function FrozenMessage(props: FrozenMessageProps): JSX.Element {
       }}
     >
       <div class="message-header">
-        <span class="message-type">{messageSnapshot().type}</span>
+        <span class="message-type">{messageSnapshot()?.type}</span>
         <span class="message-time">
-          {new Date(messageSnapshot().timestamp || 0).toLocaleTimeString()}
+          {new Date(messageSnapshot()?.timestamp || 0).toLocaleTimeString()}
         </span>
       </div>
       
