@@ -30,6 +30,7 @@ export const SidebarContent = (props: {
   onOpenSettings: () => void
   helpLabel: Accessor<string>
   onOpenHelp: () => void
+  onOpenInfinity: () => void
   renderPanel: () => JSX.Element
 }): JSX.Element => {
   const expanded = createMemo(() => !!props.mobile || props.opened())
@@ -99,13 +100,13 @@ export const SidebarContent = (props: {
               aria-label={props.settingsLabel()}
             />
           </TooltipKeybind>
-          <Tooltip placement={placement()} value={props.helpLabel()}>
+          <Tooltip placement={placement()} value="Infinity Monitor">
             <IconButton
-              icon="help"
+              icon="infinity"
               variant="ghost"
               size="large"
-              onClick={props.onOpenHelp}
-              aria-label={props.helpLabel()}
+              onClick={props.onOpenInfinity}
+              aria-label="Infinity Monitor"
             />
           </Tooltip>
         </div>

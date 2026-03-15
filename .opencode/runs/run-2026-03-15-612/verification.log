@@ -1,9 +1,0 @@
-COMMAND: bun test
-EXIT_CODE: 1
-
-STDOUT:
-bun test v1.3.10 (30e609e0)
-
-
-STDERR:
-Failed to scan non-existent root directory for tests: "/home/heidi/work/opencode-main/do-not-run-tests-from-root" in --cwd="/home/heidi/work/opencode-main"

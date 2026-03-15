@@ -8,6 +8,38 @@ import { Log } from "../util/log"
 
 const log = Log.create({ service: "infinity-adapter" })
 
+export interface TaskDiscovery {
+  title: string
+  source: "internal_audit" | "external_triage" | "tech_radar" | "cost_profile" | "post_mortem"
+  priority: number
+  category: "stability" | "performance" | "feature" | "cost" | "security"
+  scope: string[]
+  acceptance: string[]
+  constraints?: string[]
+  verify_command?: string
+}
+
+export interface InspectResult {
+  defect_summary: string
+  root_cause: string
+  fix_plan: string
+  allowed_files: string[]
+  verification_commands: string[]
+  confidence: number
+}
+
+export interface PatchResult {
+  content: string
+  rationale: string
+}
+
+export interface JudgeResult {
+  pass: boolean
+  retryable: boolean
+  instructions?: string
+  summary: string
+}
+
 export class InfinityAdapter {
   private root: string
 
@@ -20,7 +52,7 @@ export class InfinityAdapter {
     return await Provider.getModel(providerID, modelID)
   }
 
-  async suggestTasks(repoOverview: string): Promise<Omit<Task, "id">[]> {
+  async suggestTasks(repoOverview: string): Promise<TaskDiscovery[]> {
     const model = await this.getModel("xai/grok-4-1-fast")
     const language = await Provider.getLanguage(model)
     try {
@@ -77,6 +109,54 @@ export class InfinityAdapter {
       workers: object.plan.workers,
       created_at: new Date().toISOString()
     }
+  }
+
+  async inspectTarget(task: Task, context: string): Promise<InspectResult> {
+    const model = await this.getModel("github-copilot/gpt-5-mini")
+    const { object } = await generateObject({
+      model: await Provider.getLanguage(model),
+      system: "You are the Infinity Inspector. Analyze the target and provide a root cause hypothesis and fix plan.",
+      prompt: `Task: ${task.title}\nContext:\n${context}`,
+      schema: z.object({
+        defect_summary: z.string(),
+        root_cause: z.string(),
+        fix_plan: z.string(),
+        allowed_files: z.array(z.string()),
+        verification_commands: z.array(z.string()),
+        confidence: z.number().min(0).max(1)
+      })
+    })
+    return object as InspectResult
+  }
+
+  async patchTarget(inspectResult: InspectResult, fileContent: string): Promise<PatchResult> {
+    const model = await this.getModel("github-copilot/gpt-5-mini")
+    const { object } = await generateObject({
+      model: await Provider.getLanguage(model),
+      system: "You are the Infinity Patcher. Apply the fix plan to the provided file content. RETURN THE ENTIRE FILE CONTENT WITH THE FIX APPLIED.",
+      prompt: `Inspect Result: ${JSON.stringify(inspectResult)}\nFile Content:\n${fileContent}`,
+      schema: z.object({
+        content: z.string().describe("The entire file content with the fix applied."),
+        rationale: z.string()
+      })
+    })
+    return object as PatchResult
+  }
+
+  async judgeResult(diff: string, logs: string): Promise<JudgeResult> {
+    const model = await this.getModel("github-copilot/gpt-5-mini")
+    const { object } = await generateObject({
+      model: await Provider.getLanguage(model),
+      system: "You are the Infinity Judge. Evaluate the success of the patch based on diff and logs.",
+      prompt: `Diff:\n${diff}\nLogs:\n${logs}`,
+      schema: z.object({
+        pass: z.boolean(),
+        retryable: z.boolean(),
+        instructions: z.string().optional(),
+        summary: z.string()
+      })
+    })
+    return object as JudgeResult
   }
 
   async reportResults(task: Task, diff: string, logs: string): Promise<GateResult> {

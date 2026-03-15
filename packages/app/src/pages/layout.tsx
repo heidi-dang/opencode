@@ -2293,6 +2293,11 @@ export default function Layout(props: ParentProps) {
       onOpenSettings={openSettings}
       helpLabel={() => language.t("sidebar.help")}
       onOpenHelp={() => platform.openLink("https://opencode.ai/desktop-feedback")}
+      onOpenInfinity={() => {
+        const project = currentProject()
+        if (!project) return
+        navigate(`/${base64Encode(project.worktree)}/infinity`)
+      }}
       renderPanel={() =>
         mobile ? (
           <SidebarPanel project={currentProject} mobile />

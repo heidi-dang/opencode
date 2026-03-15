@@ -1,6 +1,0 @@
-{
-  "name": "opencode-internal",
-  "dependencies": {
-    "@opencode-ai/plugin": "*"
-  }
-}

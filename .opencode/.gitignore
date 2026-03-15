@@ -2,3 +2,10 @@ plans/
 bun.lock
 package.json
 package-lock.json
+
+# Infinity Loop runtime state (never commit)
+queue.json
+infinity.log
+infinity.lock
+implementation_plan.md
+runs/run-*/
