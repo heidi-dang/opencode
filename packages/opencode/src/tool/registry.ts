@@ -42,6 +42,7 @@ import {
 } from "./browser"
 
 import { ApplyPatchTool } from "./apply_patch"
+import { InfinityLoopOffTool } from "./infinity_loop_off"
 import { Glob } from "../util/glob"
 import { pathToFileURL } from "url"
 
@@ -145,6 +146,7 @@ export namespace ToolRegistry {
       ...(config.experimental?.batch_tool === true ? [BatchTool] : []),
       StepApprovalTool,
       RagSearchTool,
+      InfinityLoopOffTool,
       ...(Flag.OPENCODE_EXPERIMENTAL_PLAN_MODE || Flag.OPENCODE_CLIENT === "cli" ? [PlanExitTool] : []),
       ...custom,
     ]

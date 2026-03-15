@@ -58,8 +58,8 @@ export class InfinityAdapter {
     try {
       const { object } = await generateObject({
         model: language,
-        system: "You are the Infinity Suggester. Analyze the repository state and suggest stability/performance tasks.",
-        prompt: `Repo Overview:\n${repoOverview}\n\nSuggest 3-5 high-impact tasks to improve project stability, performance, or security.`,
+        system: "You are the Infinity Suggester. Analyze the repository state and suggest stability/performance tasks in JSON format.",
+        prompt: `Repo Overview:\n${repoOverview}\n\nSuggest 3-5 high-impact tasks to improve project stability, performance, or security as a JSON object.`,
         schema: z.object({
           tasks: z.array(z.object({
             title: z.string(),
@@ -88,8 +88,8 @@ export class InfinityAdapter {
 
     const { object } = await generateObject({
       model: language,
-      system: "You are the Infinity Planner. Produce a detailed execution plan for the given task.",
-      prompt: `Task: ${task.title}\nAcceptance: ${task.acceptance.join(", ")}\nContext:\n${repoContext}`,
+      system: "You are the Infinity Planner. Produce a detailed execution plan for the given task in JSON format.",
+      prompt: `Task: ${task.title}\nAcceptance: ${task.acceptance.join(", ")}\nContext:\n${repoContext}\n\nReturn the plan as a JSON object.`,
       schema: z.object({
         plan: z.object({
           workers: z.array(z.object({
@@ -115,8 +115,8 @@ export class InfinityAdapter {
     const model = await this.getModel("github-copilot/gpt-5-mini")
     const { object } = await generateObject({
       model: await Provider.getLanguage(model),
-      system: "You are the Infinity Inspector. Analyze the target and provide a root cause hypothesis and fix plan.",
-      prompt: `Task: ${task.title}\nContext:\n${context}`,
+      system: "You are the Infinity Inspector. Analyze the target and provide a root cause hypothesis and fix plan in JSON format.",
+      prompt: `Task: ${task.title}\nContext:\n${context}\n\nReturn your analysis as a JSON object.`,
       schema: z.object({
         defect_summary: z.string(),
         root_cause: z.string(),
@@ -133,8 +133,8 @@ export class InfinityAdapter {
     const model = await this.getModel("github-copilot/gpt-5-mini")
     const { object } = await generateObject({
       model: await Provider.getLanguage(model),
-      system: "You are the Infinity Patcher. Apply the fix plan to the provided file content. RETURN THE ENTIRE FILE CONTENT WITH THE FIX APPLIED.",
-      prompt: `Inspect Result: ${JSON.stringify(inspectResult)}\nFile Content:\n${fileContent}`,
+      system: "You are the Infinity Patcher. Apply the fix plan to the provided file content. RETURN THE ENTIRE FILE CONTENT WITH THE FIX APPLIED AS A JSON OBJECT.",
+      prompt: `Inspect Result: ${JSON.stringify(inspectResult)}\nFile Content:\n${fileContent}\n\nOutput the result in JSON.`,
       schema: z.object({
         content: z.string().describe("The entire file content with the fix applied."),
         rationale: z.string()
@@ -147,8 +147,8 @@ export class InfinityAdapter {
     const model = await this.getModel("github-copilot/gpt-5-mini")
     const { object } = await generateObject({
       model: await Provider.getLanguage(model),
-      system: "You are the Infinity Judge. Evaluate the success of the patch based on diff and logs.",
-      prompt: `Diff:\n${diff}\nLogs:\n${logs}`,
+      system: "You are the Infinity Judge. Evaluate the success of the patch based on diff and logs. Return result in JSON format.",
+      prompt: `Diff:\n${diff}\nLogs:\n${logs}\n\nProvide your judgment as a JSON object.`,
       schema: z.object({
         pass: z.boolean(),
         retryable: z.boolean(),
@@ -165,8 +165,8 @@ export class InfinityAdapter {
 
     const { object } = await generateObject({
       model: language,
-      system: "You are the Infinity Reporter. Judge the success of a task based on code changes and verification logs.",
-      prompt: `Task: ${task.title}\nDiff:\n${diff}\nLogs:\n${logs}`,
+      system: "You are the Infinity Reporter. Judge the success of a task based on code changes and verification logs in JSON format.",
+      prompt: `Task: ${task.title}\nDiff:\n${diff}\nLogs:\n${logs}\n\nReturn the report as a JSON object.`,
       schema: z.object({
         result: z.enum(["pass", "fail", "blocked", "retry_with_actions"]),
         gates: z.array(z.object({
@@ -193,8 +193,8 @@ export class InfinityAdapter {
 
     const { object } = await generateObject({
       model: language,
-      system: "You are the Infinity Librarian. Extract reusable lessons from this autonomous run.",
-      prompt: `Run Status: ${run.status}\nEvents:\n${events}`,
+      system: "You are the Infinity Librarian. Extract reusable lessons from this autonomous run in JSON format.",
+      prompt: `Run Status: ${run.status}\nEvents:\n${events}\n\nOutput lessons as a JSON object.`,
       schema: z.object({
         lessons: z.array(z.string())
       })
@@ -209,8 +209,8 @@ export class InfinityAdapter {
 
     const { object } = await generateObject({
       model: language,
-      system: "You are the Infinity Innovator. Derive follow-up ideas or architectural expansion opportunities.",
-      prompt: `Repository State:\n${repoState}`,
+      system: "You are the Infinity Innovator. Derive follow-up ideas or architectural expansion opportunities in JSON format.",
+      prompt: `Repository State:\n${repoState}\n\nOutput opportunities as a JSON object.`,
       schema: z.object({
         opportunities: z.array(z.object({
           title: z.string(),

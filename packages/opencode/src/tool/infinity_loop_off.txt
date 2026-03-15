@@ -1,0 +1,3 @@
+Turns off the background Infinity Loop.
+Use this tool when the user explicitly asks to stop the autonomous background worker or when the autonomous task is complete and no further cycles are needed.
+The tool sends a termination signal to the running infinity process, which will then shut down gracefully after finishing its current stage.
