@@ -99,7 +99,9 @@ function AppShellProviders(props: ParentProps) {
             <ModelsProvider>
               <CommandProvider>
                 <HighlightsProvider>
-                  <Layout>{props.children}</Layout>
+                  <MarkedProviderWithNativeParser>
+                    <Layout>{props.children}</Layout>
+                  </MarkedProviderWithNativeParser>
                 </HighlightsProvider>
               </CommandProvider>
             </ModelsProvider>

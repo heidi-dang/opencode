@@ -395,56 +395,13 @@ install_from_local_repo() {
     print_message info "${MUTED}Installing locally built version...${NC}"
     
     # Create a wrapper script that calls local development version
-    cat > "${INSTALL_DIR}/opencode" << EOF
-#!/usr/bin/env bash
-# OpenCode local development wrapper
-REPO_ROOT="$REPO_ROOT"
-
-# Check if we are in development mode
-if [ -f "\$REPO_ROOT/packages/opencode/src/index.ts" ]; then
-    cd "\$REPO_ROOT"
-    
-    # Set environment to use local packages
-    export NODE_ENV=development
-    
-    # For web commands, ensure we use local UI packages
-    case "\${1:-}" in
-        "web")
-            print_message info "Starting OpenCode web with local UI packages..."
-            cd "\$REPO_ROOT/packages/app"
-            exec bun dev -- --port 4444 "\${@:2}"
-            ;;
-        "dev"|"start"|"server"|"backend")
-            print_message info "Starting OpenCode backend..."
-            cd "\$REPO_ROOT/packages/opencode"
-            exec bun run --conditions=browser src/index.ts serve --port 4096 "\${@:2}"
-            ;;
-        *)
-            # Default: start backend
-            cd "\$REPO_ROOT/packages/opencode"
-            exec bun run --conditions=browser src/index.ts serve --port 4096 "\$@"
-            ;;
-    esac
-else
-    echo "Error: Development files not found"
-    exit 1
-fi
-EOF
+    printf "#!/usr/bin/env bash\n# OpenCode local development wrapper\nREPO_ROOT=\"$REPO_ROOT\"\n\n# Check if we are in development mode\nif [ -f \"\$REPO_ROOT/packages/opencode/src/index.ts\" ]; then\n    cd \"\$REPO_ROOT\"\n    exec bun run --cwd packages/opencode --conditions=browser src/index.ts \"\$@\"\nelse\n    echo \"Error: Development files not found\"\n    exit 1\nfi\n" > "${INSTALL_DIR}/opencode"
     
     chmod 755 "${INSTALL_DIR}/opencode"
     print_message info "${MUTED}Created development wrapper${NC}"
     
     specific_version="local"
     print_message info "${MUTED}Local install completed successfully!${NC}"
-    print_message info ""
-    print_message info "${MUTED}Usage:${NC}"
-    print_message info "  opencode web      - Start web development with local UI packages"
-    print_message info "  opencode          - Start backend server"
-    print_message info ""
-    print_message info "${MUTED}Default workflow:${NC}"
-    print_message info "  ./install --local-repo"
-    print_message info "  opencode web"
-    print_message info "  Then open: http://localhost:4444"
 }
 
 if [ -n "$binary_path" ]; then
