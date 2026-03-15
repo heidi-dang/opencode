@@ -15,6 +15,14 @@ export namespace Bus {
     }),
   )
 
+  export const BrowserFrame = BusEvent.define(
+    "browser.frame",
+    z.object({
+      data: z.string(),
+      sessionId: z.string(),
+    }),
+  )
+
   const state = Instance.state(
     () => {
       const subscriptions = new Map<any, Subscription[]>()

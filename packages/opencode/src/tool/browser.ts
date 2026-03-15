@@ -5,6 +5,7 @@ import { Instance } from "../project/instance"
 import { Log } from "../util/log"
 import { abortAfterAny } from "../util/abort"
 import type { MessageV2 } from "../session/message-v2"
+import { Bus } from "../bus"
 import TurndownService from "turndown"
 import fs from "fs/promises"
 import path from "path"
@@ -53,12 +54,27 @@ async function ensureBrowser() {
       dir: path.join(Instance.directory, ".opencode", "recordings"),
     },
   })
-  s.context.on("page", (newPage) => {
+
+  // Start CDP on every new page
+  s.context.on("page", async (newPage) => {
     s.pages.push(newPage)
+    const client = await newPage.context().newCDPSession(newPage).catch(() => null)
+    if (client) {
+      client.on("Page.screencastFrame", (payload) => {
+        Bus.publish(Bus.BrowserFrame, {
+          data: payload.data,
+          sessionId: String(payload.sessionId),
+        }).catch(() => {})
+        client.send("Page.screencastFrameAck", { sessionId: payload.sessionId }).catch(() => {})
+      })
+      await client.send("Page.startScreencast", { format: "jpeg", quality: 50, everyNthFrame: 1 }).catch(() => {})
+    }
+
     newPage.on("close", () => {
       s.pages = s.pages.filter((p) => p !== newPage)
     })
   })
+
   const initialPage = await s.context.newPage()
   return s.browser
 }
