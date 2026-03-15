@@ -23,6 +23,7 @@ import { ProjectScanner } from "./scanner"
 import { InfinityAdapter } from "./adapter"
 import { cmd } from "../cli/cmd/cmd"
 import type { ProjectID } from "../project/schema"
+import { Flag } from "../flag/flag"
 
 // ============================================================================
 // Types
@@ -63,6 +64,7 @@ export interface RunState {
   proof_path?: string
   log_path?: string
   project_id?: string
+  attempts?: number
 }
 
 export interface Plan {
@@ -190,7 +192,7 @@ export class InfinityRuntime {
     this.root = root
     this.config = {
       max_cycles: config.max_cycles ?? 1,
-      max_retries_per_task: config.max_retries_per_task ?? 2,
+      max_retries_per_task: config.max_retries_per_task ?? Flag.HEIDI_MAX_RETRIES,
       idle_backoff_ms: config.idle_backoff_ms ?? 5000,
       daemon: config.daemon ?? false,
       watch: config.watch ?? false,
@@ -684,10 +686,15 @@ ${gitLog}`
     this.log("INSPECT", `Inspecting target for run ${this.currentRunId}...`)
     
     const task = this.getCurrentTask()!
-    // Fetch context: target file + surrounding etc.
     const context = await this.getWorkspaceContext(task.scope[0])
     
-    const result = await this.adapter.inspectTarget(task, context)
+    // Closed-loop feedback: pass failure info if this is a retry
+    const state = this.readRunState(this.currentRunId)!
+    const failureLog = state.attempts && state.attempts > 0 && state.log_path && fs.existsSync(state.log_path)
+      ? fs.readFileSync(state.log_path, "utf-8")
+      : undefined
+    
+    const result = await this.adapter.inspectTarget(task, context, failureLog)
     const inspectPath = path.join(this.root, ".opencode", "runs", this.currentRunId, "inspect.json")
     fs.writeFileSync(inspectPath, JSON.stringify(result, null, 2))
     
@@ -758,9 +765,32 @@ ${gitLog}`
     const failureClass = result.code !== 0 ? this.classifyFailure(result.stderr.toString()) : null
     
     const state = this.readRunState(this.currentRunId)!
-    state.status = result.code === 0 ? "ready_for_reporter" : "failed"
+    state.attempts = (state.attempts ?? 0) + 1
     state.log_path = logPath
-    this.writeRunState(this.currentRunId, state)
+    
+    if (result.code === 0) {
+      state.status = "ready_for_reporter"
+      this.writeRunState(this.currentRunId, state)
+      this.log("VERIFY_PASS", `Verification passed for run ${this.currentRunId}`)
+      this.advanceStage()
+    } else {
+      this.log("VERIFY_FAIL", `Verification failed (attempt ${state.attempts}/${this.config.max_retries_per_task})`)
+      
+      if (state.attempts < this.config.max_retries_per_task) {
+        state.status = "in_progress"
+        this.writeRunState(this.currentRunId, state)
+        // Rewind to inspect stage for another attempt
+        this.currentStage = "inspect"
+        this.log("RETRY", `Rewinding to INSPECT stage for run ${this.currentRunId}`)
+        await this.saveState()
+      } else {
+        this.log("ROLLBACK", `Max retries reached. Executing rollback for run ${this.currentRunId}`)
+        await this.rollback()
+        state.status = "rolled_back"
+        this.writeRunState(this.currentRunId, state)
+        this.advanceStage()
+      }
+    }
     
     this.appendEvent(this.currentRunId, {
       type: "verification",
@@ -768,10 +798,19 @@ ${gitLog}`
       profile,
       duration,
       passed: result.code === 0,
-      failure_class: failureClass
+      failure_class: failureClass,
+      attempt: state.attempts
     })
+  }
 
-    this.advanceStage()
+  private async rollback(): Promise<void> {
+    this.log("ROLLBACK_EXEC", `Rolling back changes in ${this.root}...`)
+    try {
+      await Process.run(["git", "checkout", "--", "."], { cwd: this.root })
+      this.log("ROLLBACK_SUCCESS", "Rollback successful")
+    } catch (e) {
+      this.log("ROLLBACK_ERROR", `Failed to rollback: ${e}`)
+    }
   }
 
   private getVerificationProfile(filePath: string): string {

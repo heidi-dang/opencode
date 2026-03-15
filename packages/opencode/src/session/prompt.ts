@@ -48,6 +48,7 @@ import { iife } from "@/util/iife"
 import { Shell } from "@/shell/shell"
 import { Truncate } from "@/tool/truncation"
 import { decodeDataUrl } from "@/util/data-url"
+import { Policy } from "./policy"
 
 // @ts-ignore
 globalThis.AI_SDK_LOG_WARNINGS = false
@@ -328,6 +329,16 @@ export namespace SessionPrompt {
       }
 
       step++
+      if (Policy.shouldPrune(step)) {
+        await SessionCompaction.create({
+          sessionID,
+          agent: lastUser.agent,
+          model: lastUser.model,
+          auto: true,
+          overflow: false,
+        })
+        continue
+      }
       if (step === 1)
         ensureTitle({
           session,
@@ -726,6 +737,21 @@ export namespace SessionPrompt {
       }
 
       if (result === "stop") {
+        // Unified Quality Gates (Security, Visual, Logic)
+        const gate = Policy.nextGate(agent.name, msgs)
+        if (gate && !processor.message.error) {
+          await Session.updatePart({
+            id: PartID.ascending(),
+            messageID: processor.message.id,
+            sessionID,
+            type: "subtask",
+            agent: gate.agent as any, // Cast to any because agent names are dynamic
+            description: gate.description,
+            prompt: gate.prompt,
+          } satisfies MessageV2.SubtaskPart)
+          continue
+        }
+
         // Automatic Auditor Trigger for Build Agent
         if (agent.name === "build" && !processor.message.error) {
           const alreadyAudited = msgs.some((m) =>
@@ -778,6 +804,21 @@ export namespace SessionPrompt {
                 "Please review the implementation_plan.md file and provide feedback on its correctness, security, and performance. Assign a score from 0-100.",
             } satisfies MessageV2.SubtaskPart)
           }
+        }
+
+        // Checkpoint/Approval Pause
+        const checkpoint = Policy.requiresApproval(parts)
+        if (checkpoint && !processor.message.error) {
+          // Pause and ask for approval by creating a synthetic message that requires human response
+          // In this architecture, we exit the loop and wait for user input
+          log.info("checkpoint hit, pausing for approval", { checkpoint, sessionID })
+          Bus.publish(Session.Event.Error, {
+            sessionID,
+            error: new NamedError.Unknown({
+              message: `CHECKPOINT: ${checkpoint.reason}. Please approve to continue.`,
+            }).toObject(),
+          })
+          break
         }
       }
 
