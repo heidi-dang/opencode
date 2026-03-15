@@ -16,6 +16,7 @@ import re
 import sys
 from pathlib import Path
 from typing import List, Optional
+from check_diff_theme_resolution import check_diff_theme_resolution
 
 
 def get_project_root() -> Path:
@@ -405,6 +406,23 @@ class InfinityLoopCheck(DoctorCheck):
         return True
 
 
+class DiffThemeCheck(DoctorCheck):
+    """Check for proper diff theme resolution."""
+    
+    name = "diff-theme"
+    description = "Check for proper diff theme resolution to prevent undefined console spam"
+    
+    def run(self) -> bool:
+        root = get_project_root()
+        errors = check_diff_theme_resolution(root, self.verbose)
+        if not errors:
+            self.passed = True
+            return True
+        
+        self.errors.extend(errors)
+        return False
+
+
 def get_all_checks(verbose: bool = False) -> List[DoctorCheck]:
     """Return all available checks."""
     return [
@@ -418,6 +436,7 @@ def get_all_checks(verbose: bool = False) -> List[DoctorCheck]:
         OutputRetrievalAPICheck(verbose),
         LiveRunProviderCheck(verbose),
         InfinityLoopCheck(verbose),
+        DiffThemeCheck(verbose),
     ]
 
 
