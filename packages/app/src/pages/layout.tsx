@@ -1948,6 +1948,10 @@ export default function Layout(props: ParentProps) {
       archiveSession,
     },
     setHoverSession,
+    navigateToInfinity: (directory: string) => {
+      openProject(directory)
+      navigate(`/${base64Encode(directory)}/infinity`)
+    },
   }
 
   const SidebarPanel = (panelProps: {
@@ -2118,20 +2122,35 @@ export default function Layout(props: ParentProps) {
                 when={workspacesEnabled()}
                 fallback={
                   <>
-                    <div class="shrink-0 py-4">
-                      <Button
-                        size="large"
-                        icon="new-session"
-                        class="w-full"
-                        onClick={() => {
-                          const dir = worktree()
-                          if (!dir) return
-                          navigateWithSidebarReset(`/${base64Encode(dir)}/session`)
-                        }}
-                      >
-                        {language.t("command.session.new")}
-                      </Button>
-                    </div>
+                      <div class="shrink-0 flex flex-col gap-2 py-4">
+                        <Button
+                          size="large"
+                          icon="new-session"
+                          class="w-full"
+                          onClick={() => {
+                            const dir = worktree()
+                            if (!dir) return
+                            navigateWithSidebarReset(`/${base64Encode(dir)}/session`)
+                          }}
+                        >
+                          {language.t("command.session.new")}
+                        </Button>
+                        <Button
+                          size="large"
+                          variant="ghost"
+                          class="w-full justify-start gap-2"
+                          onClick={() => {
+                            const dir = worktree()
+                            if (!dir) return
+                            navigateWithSidebarReset(`/${base64Encode(dir)}/infinity`)
+                          }}
+                        >
+                           <div class="shrink-0 size-4 flex items-center justify-center">
+                             <div class="size-2 rounded-full bg-primary-base animate-pulse" />
+                           </div>
+                           Infinity Loop
+                        </Button>
+                      </div>
                     <div class="flex-1 min-h-0">
                       <LocalWorkspace
                         ctx={workspaceSidebarCtx}
@@ -2145,7 +2164,7 @@ export default function Layout(props: ParentProps) {
                 }
               >
                 <>
-                  <div class="shrink-0 py-4">
+                  <div class="shrink-0 flex flex-col gap-2 py-4">
                     <Button
                       size="large"
                       icon="plus-small"
@@ -2157,6 +2176,21 @@ export default function Layout(props: ParentProps) {
                       }}
                     >
                       {language.t("workspace.new")}
+                    </Button>
+                    <Button
+                      size="large"
+                      variant="ghost"
+                      class="w-full justify-start gap-2"
+                      onClick={() => {
+                        const dir = worktree()
+                        if (!dir) return
+                        navigateWithSidebarReset(`/${base64Encode(dir)}/infinity`)
+                      }}
+                    >
+                       <div class="shrink-0 size-4 flex items-center justify-center">
+                         <div class="size-2 rounded-full bg-primary-base animate-pulse" />
+                       </div>
+                       Infinity Loop
                     </Button>
                   </div>
                   <div class="relative flex-1 min-h-0">

@@ -49,6 +49,7 @@ import { useCheckServerHealth } from "./utils/server-health"
 
 const Home = lazy(() => import("@/pages/home"))
 const Session = lazy(() => import("@/pages/session"))
+const Infinity = lazy(() => import("@/pages/infinity"))
 const Loading = () => <div class="size-full" />
 
 const HomeRoute = () => (
@@ -288,6 +289,7 @@ export function AppInterface(props: {
               <Route path="/:dir" component={DirectoryLayout}>
                 <Route path="/" component={SessionIndexRoute} />
                 <Route path="/session/:id?" component={SessionRoute} />
+                <Route path="/infinity" component={Infinity} />
               </Route>
             </Dynamic>
           </GlobalSyncProvider>
