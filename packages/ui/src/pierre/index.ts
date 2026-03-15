@@ -2,6 +2,7 @@ import { DiffLineAnnotation, FileContents, FileDiffOptions, type SelectedLineRan
 import { ComponentProps } from "solid-js"
 import { lineCommentStyles } from "../components/line-comment-styles"
 import { openCodeTheme } from "../context/marked"
+import { resolveDiffTheme } from "./theme"
 
 export type DiffProps<T = {}> = FileDiffOptions<T> & {
   before: FileContents
@@ -161,31 +162,10 @@ ${lineCommentStyles}
 `
 
 export function createDefaultOptions<T>(style: FileDiffOptions<T>["diffStyle"]) {
-  // Create a lazy theme that only initializes when actually needed
-  const lazyTheme = {
-    get value() {
-      // Try to get the theme
-      try {
-        if (openCodeTheme && typeof openCodeTheme === 'object' && openCodeTheme.name) {
-          return openCodeTheme
-        }
-      } catch (e) {
-        // Theme not accessible
-      }
-      
-      // Return a minimal fallback theme that won't cause errors
-      return {
-        name: 'none',
-        type: 'css' as const,
-        css: '',
-        colors: {},
-        tokenColors: []
-      }
-    }
-  }
+  const finalTheme = resolveDiffTheme()
 
   return {
-    theme: lazyTheme.value as any,
+    theme: finalTheme,
     themeType: "system",
     disableLineNumbers: false,
     overflow: "wrap",

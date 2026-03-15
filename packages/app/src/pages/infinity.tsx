@@ -5,7 +5,7 @@ import { IconButton } from "@opencode-ai/ui/icon-button"
 import { Icon } from "@opencode-ai/ui/icon"
 import { Spinner } from "@opencode-ai/ui/spinner"
 import { useLayout } from "@/context/layout"
-import { useParams } from "@solidjs/router"
+import { useParams, useNavigate } from "@solidjs/router"
 import { decode64 } from "@/utils/base64"
 import { base64Encode } from "@opencode-ai/util/encode"
 import { getFilename } from "@opencode-ai/util/path"
@@ -15,6 +15,7 @@ export default function InfinityPage() {
   const globalSDK = useGlobalSDK()
   const layout = useLayout()
   const params = useParams()
+  const navigate = useNavigate()
   onMount(() => {
     console.log("InfinityPage mounted", { params, directory: directory() })
   })
@@ -76,7 +77,10 @@ export default function InfinityPage() {
       const lastLine = logs[0]
       if (lastLine) {
         const match = lastLine.match(/stage=(\w+)/)
-        if (match) setStatus(match[1])
+        if (match) {
+          const s = match[1].toLowerCase()
+          setStatus(s === "none" ? "Idle" : s)
+        }
       }
       
       return { logs, queue, report }
@@ -110,9 +114,19 @@ export default function InfinityPage() {
         <div class="flex items-center gap-2 lg:gap-3 min-w-0">
           <div class="flex items-center gap-1.5 lg:gap-2 text-12-medium lg:text-13-medium text-text-weak truncate mr-1 lg:mr-2">
             <Icon name="folder" size="small" class="opacity-70 shrink-0" />
-            <span class="hover:text-text-base cursor-pointer transition-colors shrink-0 hidden sm:inline">Projects</span>
+            <span 
+              class="hover:text-text-base cursor-pointer transition-colors shrink-0 hidden sm:inline"
+              onClick={() => navigate("/")}
+            >
+              Projects
+            </span>
             <Icon name="chevron-right" size="small" class="opacity-30 shrink-0 hidden sm:inline" />
-            <span class="text-text-strong truncate">{projectName()}</span>
+            <span 
+              class="text-text-strong truncate hover:text-primary-base cursor-pointer transition-colors"
+              onClick={() => project() && navigate(`/${base64Encode(project()!.worktree)}/session`)}
+            >
+              {projectName()}
+            </span>
           </div>
           
           <div class="h-4 w-px bg-border-weak-base mx-0.5 lg:mx-1 shrink-0" />

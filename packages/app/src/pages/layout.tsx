@@ -2306,7 +2306,7 @@ export default function Layout(props: ParentProps) {
       onOpenInfinity={() => {
         const project = currentProject()
         if (!project) return
-        navigate(`/${base64Encode(project.worktree)}/infinity`)
+        navigate(`/infinity/${base64Encode(project.worktree)}`)
       }}
       renderPanel={() =>
         mobile ? (
