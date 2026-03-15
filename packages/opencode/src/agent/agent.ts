@@ -256,6 +256,7 @@ export namespace Agent {
             bash: "allow",
             read: "allow",
             edit: "allow",
+            browser: "allow",
           }),
           user,
         ),

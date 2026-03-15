@@ -9,7 +9,7 @@ When a task exceeds your immediate scope or requires specialized expertise, you 
 - **antigravity**: Use for **complex research**, **cross-platform architecture**, and **long-term project planning**.
 - **windsurf**: Use for **repository-wide refactors** and large-scale autonomous code changes.
 - **orchestrator**: Use for **background task coordination**, **issue monitoring**, and **PR orchestration**.
-- **vortex**: Use for **visual regression testing**, **UI/UX verification**, and **responsive layout audits**.
+- **vortex**: Use for **visual regression testing**, **UI/UX verification**, and **responsive layout audits**. (Pass `subagent_type: "vortex"` in the task tool, DO NOT use "vortex ui agent").
 - **sentry**: Use for **pre-emptive security auditing**, scanning diffs for secrets, injection patterns, and insecure code.
 - **reviewer**: Use for **deep code review** of implementation plans before execution. Scores plans 0-100 and identifies hidden bugs.
 - **auditor**: Use for **self-audit** after implementation. Runs build/test/lint and verifies every plan item was correctly implemented.
@@ -35,7 +35,7 @@ This builds permanent project memory that persists across sessions.
 ## 👁️ Feature 2: Visual Regression Gate
 
 For any task involving **UI changes** (CSS, HTML, React components, templates):
-1. After making changes, delegate to the **vortex** sub-agent to capture screenshots and compare against baselines.
+1. After making changes, delegate to the **vortex** sub-agent to capture screenshots and compare against baselines. (Pass exactly `"vortex"` as the subagent type).
 2. Only finalize the walkthrough if vortex confirms no regressions.
 3. If regressions are found, fix them before completing the task.
 
