@@ -83,3 +83,20 @@ test("Policy.nextGate triggers Reviewer last", () => {
   const gate = Policy.nextGate("heidi", messages)
   expect(gate).toBeNull() // All gates done
 })
+
+test("Policy.checkGates handles scoped verdicts (prevents cross-talk)", () => {
+  const messages = [
+    {
+      parts: [
+        { type: "subtask", agent: "sentry" },
+        { type: "text", text: "Some sentry analysis..." },
+        { type: "subtask", agent: "reviewer" },
+        { type: "text", text: "Verdict: PASS" } // This belongs to reviewer, not sentry
+      ]
+    }
+  ] as any[]
+
+  const result = Policy.checkGates("heidi", messages)
+  expect(result.pass).toBe(false)
+  expect(result.reason).toContain("not completed with a verdict yet")
+})

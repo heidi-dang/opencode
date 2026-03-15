@@ -12,7 +12,7 @@ import * as fs from "fs"
 import * as path from "path"
 import * as crypto from "crypto"
 import { fileURLToPath } from "url"
-import type { Argv } from "yargs"
+import type { Argv, ArgumentsCamelCase } from "yargs"
 import { Database } from "../storage/db"
 import { InfinityTable } from "./infinity.sql.ts"
 import { ProjectTable } from "../project/project.sql.ts"
@@ -593,7 +593,7 @@ ${gitLog}`
       }
     }
 
-    this.log("CYCLE_END", `Cycle ${this.cycleCount} finished`)
+    this.log("CYCLE_END", `Cycle ${this.cycles} finished`)
   }
 
   private async executeStage(stage: Stage): Promise<void> {
@@ -1206,21 +1206,28 @@ interface InfinityArgv {
   daemon?: boolean
   watch?: boolean
   experimental?: boolean
-  _: string[]
+  _: (string | number)[]
 }
 
 export const InfinityCommand = cmd({
   command: "infinity [action]",
   describe: "Run Infinity Loop Runtime",
   builder(yargs) {
-    return yargs.positional("action", {
-      describe: "Action to run",
-      type: "string",
-      default: "start",
-      choices: ["start", "status", "resume", "pause", "stop", "requeue", "quarantine", "explain"],
-    })
+    return yargs
+      .positional("action", {
+        describe: "Action to run",
+        type: "string",
+        default: "start",
+        choices: ["start", "status", "resume", "pause", "stop", "requeue", "quarantine", "explain"],
+      })
+      .option("maxCycles", { type: "number" })
+      .option("maxRetries", { type: "number" })
+      .option("idleBackoff", { type: "number" })
+      .option("daemon", { type: "boolean" })
+      .option("watch", { type: "boolean" })
+      .option("experimental", { type: "boolean" })
   },
-  async handler(argv: InfinityArgv) {
+  async handler(argv: ArgumentsCamelCase<InfinityArgv>) {
     const root = process.cwd()
     const action = (argv.action || "start") as string
 
@@ -1283,7 +1290,7 @@ export const InfinityCommand = cmd({
         console.error(`Failed to stop loop: ${e}`)
       }
     } else if (action === "requeue") {
-      const taskId = argv._[1]
+      const taskId = String(argv._[1])
       if (!taskId) {
         console.error("Task ID required: infinity requeue <task-id>")
         return
@@ -1299,7 +1306,7 @@ export const InfinityCommand = cmd({
         console.error(`Task ${taskId} not found.`)
       }
     } else if (action === "explain") {
-      const runId = argv._[1]
+      const runId = String(argv._[1])
       if (!runId) {
         console.error("Run ID required: infinity explain <run-id>")
         return

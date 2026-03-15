@@ -181,7 +181,7 @@ Complete the implementation with proper error handling, validation, and OpenCode
    * Validate generated tool implementation
    * Uses safe syntax analysis without code execution
    */
-  async function validateToolImplementation(code: string): Promise<{ isValid: boolean; errors: string[] }> {
+  export async function validateToolImplementation(code: string): Promise<{ isValid: boolean; errors: string[] }> {
     const errors: string[] = []
 
     // Safe syntax validation using regex-based analysis

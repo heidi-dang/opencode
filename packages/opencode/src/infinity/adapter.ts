@@ -210,16 +210,21 @@ export class InfinityAdapter {
     const { object } = await generateObject({
       model: language,
       system: "You are the Infinity Innovator. Derive follow-up ideas or architectural expansion opportunities in JSON format.",
-      prompt: `Repository State:\n${repoState}\n\nOutput opportunities as a JSON object.`,
+      prompt: `Repository State:\n${repoState}\n\nOutput opportunities as a JSON object that matches the TaskDiscovery schema.`,
       schema: z.object({
         opportunities: z.array(z.object({
           title: z.string(),
+          source: z.enum(["internal_audit", "external_triage", "tech_radar", "cost_profile", "post_mortem"]),
+          priority: z.number(),
+          category: z.enum(["stability", "performance", "feature", "cost", "security"]),
+          scope: z.array(z.string()),
+          acceptance: z.array(z.string()),
           description: z.string(),
           impact: z.enum(["low", "medium", "high"])
         }))
       })
     })
 
-    return object.opportunities
+    return object.opportunities as TaskDiscovery[]
   }
 }

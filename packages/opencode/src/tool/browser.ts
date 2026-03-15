@@ -445,7 +445,9 @@ export const BrowserReadTool = Tool.define("browser_read", {
     const page = await ensurePage()
     
     if (params.format === "accessibility") {
-      const ax = await (page as Page).accessibility.snapshot()
+      const client = await page.context().newCDPSession(page)
+      const ax = await client.send("Accessibility.getFullAXTree")
+      await client.detach()
       return {
         title: "Accessibility Tree Snapshot",
         output: JSON.stringify(ax, null, 2),
