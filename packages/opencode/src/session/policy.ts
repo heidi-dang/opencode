@@ -98,11 +98,16 @@ export namespace Policy {
         const text = p.type === "text" ? p.text : p.type === "tool" && p.state.status === "completed" ? p.state.output : ""
         const content = text.toLowerCase()
 
-        if (content.includes("verdict: pass") || content.includes("verdict: success") || content.includes("all checks passed")) {
+        // Use robust regex for verdict detection
+        // Matches "Verdict: PASS", "Verdict: FAIL", etc. Case insensitive.
+        const passRegex = /\bverdict:\s*pass\b|\ball\s*checks\s*passed\b/i
+        const failRegex = /\bverdict:\s*fail\b|\bsecurity\s*issues\s*found\b|\bregression\s*detected\b/i
+
+        if (passRegex.test(text)) {
           verdict = "pass"
           break
         }
-        if (content.includes("verdict: fail") || content.includes("security issues found") || content.includes("regression detected")) {
+        if (failRegex.test(text)) {
           verdict = "fail"
           break
         }
