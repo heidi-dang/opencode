@@ -1,0 +1,4 @@
+Wait for a specific element to appear in the DOM, or wait for a specific duration.
+This is useful for pages that load content asynchronously or wait for animations.
+Either provide a CSS selector to wait for an element to become visible, or a timeMs (in milliseconds) to sleep.
+Wait for selectors is generally much more reliable than waiting for a fixed amount of time.

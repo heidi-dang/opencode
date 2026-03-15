@@ -1,5 +1,5 @@
 Extract the content of the current page.
 You can choose the format:
-- "markdown": The default format. Converts the page to clean readable markdown. Best for understanding content.
+- "markdown": The default format. Converts the page to clean readable markdown. Best for understanding content. Interactive elements (links, buttons, inputs) are automatically annotated with their CSS selectors (e.g., `text (selector: '#id')` or `text (selector: '[data-oc-id="oc-1"]')`) so you know exactly what selector to pass to formatting tools like browser_click or browser_type.
 - "accessibility": Returns the accessibility tree as JSON. Best for understanding semantic structure and interactive elements.
 - "html": Returns raw HTML. Best for precise extraction or debugging DOM issues.

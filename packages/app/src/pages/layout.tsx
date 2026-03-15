@@ -11,7 +11,7 @@ import {
   untrack,
   type Accessor,
 } from "solid-js"
-import { useNavigate, useParams } from "@solidjs/router"
+import { useLocation, useNavigate, useParams } from "@solidjs/router"
 import { useLayout, LocalProject } from "@/context/layout"
 import { useGlobalSync } from "@/context/global-sync"
 import { Persist, persisted } from "@/utils/persist"
@@ -110,7 +110,9 @@ export default function Layout(props: ParentProps) {
 
   let scrollContainerRef: HTMLDivElement | undefined
 
+  const location = useLocation()
   const params = useParams()
+  console.log("Layout mounted", { params: { ...params }, pathname: location.pathname })
   const globalSDK = useGlobalSDK()
   const globalSync = useGlobalSync()
   const layout = useLayout()
@@ -127,7 +129,12 @@ export default function Layout(props: ParentProps) {
   const command = useCommand()
   const theme = useTheme()
   const language = useLanguage()
-  const initialDirectory = decode64(params.dir)
+  const currentDirFromPath = () => {
+    const parts = location.pathname.split("/")
+    return parts.length > 1 && parts[1] ? parts[1] : undefined
+  }
+  const decodedDirFromPath = () => decode64(currentDirFromPath())
+  const initialDirectory = decodedDirFromPath() || decode64(params.dir)
   const availableThemeEntries = createMemo(() => Object.entries(theme.themes()))
   const colorSchemeOrder: ColorScheme[] = ["system", "light", "dark"]
   const colorSchemeKey: Record<ColorScheme, "theme.scheme.system" | "theme.scheme.light" | "theme.scheme.dark"> = {
@@ -278,7 +285,7 @@ export default function Layout(props: ParentProps) {
   })
 
   const autoselecting = createMemo(() => {
-    if (params.dir) return false
+    if (params.dir || currentDirFromPath()) return false
     if (!state.autoselect) return false
     if (!pageReady()) return true
     if (!layoutReady()) return true
@@ -289,7 +296,7 @@ export default function Layout(props: ParentProps) {
 
   createEffect(() => {
     if (!state.autoselect) return
-    const dir = params.dir
+    const dir = params.dir || currentDirFromPath()
     if (!dir) return
     const directory = decode64(dir)
     if (!directory) return
@@ -574,7 +581,7 @@ export default function Layout(props: ParentProps) {
 
   createEffect(
     on(
-      () => ({ ready: pageReady(), layoutReady: layoutReady(), dir: params.dir, list: layout.projects.list() }),
+      () => ({ ready: pageReady(), layoutReady: layoutReady(), dir: params.dir || currentDirFromPath(), list: layout.projects.list() }),
       (value) => {
         if (!value.ready) return
         if (!value.layoutReady) return

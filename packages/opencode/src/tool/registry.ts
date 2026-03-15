@@ -36,6 +36,9 @@ import {
   BrowserScrollTool,
   BrowserResizeTool,
   BrowserReadTool,
+  BrowserWaitTool,
+  BrowserHoverTool,
+  BrowserPressTool,
 } from "./browser"
 
 import { ApplyPatchTool } from "./apply_patch"
@@ -133,6 +136,9 @@ export namespace ToolRegistry {
       BrowserScrollTool,
       BrowserResizeTool,
       BrowserReadTool,
+      BrowserWaitTool,
+      BrowserHoverTool,
+      BrowserPressTool,
       SkillTool,
       ApplyPatchTool,
       ...(Flag.OPENCODE_EXPERIMENTAL_LSP_TOOL ? [LspTool] : []),
