@@ -127,7 +127,7 @@ export interface LockFile {
 // Constants
 // ============================================================================
 
-const STAGES = ["suggester", "planner", "dev", "havoc", "reporter", "librarian", "rearm"] as const
+const STAGES = ["architect", "suggester", "planner", "dev", "havoc", "reporter", "librarian", "rearm"] as const
 export type Stage = (typeof STAGES)[number]
 
 const TERMINAL_STATES = ["passed", "failed", "rolled_back"]
@@ -370,7 +370,7 @@ export class InfinityRuntime {
       this.currentTaskId = resumeResult.taskId
     } else {
       // Start fresh cycle
-      this.currentStage = "suggester"
+      this.currentStage = "architect"
     }
 
     // Execute stages in deterministic order
@@ -396,6 +396,9 @@ export class InfinityRuntime {
 
   private async executeStage(stage: Stage): Promise<void> {
     switch (stage) {
+      case "architect":
+        await this.stageArchitect()
+        break
       case "suggester":
         await this.stageSuggester()
         break
@@ -420,6 +423,34 @@ export class InfinityRuntime {
       default:
         throw new Error(`Unknown stage: ${stage}`)
     }
+  }
+
+  private async stageArchitect(): Promise<void> {
+    this.log("ARCHITECT", "Running Architect (Singularity Core) stage...")
+
+    // In a real implementation, this would invoke the Architect subagent
+    // to analyze the current state and decide if any overrides or shifts are needed.
+
+    const reportPath = path.join(this.root, ".opencode", "report.json")
+    let report: any = null
+    if (fs.existsSync(reportPath)) {
+      report = JSON.parse(fs.readFileSync(reportPath, "utf-8"))
+    }
+
+    // Metacognitive Tuning: Check for suggester efficiency
+    const runsDir = path.join(this.root, ".opencode", "runs")
+    const recentRuns = fs.existsSync(runsDir) ? fs.readdirSync(runsDir).slice(-5) : []
+
+    if (recentRuns.length > 3 && report && report.health_score > 90) {
+      this.log("ARCHITECT", "System too stable. Suggesting Havoc mode for deeper stress testing.")
+    }
+
+    // SWAT Dispatcher: Check for critical health drops
+    if (report && report.health_score < 70) {
+      this.log("ARCHITECT", "CRITICAL HEALTH DROP detected. Dispatching SWAT directive to Planner.")
+    }
+
+    this.advanceStage()
   }
 
   private async stageSuggester(): Promise<void> {
