@@ -159,6 +159,22 @@ function findBinary(startDir) {
         if (fs.existsSync(candidate)) return candidate
       }
     }
+
+    const dist = path.join(current, "dist")
+    if (fs.existsSync(dist)) {
+      for (const name of names) {
+        // Build script puts binaries in dist/[name]/bin/
+        // Also check with @opencode-ai scope which build.ts uses
+        const candidates = [
+          path.join(dist, name, "bin", binary),
+          path.join(dist, "@opencode-ai", name, "bin", binary),
+        ]
+        for (const candidate of candidates) {
+          if (fs.existsSync(candidate)) return candidate
+        }
+      }
+    }
+
     const parent = path.dirname(current)
     if (parent === current) {
       return
@@ -169,6 +185,21 @@ function findBinary(startDir) {
 
 const resolved = findBinary(scriptDir)
 if (!resolved) {
+  // Fallback: if we're in a local dev checkout, use bun run directly
+  const src = path.join(scriptDir, "..", "src", "index.ts")
+  if (fs.existsSync(src)) {
+    const result = childProcess.spawnSync(
+      "bun",
+      ["run", "--conditions=browser", src, "--", ...process.argv.slice(2)],
+      { stdio: "inherit" },
+    )
+    if (result.error) {
+      console.error(result.error.message)
+      process.exit(1)
+    }
+    process.exit(typeof result.status === "number" ? result.status : 0)
+  }
+
   console.error(
     "It seems that your package manager failed to install the right version of the opencode CLI for your platform. You can try manually installing " +
       names.map((n) => `\"${n}\"`).join(" or ") +
