@@ -28,7 +28,15 @@ import { Flag } from "@/flag/flag"
 import { Log } from "@/util/log"
 import { LspTool } from "./lsp"
 import { Truncate } from "./truncation"
-import { BrowserTool } from "./browser"
+import {
+  BrowserNavigateTool,
+  BrowserScreenshotTool,
+  BrowserClickTool,
+  BrowserTypeTool,
+  BrowserScrollTool,
+  BrowserResizeTool,
+  BrowserReadTool,
+} from "./browser"
 
 import { ApplyPatchTool } from "./apply_patch"
 import { Glob } from "../util/glob"
@@ -118,7 +126,13 @@ export namespace ToolRegistry {
       // TodoReadTool,
       WebSearchTool,
       CodeSearchTool,
-      BrowserTool,
+      BrowserNavigateTool,
+      BrowserScreenshotTool,
+      BrowserClickTool,
+      BrowserTypeTool,
+      BrowserScrollTool,
+      BrowserResizeTool,
+      BrowserReadTool,
       SkillTool,
       ApplyPatchTool,
       ...(Flag.OPENCODE_EXPERIMENTAL_LSP_TOOL ? [LspTool] : []),

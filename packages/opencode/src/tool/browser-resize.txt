@@ -1,0 +1,4 @@
+Resize the browser viewport to test responsive layouts.
+Mobile viewport commonly: width 375, height 812
+Desktop viewport commonly: width 1440, height 900
+This is essential for verifying UI looks correct on different form factors.

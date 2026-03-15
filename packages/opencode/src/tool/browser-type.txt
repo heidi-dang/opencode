@@ -1,0 +1,4 @@
+Type text into an input field, textarea, or contenteditable element.
+Specify the target element using a CSS selector. 
+This tool clears the input first and then types the new text.
+If typing fails, check if the selector is correct or if the element is obscured. The tool will return an error with a screenshot attached to help you debug.

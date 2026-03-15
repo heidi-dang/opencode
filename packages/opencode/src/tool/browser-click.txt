@@ -1,0 +1,6 @@
+Click on an element in the browser using a CSS selector or Playwright locator.
+Examples: 
+- "#submit-btn"
+- "button:has-text('Submit')"
+- "text=Login"
+If the click times out or fails (e.g., element is hidden by an overlay), the tool will return an error with a screenshot attached so you can visually debug why the click failed.
