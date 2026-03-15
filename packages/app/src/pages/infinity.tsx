@@ -97,6 +97,8 @@ export default function InfinityPage() {
     onCleanup(() => clearInterval(interval))
   })
 
+  const [mobileTab, setMobileTab] = createSignal("dashboard")
+
   const stages = [
     { name: "Suggester", id: "suggester", icon: "magnifying-glass" },
     { name: "Planner", id: "planner", icon: "checklist" },
@@ -162,9 +164,29 @@ export default function InfinityPage() {
         </div>
       </header>
 
+      {/* Mobile Tab Switcher */}
+      <div class="lg:hidden flex items-center border-b border-border-weak-base shrink-0">
+        <button
+          onClick={() => setMobileTab("dashboard")}
+          class={`flex-1 py-3 text-12-medium transition-colors border-b-2 ${
+            mobileTab() === "dashboard" ? "border-primary-base text-text-strong" : "border-transparent text-text-weak hover:text-text-base"
+          }`}
+        >
+          Dashboard
+        </button>
+        <button
+          onClick={() => setMobileTab("logs")}
+          class={`flex-1 py-3 text-12-medium transition-colors border-b-2 ${
+            mobileTab() === "logs" ? "border-primary-base text-text-strong" : "border-transparent text-text-weak hover:text-text-base"
+          }`}
+        >
+          System Logs
+        </button>
+      </div>
+
       <div class="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden">
         {/* Left Column: Metrics, Pipeline, Queue */}
-        <aside class="w-full lg:w-[400px] shrink-0 border-r border-border-weak-base bg-surface-base flex flex-col p-4 lg:p-6 gap-6 lg:gap-8 overflow-y-auto no-scrollbar">
+        <aside class={`w-full lg:w-[400px] shrink-0 border-r border-border-weak-base bg-surface-base flex-col p-4 lg:p-6 gap-6 lg:gap-8 overflow-y-auto no-scrollbar ${mobileTab() === 'dashboard' ? 'flex' : 'hidden lg:flex'}`}>
           <BrowserViewer />
           
           <section>
@@ -231,7 +253,7 @@ export default function InfinityPage() {
         </aside>
 
         {/* Right Column: Monitors / Reports */}
-        <main class="flex-1 min-w-0 flex flex-col bg-background-base overflow-hidden">
+        <main class={`flex-1 min-w-0 flex-col bg-background-base overflow-hidden ${mobileTab() === 'logs' ? 'flex' : 'hidden lg:flex'}`}>
           <Switch>
             <Match when={activeTab() === 'monitor'}>
               <div class="flex-1 flex flex-col overflow-hidden">
