@@ -5,6 +5,9 @@ import { InfinityAdapter, type TaskDiscovery, type InspectResult, type PatchResu
 import * as fs from "fs"
 import * as path from "path"
 import { tmpdir } from "os"
+import { Database } from "../../src/storage/db"
+import { ProjectTable } from "../../src/project/project.sql"
+import { Identifier } from "../../src/id/id"
 
 class MockScanner extends ProjectScanner {
   override async scan() {
@@ -106,9 +109,22 @@ describe("Infinity Doctor", () => {
     await Process.run(["git", "config", "user.name", "Doctor"], { cwd: testRoot })
     await Process.run(["git", "add", "."], { cwd: testRoot })
     await Process.run(["git", "commit", "-m", "Initial commit"], { cwd: testRoot })
+
+    // Ensure project exists in DB for foreign key constraints
+    await Database.use(async (db) => {
+      await db
+        .insert(ProjectTable)
+        .values({
+          id: "project-doctor" as any,
+          worktree: testRoot,
+          sandboxes: [],
+        })
+        .onConflictDoNothing()
+    })
   })
 
   afterEach(() => {
+    Database.close()
     fs.rmSync(testRoot, { recursive: true, force: true })
   })
 

@@ -411,6 +411,7 @@ ${gitLog}`
 
   writeQueue(tasks: Task[]): void {
     const queuePath = path.join(this.root, ".opencode", "queue.json")
+    this.ensureDir(path.dirname(queuePath))
     fs.writeFileSync(queuePath, JSON.stringify(tasks, null, 2), "utf-8")
   }
 

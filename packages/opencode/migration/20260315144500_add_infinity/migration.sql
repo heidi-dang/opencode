@@ -1,6 +1,6 @@
 CREATE TABLE `infinity` (
 	`id` text PRIMARY KEY NOT NULL,
-	`project_id` text NOT NULL,
+	`project_id` text NOT NULL UNIQUE,
 	`status` text NOT NULL,
 	`current_stage` text NOT NULL,
 	`current_run_id` text,

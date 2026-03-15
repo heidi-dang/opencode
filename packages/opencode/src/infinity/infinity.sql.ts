@@ -10,6 +10,7 @@ export const InfinityTable = sqliteTable(
     project_id: text()
       .$type<ProjectID>()
       .notNull()
+      .unique()
       .references(() => ProjectTable.id, { onDelete: "cascade" }),
     status: text().notNull(),
     current_stage: text().notNull(),
