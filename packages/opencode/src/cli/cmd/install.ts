@@ -103,7 +103,7 @@ async function installFromLocalRepo() {
   }
 
   const packageJson = await Filesystem.readJson(packageJsonPath)
-  if (packageJson.name !== "@opencode-ai/opencode") {
+  if (packageJson.name !== "@opencode-ai/opencode" && packageJson.name !== "opencode") {
     prompts.log.error("This doesn't appear to be the opencode repository")
     prompts.outro("Done")
     return
