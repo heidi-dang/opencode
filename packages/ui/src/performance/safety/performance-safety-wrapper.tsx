@@ -100,7 +100,7 @@ export function PerformanceSafetyWrapper(props: {
   const [inFallback, setInFallback] = createSignal(false)
   
   createEffect(() => {
-    const currentRegressions = enhancedPerformanceGuard.checkRegression(metrics())
+    const currentRegressions = enhancedPerformanceGuard.checkRegression(metrics.metrics)
     setRegressions(currentRegressions)
     setInFallback(enhancedPerformanceGuard.isInFallbackMode())
   })
@@ -127,7 +127,7 @@ export function PerformanceSafetyWrapper(props: {
           </div>
           <div>Regressions: {regressions().length}</div>
           <div>Tier: {rollout().userTier}</div>
-          <div>Score: {metrics().overallScore}/100</div>
+          <div>Score: {metrics.metrics.score}/100</div>
           
           <Show when={regressions().length > 0}>
             <div style={{ 'margin-top': '8px', 'font-size': '9px' }}>
