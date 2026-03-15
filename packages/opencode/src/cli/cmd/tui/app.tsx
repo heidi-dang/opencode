@@ -25,6 +25,7 @@ import { KeybindProvider } from "@tui/context/keybind"
 import { ThemeProvider, useTheme } from "@tui/context/theme"
 import { Home } from "@tui/routes/home"
 import { Session } from "@tui/routes/session"
+import { Infinity } from "@tui/routes/infinity"
 import { PromptHistoryProvider } from "./component/prompt/history"
 import { FrecencyProvider } from "./component/prompt/frecency"
 import { PromptStashProvider } from "./component/prompt/stash"
@@ -626,6 +627,18 @@ function App() {
       },
     },
     {
+      title: "View Infinity Loop",
+      value: "opencode.infinity",
+      category: "System",
+      slash: {
+        name: "infinity",
+      },
+      onSelect: (dialog) => {
+        route.navigate({ type: "infinity" })
+        dialog.clear()
+      },
+    },
+    {
       title: "Suspend terminal",
       value: "terminal.suspend",
       keybind: "terminal_suspend",
@@ -759,6 +772,9 @@ function App() {
         </Match>
         <Match when={route.data.type === "session"}>
           <Session />
+        </Match>
+        <Match when={route.data.type === "infinity"}>
+          <Infinity />
         </Match>
       </Switch>
     </box>
