@@ -14,6 +14,9 @@ export default function InfinityPage() {
   const globalSDK = useGlobalSDK()
   const layout = useLayout()
   const params = useParams()
+  onMount(() => {
+    console.log("InfinityPage mounted", { params, directory: directory() })
+  })
   const [status, setStatus] = createSignal("Idle")
   const [activeTab, setActiveTab] = createSignal("monitor")
   const directory = () => decode64(params.dir) || ""

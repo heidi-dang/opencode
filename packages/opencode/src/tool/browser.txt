@@ -1,0 +1,20 @@
+The browser tool provides capabilities to interact with web applications through a real browser instance. It is essential for verifying UI changes, researching websites, and debugging web-based issues.
+
+### Capabilities:
+- **navigate**: Opens a specific URL in the browser.
+- **screenshot**: Captures a visual image of the current page. This is the primary way to "see" what the user sees.
+- **click**: Interacts with elements using CSS selectors (e.g., `#submit-button`) or text-based matching.
+- **type**: Enters text into input fields.
+- **scroll**: Moves the viewport up or down.
+- **read**: Extracts the page content. You can request it in `markdown` (formatted for readability) or `html`.
+
+### When to use:
+- To verify that a UI change (CSS, layout, component) looks correct.
+- To use a web-based tool or documentation that isn't available via simple fetch (e.g., requires JavaScript).
+- To reproduce a bug that only occurs in a browser environment.
+- To take "before and after" screenshots for a walkthrough.
+
+### Precautions:
+- Browsers are resource-heavy. Prefer `webfetch` if you only need static content or API data.
+- Always wait for the page to load (navigation will wait for the 'load' event by default).
+- If an automated click or type fails, use `screenshot` to see if the element is visible or if there is an overlay (like a cookie banner).

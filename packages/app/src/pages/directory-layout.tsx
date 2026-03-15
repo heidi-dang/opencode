@@ -68,7 +68,7 @@ export default function Layout(props: ParentProps) {
         })
         if (next === raw) return
         const path = location.pathname.slice(current.length + 1)
-        navigate(`/${base64Encode(next)}${path}${location.search}${location.hash}`, { replace: true })
+        navigate(`/${base64Encode(next)}/${path}${location.search}${location.hash}`, { replace: true })
       })
       .catch(() => {
         if (params.dir !== current) return
