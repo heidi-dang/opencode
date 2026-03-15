@@ -95,19 +95,23 @@ export namespace Policy {
 
       for (const entry of following) {
         const p = entry.part
+
+        // SCOPING: If we hit another subtask, stop searching for this specific gate's verdict.
+        // This prevents cross-talk where a later gate's "Verdict: PASS" satisfies an earlier gate.
+        if (p.type === "subtask") break
+
         const text = p.type === "text" ? p.text : p.type === "tool" && p.state.status === "completed" ? p.state.output : ""
         const content = text.toLowerCase()
 
         // Use robust regex for verdict detection
-        // Matches "Verdict: PASS", "Verdict: FAIL", etc. Case insensitive.
-        const passRegex = /\bverdict:\s*pass\b|\ball\s*checks\s*passed\b/i
+        const passRegex = /\bverdict:\s*pass\b|\ball\s*checks\s*passed\b|\bverdict:\s*success\b/i
         const failRegex = /\bverdict:\s*fail\b|\bsecurity\s*issues\s*found\b|\bregression\s*detected\b/i
 
-        if (passRegex.test(text)) {
+        if (passRegex.test(content)) {
           verdict = "pass"
           break
         }
-        if (failRegex.test(text)) {
+        if (failRegex.test(content)) {
           verdict = "fail"
           break
         }

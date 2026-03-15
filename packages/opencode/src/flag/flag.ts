@@ -110,7 +110,7 @@ Object.defineProperty(Flag, "OPENCODE_CLIENT", {
 })
 
 Object.defineProperty(Flag, "HEIDI_ENABLE_FRONTIER", {
-  get() { return !falsy("HEIDI_ENABLE_FRONTIER") },
+  get() { return truthy("HEIDI_ENABLE_FRONTIER") },
   enumerable: true,
   configurable: false,
 })
