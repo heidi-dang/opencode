@@ -13,6 +13,8 @@ export namespace Identifier {
     tool: "tool",
     workspace: "wrk",
     infinity: "inf",
+    run: "run",
+    task: "tsk",
   } as const
 
   export function schema(prefix: keyof typeof prefixes) {
