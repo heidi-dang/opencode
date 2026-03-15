@@ -63,7 +63,6 @@ const HomeRoute = () => {
 }
 
 const SessionRoute = () => {
-  onMount(() => console.log("SessionRoute mounted"))
   return (
     <SessionProviders>
       <Suspense fallback={<Loading />}>
@@ -74,7 +73,6 @@ const SessionRoute = () => {
 }
 
 const SessionIndexRoute = () => {
-  onMount(() => console.log("SessionIndexRoute mounted"))
   return <Navigate href="session" />
 }
 
@@ -298,10 +296,10 @@ export function AppInterface(props: {
               root={(routerProps) => <RouterRoot appChildren={props.children}>{routerProps.children}</RouterRoot>}
             >
               <Route path="/" component={HomeRoute} />
+              <Route path="/infinity/:dir" component={Infinity} />
               <Route path="/:dir" component={DirectoryLayout}>
                 <Route path="" component={SessionIndexRoute} />
                 <Route path="session/:id?" component={SessionRoute} />
-                <Route path="infinity" component={Infinity} />
               </Route>
             </Dynamic>
           </GlobalSyncProvider>
