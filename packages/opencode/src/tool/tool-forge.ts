@@ -112,6 +112,10 @@ Respond with JSON:
 
     // Validate the generated code
     const validation = await validateToolImplementation(implementation)
+    if (!validation.isValid) {
+      log.error("Tool-Forge validation failed", { toolId, errors: validation.errors })
+      throw new Error(`Tool validation failed: ${validation.errors.join(", ")}`)
+    }
 
     const forgedTool: ForgedTool = {
       id: toolId,
@@ -119,14 +123,14 @@ Respond with JSON:
       created: Date.now(),
       usage: 0,
       lastUsed: 0,
-      validated: validation.isValid,
+      validated: true,
     }
 
     // Store the forged tool
     const state = await forgeStorage()
     state.tools[toolId] = forgedTool
 
-    log.info("Forged new tool", { toolId, name: template.name, validated: validation.isValid })
+    log.info("Forged new tool", { toolId, name: template.name, validated: true })
 
     return forgedTool
   }
@@ -190,6 +194,7 @@ Complete the implementation with proper error handling, validation, and OpenCode
     // Security validation - check for dangerous patterns
     const dangerousPatterns = [
       { pattern: /eval\s*\(/gi, name: "eval()" },
+      { pattern: /['"`]e['"`]\s*\+\s*['"`]val['"`]/gi, name: "eval string fragment" },
       { pattern: /\beval\s*\(/gi, name: "eval (with word boundary)" },
       { pattern: /Function\s*\(/gi, name: "Function constructor" },
       { pattern: /require\s*\(\s*['"]/gi, name: "require()" },

@@ -755,12 +755,29 @@ export namespace SessionPrompt {
         // Hard Enforcement of Gate Verdicts
         const check = Policy.checkGates(agent.name, msgs)
         if (!check.pass && !processor.message.error) {
+          // Track gate retries to prevent infinite loops
+          const gateRetries = msgs.reduce((acc, m) => {
+            return acc + m.parts.filter(p => p.type === "text" && p.text.includes("SESSION FINALIZATION BLOCKED")).length
+          }, 0)
+
+          if (gateRetries >= 3) {
+            await Session.updatePart({
+              id: PartID.ascending(),
+              messageID: processor.message.id,
+              sessionID,
+              type: "text",
+              text: `🛑 CRITICAL: Gate budget exhausted (${gateRetries}/3). Session finalization aborted to prevent infinite loop. Please provide manual verdicts or fix the failing gates.`,
+              synthetic: true,
+            } satisfies MessageV2.TextPart)
+            break // Break the loop to prevent infinite hang
+          }
+
           await Session.updatePart({
             id: PartID.ascending(),
             messageID: processor.message.id,
             sessionID,
             type: "text",
-            text: `⚠️ SESSION FINALIZATION BLOCKED: ${check.reason}\n\nQuality gates are mandatory. Please ensure all gates return a successful verdict.`,
+            text: `⚠️ SESSION FINALIZATION BLOCKED (${gateRetries + 1}/3): ${check.reason}\n\nQuality gates are mandatory. Please ensure all gates return a successful verdict.`,
             synthetic: true,
           } satisfies MessageV2.TextPart)
           continue
