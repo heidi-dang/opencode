@@ -176,12 +176,12 @@ const MASTER_ESCALATION_STATES = ["stuck"]
 export class InfinityRuntime {
   private root: string
   private config: InfinityConfig
-  private currentRunId: string | null = null
-  private currentTaskId: string | null = null
-  private currentStage: Stage | null = null
-  private cycleCount = 0
-  private isRunning = false
-  private isAborted = false
+  private run: string | null = null
+  private task: string | null = null
+  private stage: Stage | null = null
+  private cycles = 0
+  private active = false
+  private aborted = false
   private scanner: ProjectScanner
   private adapter: InfinityAdapter
 
@@ -243,20 +243,20 @@ export class InfinityRuntime {
           .values({
             id: Identifier.descending("infinity"),
             project_id: pid,
-            status: this.isRunning ? "running" : "idle",
-            current_stage: this.currentStage || "none",
-            current_run_id: this.currentRunId,
-            current_task_id: this.currentTaskId,
+            status: this.active ? "running" : "idle",
+            current_stage: this.stage || "none",
+            current_run_id: this.run,
+            current_task_id: this.task,
             health_score: health,
             metrics,
           })
           .onConflictDoUpdate({
             target: InfinityTable.project_id,
             set: {
-              status: this.isRunning ? "running" : "idle",
-              current_stage: this.currentStage || "none",
-              current_run_id: this.currentRunId,
-              current_task_id: this.currentTaskId,
+              status: this.active ? "running" : "idle",
+              current_stage: this.stage || "none",
+              current_run_id: this.run,
+              current_task_id: this.task,
               health_score: health,
               metrics,
               time_updated: Date.now(),
@@ -289,9 +289,9 @@ ${gitLog}`
 
       if (state) {
         this.log("DB_LOAD", `Restored state for project: ${pid} (stage: ${state.current_stage})`)
-        this.currentStage = state.current_stage === "none" ? null : (state.current_stage as Stage)
-        this.currentRunId = state.current_run_id
-        this.currentTaskId = state.current_task_id
+        this.stage = state.current_stage === "none" ? null : (state.current_stage as Stage)
+        this.run = state.current_run_id
+        this.task = state.current_task_id
       }
     } catch (e) {
       // Non-critical, just log it
@@ -419,8 +419,8 @@ ${gitLog}`
   // ============================================================================
 
   private getCurrentTask(): Task | undefined {
-    if (!this.currentTaskId) return undefined
-    return this.readQueue().find((t) => t.id === this.currentTaskId)
+    if (!this.task) return undefined
+    return this.readQueue().find((t) => t.id === this.task)
   }
 
   createRun(taskId: string): string {
@@ -442,8 +442,8 @@ ${gitLog}`
     // Create empty events.jsonl
     fs.writeFileSync(path.join(runDir, "events.jsonl"), "", "utf-8")
 
-    this.currentRunId = runId
-    this.currentTaskId = taskId
+    this.run = runId
+    this.task = taskId
 
     this.log("RUN_CREATE", `Created run ${runId} for task ${taskId}`)
     return runId
@@ -521,7 +521,7 @@ ${gitLog}`
    * planner -> inspect -> patch -> verify -> reporter -> rearm
    */
   async runCycle(): Promise<void> {
-    const cycleNum = this.cycleCount + 1
+    const cycleNum = this.cycles + 1
     this.log("CYCLE_START", `Starting cycle ${cycleNum}/${this.config.max_cycles}`)
 
     // Decisions Matrix: Startup
@@ -529,22 +529,22 @@ ${gitLog}`
     if (resumeResult) {
       if (!this.validateResume(resumeResult)) {
         this.log("RESUME_INVALID", `Resume state invalid for run ${resumeResult.runId}. Starting fresh.`)
-        this.currentStage = "planner"
-        this.currentRunId = null
-        this.currentTaskId = null
+        this.stage = "planner"
+        this.run = null
+        this.task = null
       } else {
         this.log("RESUME", `Resuming from stage: ${resumeResult.stage}, run: ${resumeResult.runId}`)
-        this.currentStage = resumeResult.stage
-        this.currentRunId = resumeResult.runId
-        this.currentTaskId = resumeResult.taskId
+        this.stage = resumeResult.stage
+        this.run = resumeResult.runId
+        this.task = resumeResult.taskId
       }
     } else {
-      this.currentStage = "planner"
+      this.stage = "planner"
     }
 
     while (this.shouldContinue()) {
       // 1. Ensure we have an active run or create one
-      if (!this.currentRunId) {
+      if (!this.run) {
         let queue = this.readQueue()
         if (queue.length === 0) {
           this.log("CONTROL", "Queue empty. Searching for targets...")
@@ -563,22 +563,22 @@ ${gitLog}`
 
         if (nextTask.status === "queued") {
           this.log("CONTROL", `Planning task ${nextTask.id}...`)
-          this.currentStage = "planner"
-          this.currentTaskId = nextTask.id
+          this.stage = "planner"
+          this.task = nextTask.id
           await this.stagePlanner()
-          // stagePlanner will have set currentRunId and advanced the stage
+          // stagePlanner will have set run and advanced the stage
         } else if (nextTask.status === "assigned") {
           // Resume/Start existing run
-          this.currentTaskId = nextTask.id
-          this.currentRunId = this.findRunForTask(nextTask.id)
-          this.currentStage = "inspect"
-          this.log("CONTROL", `Picked up assigned run ${this.currentRunId} for task ${nextTask.id}`)
+          this.task = nextTask.id
+          this.run = this.findRunForTask(nextTask.id)
+          this.stage = "inspect"
+          this.log("CONTROL", `Picked up assigned run ${this.run} for task ${nextTask.id}`)
         }
       }
 
       // 2. Execute current stage
-      if (this.currentStage) {
-        const stage = this.currentStage
+      if (this.stage) {
+        const stage = this.stage
         this.log("STAGE_ENTER", `Entering stage: ${stage}`)
         await this.executeStage(stage)
       } else {
@@ -586,7 +586,7 @@ ${gitLog}`
       }
 
       // 3. Post-stage check: if rearm cleared the run, we are done with this target
-      if (!this.currentRunId) {
+      if (!this.run) {
         this.log("CONTROL", "Target lifecycle complete.")
         // Cycle count is incremented in stageRearm()
         break
@@ -662,8 +662,8 @@ ${gitLog}`
     
     // Create run entry
     const runId = this.createRun(nextTask.id)
-    this.currentRunId = runId
-    this.currentTaskId = nextTask.id
+    this.run = runId
+    this.task = nextTask.id
     plan.run_id = runId // Ensure it matches our tracker
     
     this.writePlan(runId, plan)
@@ -683,20 +683,20 @@ ${gitLog}`
   }
 
   private async stageInspect(): Promise<void> {
-    if (!this.currentRunId || !this.currentTaskId) throw new Error("No active run")
-    this.log("INSPECT", `Inspecting target for run ${this.currentRunId}...`)
+    if (!this.run || !this.task) throw new Error("No active run")
+    this.log("INSPECT", `Inspecting target for run ${this.run}...`)
     
     const task = this.getCurrentTask()!
     const context = await this.getWorkspaceContext(task.scope[0])
     
     // Closed-loop feedback: pass failure info if this is a retry
-    const state = this.readRunState(this.currentRunId)!
+    const state = this.readRunState(this.run)!
     const failureLog = state.attempts && state.attempts > 0 && state.log_path && fs.existsSync(state.log_path)
       ? fs.readFileSync(state.log_path, "utf-8")
       : undefined
     
     const result = await this.adapter.inspectTarget(task, context, failureLog)
-    const inspectPath = path.join(this.root, ".opencode", "runs", this.currentRunId, "inspect.json")
+    const inspectPath = path.join(this.root, ".opencode", "runs", this.run, "inspect.json")
     fs.writeFileSync(inspectPath, JSON.stringify(result, null, 2))
     
     this.advanceStage()
@@ -711,10 +711,10 @@ ${gitLog}`
   }
 
   private async stagePatch(): Promise<void> {
-    if (!this.currentRunId || !this.currentTaskId) throw new Error("No active run")
-    this.log("PATCH", `Applying bounded patch for run ${this.currentRunId}...`)
+    if (!this.run || !this.task) throw new Error("No active run")
+    this.log("PATCH", `Applying bounded patch for run ${this.run}...`)
     
-    const inspectPath = path.join(this.root, ".opencode", "runs", this.currentRunId, "inspect.json")
+    const inspectPath = path.join(this.root, ".opencode", "runs", this.run, "inspect.json")
     if (!fs.existsSync(inspectPath)) throw new Error("No inspect result found")
     const inspectResult = JSON.parse(fs.readFileSync(inspectPath, "utf-8"))
 
@@ -738,13 +738,13 @@ ${gitLog}`
       modified.push(file)
     }
 
-    const state = this.readRunState(this.currentRunId)!
+    const state = this.readRunState(this.run)!
     state.modified_files = modified
-    this.writeRunState(this.currentRunId, state)
+    this.writeRunState(this.run, state)
 
     const diff = (await Process.text(["git", "diff"], { cwd: this.root })).text
     if (diff.trim()) {
-      const proofPath = path.join(this.root, ".opencode", "runs", this.currentRunId, "proof.diff")
+      const proofPath = path.join(this.root, ".opencode", "runs", this.run, "proof.diff")
       fs.writeFileSync(proofPath, diff)
     }
 
@@ -752,8 +752,8 @@ ${gitLog}`
   }
 
   private async stageVerify(): Promise<void> {
-    if (!this.currentRunId) throw new Error("No active run")
-    this.log("VERIFY", `Verifying run ${this.currentRunId}...`)
+    if (!this.run) throw new Error("No active run")
+    this.log("VERIFY", `Verifying run ${this.run}...`)
     
     const task = this.getCurrentTask()!
     const profile = this.getVerificationProfile(task.scope[0])
@@ -766,40 +766,40 @@ ${gitLog}`
     const duration = Date.now() - start
 
     const logs = `PROFILE: ${profile}\nCOMMAND: ${command}\nDURATION: ${duration}ms\nEXIT_CODE: ${result.code}\n\nSTDOUT:\n${result.stdout}\n\nSTDERR:\n${result.stderr}`
-    const logPath = path.join(this.root, ".opencode", "runs", this.currentRunId, "verify.log")
+    const logPath = path.join(this.root, ".opencode", "runs", this.run, "verify.log")
     fs.writeFileSync(logPath, logs)
     
     const failureClass = result.code !== 0 ? this.classifyFailure(result.stderr.toString()) : null
     
-    const state = this.readRunState(this.currentRunId)!
+    const state = this.readRunState(this.run)!
     state.attempts = (state.attempts ?? 0) + 1
     state.log_path = logPath
     
     if (result.code === 0) {
       state.status = "ready_for_reporter"
-      this.writeRunState(this.currentRunId, state)
-      this.log("VERIFY_PASS", `Verification passed for run ${this.currentRunId}`)
+      this.writeRunState(this.run, state)
+      this.log("VERIFY_PASS", `Verification passed for run ${this.run}`)
       this.advanceStage()
     } else {
       this.log("VERIFY_FAIL", `Verification failed (attempt ${state.attempts}/${this.config.max_retries_per_task})`)
       
       if (state.attempts < this.config.max_retries_per_task) {
         state.status = "in_progress"
-        this.writeRunState(this.currentRunId, state)
+        this.writeRunState(this.run, state)
         // Rewind to inspect stage for another attempt
-        this.currentStage = "inspect"
-        this.log("RETRY", `Rewinding to INSPECT stage for run ${this.currentRunId}`)
+        this.stage = "inspect"
+        this.log("RETRY", `Rewinding to INSPECT stage for run ${this.run}`)
         await this.saveState()
       } else {
-        this.log("ROLLBACK", `Max retries reached. Executing rollback for run ${this.currentRunId}`)
+        this.log("ROLLBACK", `Max retries reached. Executing rollback for run ${this.run}`)
         await this.rollback()
         state.status = "rolled_back"
-        this.writeRunState(this.currentRunId, state)
+        this.writeRunState(this.run, state)
         this.advanceStage()
       }
     }
     
-    this.appendEvent(this.currentRunId, {
+    this.appendEvent(this.run, {
       type: "verification",
       timestamp: new Date().toISOString(),
       profile,
@@ -811,8 +811,8 @@ ${gitLog}`
   }
 
   private async rollback(): Promise<void> {
-    if (!this.currentRunId) return
-    const state = this.readRunState(this.currentRunId)
+    if (!this.run) return
+    const state = this.readRunState(this.run)
     const files = state?.modified_files || []
 
     if (files.length === 0) {
@@ -851,19 +851,19 @@ ${gitLog}`
   }
 
   private async stageReporter(): Promise<void> {
-    if (!this.currentRunId || !this.currentTaskId) {
+    if (!this.run || !this.task) {
       throw new Error("No active run in reporter stage")
     }
 
     const task = this.getCurrentTask()
     if (!task) return this.advanceStage()
 
-    this.log("REPORTER", `Judging task ${this.currentTaskId}...`)
+    this.log("REPORTER", `Judging task ${this.task}...`)
     
-    const state = this.readRunState(this.currentRunId)!
-    const logsPath = path.join(this.root, ".opencode", "runs", this.currentRunId, "verify.log")
+    const state = this.readRunState(this.run)!
+    const logsPath = path.join(this.root, ".opencode", "runs", this.run, "verify.log")
     const logs = fs.existsSync(logsPath) ? fs.readFileSync(logsPath, "utf-8") : "No logs"
-    const diffPath = path.join(this.root, ".opencode", "runs", this.currentRunId, "proof.diff")
+    const diffPath = path.join(this.root, ".opencode", "runs", this.run, "proof.diff")
     const diff = fs.existsSync(diffPath) ? fs.readFileSync(diffPath, "utf-8") : "No diff"
 
     try {
@@ -873,12 +873,12 @@ ${gitLog}`
       state.status = result.pass ? "passed" : "failed"
       state.gate_result = {
         task_id: task.id,
-        run_id: this.currentRunId,
+        run_id: this.run,
         result: result.pass ? "pass" : "fail",
         gates: [],
         rollback_executed: !result.pass
       }
-      this.writeRunState(this.currentRunId, state)
+      this.writeRunState(this.run, state)
 
       this.log("REPORTER", `LLM Verdict: ${state.status.toUpperCase()} - ${result.summary}`)
       this.advanceStage()
@@ -891,27 +891,27 @@ ${gitLog}`
   private async stageRearm(): Promise<void> {
     this.log("REARM", "Running rearm stage...")
 
-    if (this.currentTaskId && this.currentRunId) {
+    if (this.task && this.run) {
       const queue = this.readQueue()
-      const taskIndex = queue.findIndex((t) => t.id === this.currentTaskId)
-      const state = this.readRunState(this.currentRunId)!
+      const taskIndex = queue.findIndex((t) => t.id === this.task)
+      const state = this.readRunState(this.run)!
       
       if (taskIndex !== -1) {
         queue[taskIndex].status = state.status === "passed" ? "passed" : "failed"
         this.writeQueue(queue)
-        this.log("REARM", `Updated task ${this.currentTaskId} status to ${queue[taskIndex].status}`)
+        this.log("REARM", `Updated task ${this.task} status to ${queue[taskIndex].status}`)
       }
 
-      await this.generateEvidencePack(this.currentRunId)
-      this.cycleCount++
+      await this.generateEvidencePack(this.run)
+      this.cycles++
     }
 
     // Clear current run
-    this.currentRunId = null
-    this.currentTaskId = null
-    this.currentStage = null
+    this.run = null
+    this.task = null
+    this.stage = null
 
-    this.log("REARM", `Rearm complete. Cycle ${this.cycleCount} finished.`)
+    this.log("REARM", `Rearm complete. Cycle ${this.cycles} finished.`)
   }
 
   private async generateEvidencePack(runId: string): Promise<void> {
@@ -939,14 +939,14 @@ ${state.gate_result?.retry_actions ? `**Retry Actions:**\n${state.gate_result.re
   }
 
   private advanceStage(): void {
-    if (!this.currentStage) return
+    if (!this.stage) return
 
-    const currentIndex = STAGES.indexOf(this.currentStage)
+    const currentIndex = STAGES.indexOf(this.stage)
     if (currentIndex < STAGES.length - 1) {
-      this.currentStage = STAGES[currentIndex + 1]
-      this.log("STAGE_ADVANCE", `Advanced to: ${this.currentStage}`)
+      this.stage = STAGES[currentIndex + 1]
+      this.log("STAGE_ADVANCE", `Advanced to: ${this.stage}`)
     } else {
-      this.currentStage = null
+      this.stage = null
       this.log("STAGE_ADVANCE", "No more stages")
     }
     // Async save
@@ -955,20 +955,20 @@ ${state.gate_result?.retry_actions ? `**Retry Actions:**\n${state.gate_result.re
 
   private shouldContinue(reason?: StopReason): boolean {
     // Check max cycles
-    if (this.cycleCount >= this.config.max_cycles) {
+    if (this.cycles >= this.config.max_cycles) {
       this.log("CONTROL", `Stop reason: max_cycles_reached (${this.config.max_cycles})`)
       return false
     }
 
     // If we are currently in a stage, we should continue that stage sequence
-    if (this.currentStage) return true
+    if (this.stage) return true
 
     // Check if we have work in queue
     const queue = this.readQueue()
     const hasWork = queue.some(t => t.status === "queued" || t.status === "in_progress")
     
     // Check abort flag
-    if (this.isAborted) {
+    if (this.aborted) {
       this.log("CONTROL", "Stop reason: manual_stop (signal aborted)")
       return false
     }
@@ -1018,11 +1018,11 @@ ${state.gate_result?.retry_actions ? `**Retry Actions:**\n${state.gate_result.re
 
   private tryResume(): { stage: Stage; runId: string; taskId: string } | null {
     // If we have state in class from loadState(), it's already "resumed" in a sense
-    if (this.currentStage && this.currentRunId && this.currentTaskId) {
+    if (this.stage && this.run && this.task) {
       return {
-        stage: this.currentStage,
-        runId: this.currentRunId,
-        taskId: this.currentTaskId,
+        stage: this.stage,
+        runId: this.run,
+        taskId: this.task,
       }
     }
 
@@ -1128,9 +1128,9 @@ ${state.gate_result?.retry_actions ? `**Retry Actions:**\n${state.gate_result.re
 
   private log(type: string, message: string): void {
     const timestamp = new Date().toISOString()
-    const runId = this.currentRunId || "none"
-    const taskId = this.currentTaskId || "none"
-    const stage = this.currentStage || "none"
+    const runId = this.run || "none"
+    const taskId = this.task || "none"
+    const stage = this.stage || "none"
     const logLine = `[${timestamp}] ${type} run_id=${runId} task_id=${taskId} stage=${stage} ${message}`
     console.log(logLine)
 
@@ -1159,13 +1159,13 @@ ${state.gate_result?.retry_actions ? `**Retry Actions:**\n${state.gate_result.re
     }
 
 
-    this.isRunning = true
-    this.isAborted = false
+    this.active = true
+    this.aborted = false
     
     const shutdown = () => {
-      if (this.isAborted) return
+      if (this.aborted) return
       this.log("SIGNAL", "Received termination signal. Shutting down gracefully...")
-      this.isAborted = true
+      this.aborted = true
     }
 
     process.on("SIGTERM", shutdown)
@@ -1184,7 +1184,7 @@ ${state.gate_result?.retry_actions ? `**Retry Actions:**\n${state.gate_result.re
         }
       }
     } finally {
-      this.isRunning = false
+      this.active = false
       await this.saveState()
       this.releaseLock()
       process.off("SIGTERM", shutdown)
@@ -1220,7 +1220,7 @@ export const InfinityCommand = cmd({
       choices: ["start", "status", "resume", "pause", "stop", "requeue", "quarantine", "explain"],
     })
   },
-  async handler(argv: any) {
+  async handler(argv: InfinityArgv) {
     const root = process.cwd()
     const action = (argv.action || "start") as string
 
