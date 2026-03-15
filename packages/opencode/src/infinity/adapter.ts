@@ -15,42 +15,44 @@ export class InfinityAdapter {
     this.root = root
   }
 
-  private async getModel() {
-    const provider = await Provider.defaultModel()
-    return await Provider.getModel(provider.providerID, provider.modelID)
+  private async getModel(modelStr: string) {
+    const { providerID, modelID } = Provider.parseModel(modelStr)
+    return await Provider.getModel(providerID, modelID)
   }
 
   async suggestTasks(repoOverview: string): Promise<Task[]> {
-    const model = await this.getModel()
+    const model = await this.getModel("xai/grok-4-1-fast")
     const language = await Provider.getLanguage(model)
-
-    const { object } = await generateObject({
-      model: language,
-      system: "You are the Infinity Suggester. Analyze the repository state and suggest stability/performance tasks.",
-      prompt: `Repo Overview:\n${repoOverview}\n\nSuggest 3-5 high-impact tasks to improve project stability, performance, or security.`,
-      schema: z.object({
-        tasks: z.array(z.object({
-          id: z.string(),
-          title: z.string(),
-          source: z.enum(["internal_audit", "external_triage", "tech_radar", "cost_profile", "post_mortem"]),
-          priority: z.number().min(1).max(10),
-          category: z.enum(["stability", "performance", "feature", "cost", "security"]),
-          scope: z.array(z.string()),
-          acceptance: z.array(z.string()),
-          constraints: z.array(z.string()).optional(),
-          verify_command: z.string().optional(),
-        }))
+    try {
+      const { object } = await generateObject({
+        model: language,
+        system: "You are the Infinity Suggester. Analyze the repository state and suggest stability/performance tasks.",
+        prompt: `Repo Overview:\n${repoOverview}\n\nSuggest 3-5 high-impact tasks to improve project stability, performance, or security.`,
+        schema: z.object({
+          tasks: z.array(z.object({
+            id: z.string(),
+            title: z.string(),
+            source: z.enum(["internal_audit", "external_triage", "tech_radar", "cost_profile", "post_mortem"]),
+            priority: z.number().min(1).max(10),
+            category: z.enum(["stability", "performance", "feature", "cost", "security"]),
+            scope: z.array(z.string()),
+            acceptance: z.array(z.string()),
+            constraints: z.array(z.string()).optional(),
+            verify_command: z.string().optional(),
+          }))
+        })
       })
-    })
-
-    return object.tasks.map(t => ({
-      ...t,
-      status: "queued" as const
-    }))
+      return object.tasks.map(t => ({
+        ...t,
+        status: "queued" as const
+      }))
+    } catch (e) {
+      throw e
+    }
   }
 
   async createPlan(task: Task, repoContext: string): Promise<Plan> {
-    const model = await this.getModel()
+    const model = await this.getModel("xai/grok-4-1-fast")
     const language = await Provider.getLanguage(model)
 
     const { object } = await generateObject({
@@ -79,7 +81,7 @@ export class InfinityAdapter {
   }
 
   async reportResults(task: Task, diff: string, logs: string): Promise<GateResult> {
-    const model = await this.getModel()
+    const model = await this.getModel("github-copilot/gpt-5-mini")
     const language = await Provider.getLanguage(model)
 
     const { object } = await generateObject({
@@ -107,7 +109,7 @@ export class InfinityAdapter {
   }
 
   async extractLessons(run: RunState, events: string): Promise<string[]> {
-    const model = await this.getModel()
+    const model = await this.getModel("github-copilot/gpt-5-mini")
     const language = await Provider.getLanguage(model)
 
     const { object } = await generateObject({
@@ -123,7 +125,7 @@ export class InfinityAdapter {
   }
 
   async deriveOpportunities(repoState: string): Promise<any[]> {
-    const model = await this.getModel()
+    const model = await this.getModel("github-copilot/gpt-5-mini")
     const language = await Provider.getLanguage(model)
 
     const { object } = await generateObject({
