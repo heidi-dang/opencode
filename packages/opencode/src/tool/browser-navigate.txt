@@ -1,0 +1,4 @@
+Navigate the browser to a specific URL. 
+This tool automatically waits for the 'load' event, ensuring the page is fully rendered before returning.
+Always use this tool first when starting a browser session.
+If the navigation fails, the tool will automatically capture a screenshot of the failure state and attach it to the error for debugging.

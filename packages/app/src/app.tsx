@@ -20,6 +20,7 @@ import {
   type JSX,
   lazy,
   onCleanup,
+  onMount,
   type ParentProps,
   Show,
   Suspense,
@@ -52,21 +53,30 @@ const Session = lazy(() => import("@/pages/session"))
 const Infinity = lazy(() => import("@/pages/infinity"))
 const Loading = () => <div class="size-full" />
 
-const HomeRoute = () => (
-  <Suspense fallback={<Loading />}>
-    <Home />
-  </Suspense>
-)
-
-const SessionRoute = () => (
-  <SessionProviders>
+const HomeRoute = () => {
+  onMount(() => console.log("HomeRoute mounted"))
+  return (
     <Suspense fallback={<Loading />}>
-      <Session />
+      <Home />
     </Suspense>
-  </SessionProviders>
-)
+  )
+}
 
-const SessionIndexRoute = () => <Navigate href="session" />
+const SessionRoute = () => {
+  onMount(() => console.log("SessionRoute mounted"))
+  return (
+    <SessionProviders>
+      <Suspense fallback={<Loading />}>
+        <Session />
+      </Suspense>
+    </SessionProviders>
+  )
+}
+
+const SessionIndexRoute = () => {
+  onMount(() => console.log("SessionIndexRoute mounted"))
+  return <Navigate href="session" />
+}
 
 function UiI18nBridge(props: ParentProps) {
   const language = useLanguage()
