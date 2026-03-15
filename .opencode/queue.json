@@ -1,0 +1,32 @@
+[
+  {
+    "id": "task-2026-03-15-001",
+    "title": "Run security audit on codebase",
+    "source": "internal_audit",
+    "priority": 1,
+    "category": "security",
+    "scope": ["packages/app", "packages/opencode"],
+    "acceptance": ["No critical vulnerabilities found", "All dependencies up to date"],
+    "status": "queued"
+  },
+  {
+    "id": "task-2026-03-15-002",
+    "title": "Performance optimization review",
+    "source": "internal_audit",
+    "priority": 2,
+    "category": "performance",
+    "scope": ["packages/ui/src/performance"],
+    "acceptance": ["All performance tests pass", "No memory leaks detected"],
+    "status": "queued"
+  },
+  {
+    "id": "task-2026-03-15-003",
+    "title": "TypeScript type safety check",
+    "source": "internal_audit",
+    "priority": 3,
+    "category": "stability",
+    "scope": ["packages/*/src"],
+    "acceptance": ["No type errors", "Typecheck passes"],
+    "status": "queued"
+  }
+]

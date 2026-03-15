@@ -38,7 +38,12 @@ async function main() {
   const workDir = join(tmpdir(), `zed-extensions-${Date.now()}`)
   console.log(`📁 Working in ${workDir}`)
 
-  await $`git clone https://x-access-token:${token}@github.com/${FORK_REPO}.git ${workDir}`
+  // Set up git credential helper to avoid exposing token in URLs/process args
+  const credFile = join(tmpdir(), `.git-cred-${process.pid}`)
+  await Bun.write(credFile, `https://x-access-token:${token}@github.com`)
+  await $`git config --global credential.helper "store --file ${credFile}"`
+
+  await $`git clone https://github.com/${FORK_REPO}.git ${workDir}`
   process.chdir(workDir)
 
   // Configure git identity
@@ -89,7 +94,7 @@ async function main() {
 
   // Delete any existing branches for opencode updates
   console.log(`🔍 Checking for existing branches...`)
-  const branches = await $`git ls-remote --heads https://x-access-token:${token}@github.com/${FORK_REPO}.git`.text()
+  const branches = await $`git ls-remote --heads https://github.com/${FORK_REPO}.git`.text()
   const branchPattern = `refs/heads/update-${EXTENSION_NAME}-`
   const oldBranches = branches
     .split("\n")
@@ -100,13 +105,16 @@ async function main() {
   if (oldBranches.length > 0) {
     console.log(`🗑️  Found ${oldBranches.length} old branch(es), deleting...`)
     for (const branch of oldBranches) {
-      await $`git push https://x-access-token:${token}@github.com/${FORK_REPO}.git --delete ${branch}`
+      await $`git push https://github.com/${FORK_REPO}.git --delete ${branch}`
       console.log(`✅ Deleted branch ${branch}`)
     }
   }
 
   console.log(`🚀 Pushing to fork...`)
-  await $`git push https://x-access-token:${token}@github.com/${FORK_REPO}.git ${branchName}`
+  await $`git push https://github.com/${FORK_REPO}.git ${branchName}`
+
+  // Clean up credential file
+  await $`rm -f ${credFile}`
 
   console.log(`📬 Creating pull request...`)
   const prResult =
@@ -124,7 +132,12 @@ async function main() {
   console.log(`🎉 Done!`)
 }
 
-main().catch((err) => {
+main().catch(async (err) => {
   console.error("❌ Error:", err.message)
+  // Clean up credential file on error if it was created
+  const cf = join(tmpdir(), `.git-cred-${process.pid}`)
+  try {
+    await $`rm -f ${cf}`
+  } catch {}
   process.exit(1)
 })

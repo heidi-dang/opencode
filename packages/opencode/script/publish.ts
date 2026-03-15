@@ -1,5 +1,7 @@
 #!/usr/bin/env bun
 import { $ } from "bun"
+import { join } from "path"
+import { tmpdir } from "os"
 import pkg from "../package.json"
 import { Script } from "@opencode-ai/script"
 import { fileURLToPath } from "url"
@@ -171,11 +173,16 @@ if (!Script.preview) {
     console.error("GITHUB_TOKEN is required to update homebrew tap")
     process.exit(1)
   }
-  const tap = `https://x-access-token:${token}@github.com/anomalyco/homebrew-tap.git`
+  // Set up git credential helper to avoid exposing token in URLs
+  const credFile = join(tmpdir(), `.git-cred-${process.pid}`)
+  await Bun.write(credFile, `https://x-access-token:${token}@github.com`)
+  await $`git config --global credential.helper "store --file ${credFile}"`
+
   await $`rm -rf ./dist/homebrew-tap`
-  await $`git clone ${tap} ./dist/homebrew-tap`
+  await $`git clone https://github.com/anomalyco/homebrew-tap.git ./dist/homebrew-tap`
   await Bun.file("./dist/homebrew-tap/opencode.rb").write(homebrewFormula)
   await $`cd ./dist/homebrew-tap && git add opencode.rb`
   await $`cd ./dist/homebrew-tap && git commit -m "Update to v${Script.version}"`
   await $`cd ./dist/homebrew-tap && git push`
+  await $`rm -f ${credFile}`
 }
