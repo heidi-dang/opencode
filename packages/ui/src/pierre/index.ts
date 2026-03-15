@@ -161,8 +161,31 @@ ${lineCommentStyles}
 `
 
 export function createDefaultOptions<T>(style: FileDiffOptions<T>["diffStyle"]) {
+  // Create a lazy theme that only initializes when actually needed
+  const lazyTheme = {
+    get value() {
+      // Try to get the theme
+      try {
+        if (openCodeTheme && typeof openCodeTheme === 'object' && openCodeTheme.name) {
+          return openCodeTheme
+        }
+      } catch (e) {
+        // Theme not accessible
+      }
+      
+      // Return a minimal fallback theme that won't cause errors
+      return {
+        name: 'none',
+        type: 'css' as const,
+        css: '',
+        colors: {},
+        tokenColors: []
+      }
+    }
+  }
+
   return {
-    theme: openCodeTheme as any,
+    theme: lazyTheme.value as any,
     themeType: "system",
     disableLineNumbers: false,
     overflow: "wrap",
@@ -177,6 +200,18 @@ export function createDefaultOptions<T>(style: FileDiffOptions<T>["diffStyle"]) 
     maxLineLengthForHighlighting: 1000,
     disableFileHeader: true,
     unsafeCSS,
+    // Add error handling for theme resolution
+    onThemeError: (error: any) => {
+      console.error('Theme resolution error in diff renderer:', error)
+      // Return a fallback theme
+      return {
+        name: 'fallback',
+        type: 'css' as const,
+        css: '',
+        colors: {},
+        tokenColors: []
+      }
+    },
   } as const
 }
 

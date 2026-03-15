@@ -105,9 +105,11 @@ const getCurrentUrl = () => {
 }
 
 const getDefaultUrl = () => {
+  const current = getCurrentUrl()
+  if (current.includes("localhost") || current.includes("127.0.0.1")) return current
   const lsDefault = readDefaultServerUrl()
   if (lsDefault) return lsDefault
-  return getCurrentUrl()
+  return current
 }
 
 const platform: Platform = {
