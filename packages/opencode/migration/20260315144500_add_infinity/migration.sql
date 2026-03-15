@@ -13,3 +13,4 @@ CREATE TABLE `infinity` (
 );
 --> statement-breakpoint
 CREATE INDEX `infinity_project_idx` ON `infinity` (`project_id`);
+CREATE UNIQUE INDEX `infinity_project_unique_idx` ON `infinity` (`project_id`);
