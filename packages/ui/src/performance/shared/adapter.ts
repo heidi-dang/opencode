@@ -2,19 +2,16 @@
 import { createSignal, createEffect } from "solid-js"
 import { usePerformanceManager, usePerformanceStore } from "../index"
 
-// Adapter for existing performance flags
+// Adapter for existing performance metrics
 export function usePerformanceMetrics() {
-  const manager = usePerformanceManager()
-  const metrics = manager.metrics
-  
   return {
-    metrics: metrics || {
+    metrics: {
       fps: 60,
       memoryUsage: 50,
       latency: 25,
       score: 95
     },
-    setMetrics: () => {} // No-op for adapter
+    setMetrics: () => {}
   }
 }
 
