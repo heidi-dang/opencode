@@ -20,7 +20,7 @@ export class InfinityAdapter {
     return await Provider.getModel(providerID, modelID)
   }
 
-  async suggestTasks(repoOverview: string): Promise<Task[]> {
+  async suggestTasks(repoOverview: string): Promise<Omit<Task, "id">[]> {
     const model = await this.getModel("xai/grok-4-1-fast")
     const language = await Provider.getLanguage(model)
     try {
@@ -30,7 +30,6 @@ export class InfinityAdapter {
         prompt: `Repo Overview:\n${repoOverview}\n\nSuggest 3-5 high-impact tasks to improve project stability, performance, or security.`,
         schema: z.object({
           tasks: z.array(z.object({
-            id: z.string(),
             title: z.string(),
             source: z.enum(["internal_audit", "external_triage", "tech_radar", "cost_profile", "post_mortem"]),
             priority: z.number().min(1).max(10),
