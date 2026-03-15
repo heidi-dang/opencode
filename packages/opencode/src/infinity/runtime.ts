@@ -610,7 +610,10 @@ ${gitLog}`
       const exists = queue.some((t) => t.title === discovery.title)
       if (!exists) {
         this.log("SUGGESTER", `Discovered new task: ${discovery.title}`)
-        queue.push(discovery)
+        queue.push({
+          ...discovery,
+          id: this.generateTaskId(),
+        })
       }
     }
 

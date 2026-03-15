@@ -5,9 +5,15 @@
     "source": "internal_audit",
     "priority": 1,
     "category": "security",
-    "scope": ["packages/app", "packages/opencode"],
-    "acceptance": ["No critical vulnerabilities found", "All dependencies up to date"],
-    "status": "queued"
+    "scope": [
+      "packages/app",
+      "packages/opencode"
+    ],
+    "acceptance": [
+      "No critical vulnerabilities found",
+      "All dependencies up to date"
+    ],
+    "status": "failed"
   },
   {
     "id": "task-2026-03-15-002",
@@ -15,8 +21,13 @@
     "source": "internal_audit",
     "priority": 2,
     "category": "performance",
-    "scope": ["packages/ui/src/performance"],
-    "acceptance": ["All performance tests pass", "No memory leaks detected"],
+    "scope": [
+      "packages/ui/src/performance"
+    ],
+    "acceptance": [
+      "All performance tests pass",
+      "No memory leaks detected"
+    ],
     "status": "queued"
   },
   {
@@ -25,8 +36,89 @@
     "source": "internal_audit",
     "priority": 3,
     "category": "stability",
-    "scope": ["packages/*/src"],
-    "acceptance": ["No type errors", "Typecheck passes"],
+    "scope": [
+      "packages/*/src"
+    ],
+    "acceptance": [
+      "No type errors",
+      "Typecheck passes"
+    ],
+    "status": "queued"
+  },
+  {
+    "id": "task-2026-03-15-004",
+    "title": "Conduct comprehensive dependency audit and update vulnerable/outdated packages",
+    "source": "internal_audit",
+    "priority": 1,
+    "category": "stability",
+    "scope": [
+      "all_packages"
+    ],
+    "acceptance": [
+      "No high/critical vulnerabilities reported by npm audit",
+      "All packages updated to latest compatible versions",
+      "CI passes on updated deps"
+    ],
+    "constraints": [
+      "Minimize breaking changes"
+    ],
+    "verify_command": "npm audit --audit-level=high && yarn install && yarn test",
+    "status": "queued"
+  },
+  {
+    "id": "task-2026-03-15-005",
+    "title": "Implement automated stability checks in monorepo CI pipeline",
+    "source": "internal_audit",
+    "priority": 2,
+    "category": "stability",
+    "scope": [
+      "ci_pipeline",
+      "all_packages"
+    ],
+    "acceptance": [
+      "Stability tests run on every PR",
+      "Flaky tests identified and fixed",
+      ">95% test pass rate enforced"
+    ],
+    "constraints": [
+      "Non-blocking for merges initially"
+    ],
+    "verify_command": "yarn stability-check --all",
+    "status": "queued"
+  },
+  {
+    "id": "task-2026-03-15-006",
+    "title": "Profile and optimize build times for binary packages",
+    "source": "internal_audit",
+    "priority": 3,
+    "category": "performance",
+    "scope": [
+      "binary_packages"
+    ],
+    "acceptance": [
+      "Build time reduced by 20%",
+      "Parallel builds enabled where possible",
+      "Cache hits >80% in CI"
+    ],
+    "verify_command": "time yarn build:binary && yarn analyze-build",
+    "status": "queued"
+  },
+  {
+    "id": "task-2026-03-15-007",
+    "title": "Run security scans on desktop-electron and vscode-sdk packages",
+    "source": "internal_audit",
+    "priority": 4,
+    "category": "security",
+    "scope": [
+      "@opencode-ai/desktop-electron",
+      "@opencode-ai/vscode-sdk"
+    ],
+    "acceptance": [
+      "No critical security issues",
+      "Secrets scanned and removed",
+      "Dependencies patched"
+    ],
+    "verify_command": "yarn security-scan --scope=desktop,vscode",
     "status": "queued"
   }
 ]
