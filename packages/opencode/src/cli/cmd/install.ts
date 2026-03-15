@@ -103,7 +103,7 @@ async function installFromLocalRepo() {
   }
 
   const packageJson = await Filesystem.readJson(packageJsonPath)
-  if (packageJson.name !== "opencode") {
+  if (packageJson.name !== "@opencode-ai/opencode" && packageJson.name !== "opencode") {
     prompts.log.error("This doesn't appear to be the opencode repository")
     prompts.outro("Done")
     return
@@ -138,8 +138,8 @@ async function installFromLocalRepo() {
 
   spinner.start("Installing locally...")
 
-  // Install globally using the local build
-  const installResult = await Process.run(["bun", "install", "-g", "."], { 
+  // Install globally using link for better monorepo support
+  const installResult = await Process.run(["bun", "link"], { 
     cwd: repoRoot, 
     nothrow: true 
   })

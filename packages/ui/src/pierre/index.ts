@@ -2,6 +2,7 @@ import { DiffLineAnnotation, FileContents, FileDiffOptions, type SelectedLineRan
 import { ComponentProps } from "solid-js"
 import { lineCommentStyles } from "../components/line-comment-styles"
 import { openCodeTheme } from "../context/marked"
+import { resolveDiffTheme } from "./theme"
 
 export type DiffProps<T = {}> = FileDiffOptions<T> & {
   before: FileContents
@@ -161,8 +162,10 @@ ${lineCommentStyles}
 `
 
 export function createDefaultOptions<T>(style: FileDiffOptions<T>["diffStyle"]) {
+  const finalTheme = resolveDiffTheme()
+
   return {
-    theme: openCodeTheme,
+    theme: finalTheme,
     themeType: "system",
     disableLineNumbers: false,
     overflow: "wrap",
@@ -177,6 +180,18 @@ export function createDefaultOptions<T>(style: FileDiffOptions<T>["diffStyle"]) 
     maxLineLengthForHighlighting: 1000,
     disableFileHeader: true,
     unsafeCSS,
+    // Add error handling for theme resolution
+    onThemeError: (error: any) => {
+      console.error('Theme resolution error in diff renderer:', error)
+      // Return a fallback theme
+      return {
+        name: 'fallback',
+        type: 'css' as const,
+        css: '',
+        colors: {},
+        tokenColors: []
+      }
+    },
   } as const
 }
 

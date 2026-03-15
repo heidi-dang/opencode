@@ -11,7 +11,7 @@ import {
   untrack,
   type Accessor,
 } from "solid-js"
-import { useNavigate, useParams } from "@solidjs/router"
+import { useLocation, useNavigate, useParams } from "@solidjs/router"
 import { useLayout, LocalProject } from "@/context/layout"
 import { useGlobalSync } from "@/context/global-sync"
 import { Persist, persisted } from "@/utils/persist"
@@ -110,7 +110,9 @@ export default function Layout(props: ParentProps) {
 
   let scrollContainerRef: HTMLDivElement | undefined
 
+  const location = useLocation()
   const params = useParams()
+  console.log("Layout mounted", { params: { ...params }, pathname: location.pathname })
   const globalSDK = useGlobalSDK()
   const globalSync = useGlobalSync()
   const layout = useLayout()
@@ -127,7 +129,13 @@ export default function Layout(props: ParentProps) {
   const command = useCommand()
   const theme = useTheme()
   const language = useLanguage()
-  const initialDirectory = decode64(params.dir)
+  const currentDirFromPath = () => {
+    const parts = location.pathname.split("/")
+    if (parts.length > 2 && parts[1] === "infinity") return parts[2]
+    return parts.length > 1 && parts[1] && parts[1] !== "infinity" ? parts[1] : undefined
+  }
+  const decodedDirFromPath = () => decode64(currentDirFromPath())
+  const initialDirectory = decodedDirFromPath() || decode64(params.dir)
   const availableThemeEntries = createMemo(() => Object.entries(theme.themes()))
   const colorSchemeOrder: ColorScheme[] = ["system", "light", "dark"]
   const colorSchemeKey: Record<ColorScheme, "theme.scheme.system" | "theme.scheme.light" | "theme.scheme.dark"> = {
@@ -278,7 +286,7 @@ export default function Layout(props: ParentProps) {
   })
 
   const autoselecting = createMemo(() => {
-    if (params.dir) return false
+    if (params.dir || currentDirFromPath()) return false
     if (!state.autoselect) return false
     if (!pageReady()) return true
     if (!layoutReady()) return true
@@ -289,7 +297,7 @@ export default function Layout(props: ParentProps) {
 
   createEffect(() => {
     if (!state.autoselect) return
-    const dir = params.dir
+    const dir = params.dir || currentDirFromPath()
     if (!dir) return
     const directory = decode64(dir)
     if (!directory) return
@@ -309,6 +317,7 @@ export default function Layout(props: ParentProps) {
   }
 
   const navigateWithSidebarReset = (href: string) => {
+    localStorage.setItem("redirect_trace", href + "\n" + new Error().stack)
     clearSidebarHoverState()
     navigate(href)
     layout.mobileSidebar.hide()
@@ -574,7 +583,7 @@ export default function Layout(props: ParentProps) {
 
   createEffect(
     on(
-      () => ({ ready: pageReady(), layoutReady: layoutReady(), dir: params.dir, list: layout.projects.list() }),
+      () => ({ ready: pageReady(), layoutReady: layoutReady(), dir: params.dir || currentDirFromPath(), list: layout.projects.list() }),
       (value) => {
         if (!value.ready) return
         if (!value.layoutReady) return
@@ -1230,6 +1239,7 @@ export default function Layout(props: ParentProps) {
   }
 
   async function navigateToProject(directory: string | undefined) {
+    if (location.pathname.includes("/infinity")) return
     if (!directory) return
     const root = projectRoot(directory)
     server.projects.touch(root)
@@ -1950,7 +1960,7 @@ export default function Layout(props: ParentProps) {
     setHoverSession,
     navigateToInfinity: (directory: string) => {
       openProject(directory)
-      navigate(`/${base64Encode(directory)}/infinity`)
+      navigate(`/infinity/${base64Encode(directory)}`)
     },
   }
 
@@ -2138,17 +2148,17 @@ export default function Layout(props: ParentProps) {
                         <Button
                           size="large"
                           variant="ghost"
-                          class="w-full justify-start gap-2"
+                          class="w-full justify-start gap-2 bg-primary-base/5 hover:bg-primary-base/10 border border-primary-base/10"
                           onClick={() => {
                             const dir = worktree()
                             if (!dir) return
-                            navigateWithSidebarReset(`/${base64Encode(dir)}/infinity`)
+                            navigateWithSidebarReset(`/infinity/${base64Encode(dir)}`)
                           }}
                         >
                            <div class="shrink-0 size-4 flex items-center justify-center">
                              <div class="size-2 rounded-full bg-primary-base animate-pulse" />
                            </div>
-                           Infinity Loop
+                           <span class="text-primary-base font-semibold">Infinity Monitor</span>
                         </Button>
                       </div>
                     <div class="flex-1 min-h-0">
@@ -2180,17 +2190,17 @@ export default function Layout(props: ParentProps) {
                     <Button
                       size="large"
                       variant="ghost"
-                      class="w-full justify-start gap-2"
+                      class="w-full justify-start gap-2 bg-primary-base/5 hover:bg-primary-base/10 border border-primary-base/10"
                       onClick={() => {
                         const dir = worktree()
                         if (!dir) return
-                        navigateWithSidebarReset(`/${base64Encode(dir)}/infinity`)
+                        navigateWithSidebarReset(`/infinity/${base64Encode(dir)}`)
                       }}
                     >
                        <div class="shrink-0 size-4 flex items-center justify-center">
                          <div class="size-2 rounded-full bg-primary-base animate-pulse" />
                        </div>
-                       Infinity Loop
+                       <span class="text-primary-base font-semibold">Infinity Monitor</span>
                     </Button>
                   </div>
                   <div class="relative flex-1 min-h-0">
@@ -2293,6 +2303,11 @@ export default function Layout(props: ParentProps) {
       onOpenSettings={openSettings}
       helpLabel={() => language.t("sidebar.help")}
       onOpenHelp={() => platform.openLink("https://opencode.ai/desktop-feedback")}
+      onOpenInfinity={() => {
+        const project = currentProject()
+        if (!project) return
+        navigate(`/infinity/${base64Encode(project.worktree)}`)
+      }}
       renderPanel={() =>
         mobile ? (
           <SidebarPanel project={currentProject} mobile />

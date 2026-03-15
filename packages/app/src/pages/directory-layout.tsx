@@ -36,6 +36,7 @@ export default function Layout(props: ParentProps) {
   const globalSDK = useGlobalSDK()
   const directory = createMemo(() => decode64(params.dir) ?? "")
   const [state, setState] = createStore({ invalid: "", resolved: "" })
+  console.log("DirectoryLayout processing", { dir: params.dir, pathname: location.pathname, search: location.search })
 
   createEffect(() => {
     if (!params.dir) return
@@ -67,8 +68,8 @@ export default function Layout(props: ParentProps) {
           setState("resolved", next)
         })
         if (next === raw) return
-        const path = location.pathname.slice(current.length + 1)
-        navigate(`/${base64Encode(next)}${path}${location.search}${location.hash}`, { replace: true })
+        const path = location.pathname.slice(current.length + 2)
+        navigate(`/${base64Encode(next)}/${path}${location.search}${location.hash}`, { replace: true })
       })
       .catch(() => {
         if (params.dir !== current) return

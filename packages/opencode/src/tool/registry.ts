@@ -28,8 +28,21 @@ import { Flag } from "@/flag/flag"
 import { Log } from "@/util/log"
 import { LspTool } from "./lsp"
 import { Truncate } from "./truncation"
+import {
+  BrowserNavigateTool,
+  BrowserScreenshotTool,
+  BrowserClickTool,
+  BrowserTypeTool,
+  BrowserScrollTool,
+  BrowserResizeTool,
+  BrowserReadTool,
+  BrowserWaitTool,
+  BrowserHoverTool,
+  BrowserPressTool,
+} from "./browser"
 
 import { ApplyPatchTool } from "./apply_patch"
+import { InfinityLoopOffTool } from "./infinity_loop_off"
 import { Glob } from "../util/glob"
 import { pathToFileURL } from "url"
 
@@ -117,12 +130,23 @@ export namespace ToolRegistry {
       // TodoReadTool,
       WebSearchTool,
       CodeSearchTool,
+      BrowserNavigateTool,
+      BrowserScreenshotTool,
+      BrowserClickTool,
+      BrowserTypeTool,
+      BrowserScrollTool,
+      BrowserResizeTool,
+      BrowserReadTool,
+      BrowserWaitTool,
+      BrowserHoverTool,
+      BrowserPressTool,
       SkillTool,
       ApplyPatchTool,
       ...(Flag.OPENCODE_EXPERIMENTAL_LSP_TOOL ? [LspTool] : []),
       ...(config.experimental?.batch_tool === true ? [BatchTool] : []),
       StepApprovalTool,
       RagSearchTool,
+      InfinityLoopOffTool,
       ...(Flag.OPENCODE_EXPERIMENTAL_PLAN_MODE || Flag.OPENCODE_CLIENT === "cli" ? [PlanExitTool] : []),
       ...custom,
     ]

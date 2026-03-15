@@ -7,9 +7,30 @@ import { codeToHtml, createCssVariablesTheme } from "shiki"
 import { createSimpleContext } from "./helper"
 
 // Create OpenCode theme using shiki's theme API
-export const openCodeTheme = createCssVariablesTheme({
-  name: "OpenCode",
-  variablePrefix: "--vscode-",
+let openCodeThemeInstance: any = null
+
+export const openCodeTheme = new Proxy({} as any, {
+  get(target, prop) {
+    if (!openCodeThemeInstance) {
+      // Initialize theme on first access
+      try {
+        openCodeThemeInstance = createCssVariablesTheme({
+          name: "OpenCode",
+          variablePrefix: "--vscode-",
+        })
+      } catch (error) {
+        console.error('Failed to initialize OpenCode theme:', error)
+        // Return a fallback theme object
+        return {
+          name: 'fallback',
+          type: 'css',
+          css: '',
+          colors: {}
+        }
+      }
+    }
+    return openCodeThemeInstance[prop]
+  }
 })
 
 // Type for the theme registration
@@ -53,9 +74,15 @@ export const MarkedContext = createSimpleContext<
     if (props.nativeParser) {
       return {
         async parse(markdown: string): Promise<string> {
-          const html = await props.nativeParser!(markdown)
-          const withMath = renderMathExpressions(html)
-          return highlightCodeBlocks(withMath)
+          try {
+            const html = await props.nativeParser!(markdown)
+            const withMath = renderMathExpressions(html)
+            return highlightCodeBlocks(withMath)
+          } catch (error) {
+            console.error('Error parsing markdown:', error)
+            // Fallback to basic markdown parsing
+            return marked.parse(markdown)
+          }
         },
       }
     }
@@ -78,16 +105,28 @@ export const MarkedContext = createSimpleContext<
       markedShiki({
         async highlight(code, lang) {
           const validLang = lang && lang in bundledLanguages ? lang : "text"
-          return codeToHtml(code, {
-            lang: validLang,
-            theme: openCodeTheme,
-          })
+          try {
+            return codeToHtml(code, {
+              lang: validLang,
+              theme: openCodeTheme,
+            })
+          } catch (error) {
+            console.error('Error highlighting code:', error)
+            // Fallback to plain code block if highlighting fails
+            return `<pre><code>${code}</code></pre>`
+          }
         },
       }),
     )
     return {
       parse: async (markdown: string) => {
-        return await jsParser.parse(markdown)
+        try {
+          return await jsParser.parse(markdown)
+        } catch (error) {
+          console.error('Error parsing markdown with default parser:', error)
+          // Fallback to basic parsing without extensions
+          return marked.parse(markdown)
+        }
       },
     }
   },

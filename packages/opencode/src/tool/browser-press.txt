@@ -1,0 +1,4 @@
+Press a specific key on the keyboard.
+This sends a keyboard event to the focused element or the page globally.
+Valid values including letters ('a', '1'), or special keys ('Enter', 'Escape', 'Tab', 'ArrowDown', 'ArrowUp').
+Useful for confirming dialogs, submitting forms by pressing Enter, or navigating dropdowns.

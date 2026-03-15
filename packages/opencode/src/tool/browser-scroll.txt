@@ -1,0 +1,3 @@
+Scroll the current browser window up or down.
+If an element is at the bottom of the page and you cannot see it in the screenshot, use this tool to scroll down to it.
+Specify the amount in pixels (default: 500) and the direction ('down' or 'up').

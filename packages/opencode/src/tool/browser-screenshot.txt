@@ -1,0 +1,4 @@
+Capture a visual snapshot of the current browser page.
+This is your primary way to "see" the UI you are testing or researching.
+By default, it captures only the visible viewport. If you want to see the entire scrollable page, set fullPage to true.
+Use this tool immediately after a UI component change or to debug failing clicks/types.

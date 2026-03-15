@@ -99,16 +99,24 @@ XDG_BIN_DIR=$HOME/.local/bin curl -fsSL https://opencode.ai/install | bash
 
 ### Agents
 
-OpenCode includes two built-in agents you can switch between with the `Tab` key.
+OpenCode includes three primary agents you can switch between with the `Tab` key.
 
-- **build** - Default, full-access agent for development work
-- **plan** - Read-only agent for analysis and code exploration
+- **heidi** - Default, high-autonomy agent for complex development tasks. Includes **Frontier Autonomy** (experimental) for hardened loop safety and quality gate enforcement.
+- **build** - Full-access agent for direct development and automation.
+- **plan** - Read-only agent for analysis and code exploration.
   - Denies file edits by default
   - Asks permission before running bash commands
   - Ideal for exploring unfamiliar codebases or planning changes
 
 Also included is a **general** subagent for complex searches and multistep tasks.
-This is used internally and can be invoked using `@general` in messages.
+This is used internally by Heidi and can be invoked using `@general` in messages.
+
+#### Frontier Autonomy (Experimental)
+
+When `HEIDI_ENABLE_FRONTIER=true`, Heidi enables enhanced quality gates:
+- **Sentry**: Automatic security and regression audits for every edit.
+- **Vortex**: UI/UX consistency checks for frontend changes.
+- **Reviewer**: Final technical review before session finalization.
 
 Learn more about [agents](https://opencode.ai/docs/agents).
 

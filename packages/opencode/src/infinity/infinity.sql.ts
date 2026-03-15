@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core"
+import { sqliteTable, text, integer, index, uniqueIndex } from "drizzle-orm/sqlite-core"
 import { ProjectTable } from "../project/project.sql"
 import { Timestamps } from "../storage/schema.sql"
 import type { ProjectID } from "../project/schema"
@@ -19,5 +19,8 @@ export const InfinityTable = sqliteTable(
     metrics: text({ mode: "json" }),
     ...Timestamps,
   },
-  (table) => [index("infinity_project_idx").on(table.project_id)],
+  (table) => [
+    index("infinity_project_idx").on(table.project_id),
+    uniqueIndex("infinity_project_unique_idx").on(table.project_id),
+  ],
 )

@@ -2,7 +2,7 @@
  * Infinity Loop Runtime V1
  *
  * A deterministic loop runner that executes the feedback loop workflow:
- * suggester -> planner -> dev -> havoc -> reporter -> librarian -> rearm
+ * planner -> inspect -> patch -> verify -> reporter -> rearm
  *
  * master is escalation-only for structured stuck packets.
  * oracle is read-only helper.
@@ -12,11 +12,18 @@ import * as fs from "fs"
 import * as path from "path"
 import * as crypto from "crypto"
 import { fileURLToPath } from "url"
+import type { Argv, ArgumentsCamelCase } from "yargs"
 import { Database } from "../storage/db"
-import { InfinityTable } from "./infinity.sql"
-import { ProjectTable } from "../project/project.sql"
+import { InfinityTable } from "./infinity.sql.ts"
+import { ProjectTable } from "../project/project.sql.ts"
 import { eq, desc } from "drizzle-orm"
 import { Identifier } from "@/id/id"
+import { Process } from "../util/process"
+import { ProjectScanner } from "./scanner"
+import { InfinityAdapter } from "./adapter"
+import { cmd } from "../cli/cmd/cmd"
+import type { ProjectID } from "../project/schema"
+import { Flag } from "../flag/flag"
 
 // ============================================================================
 // Types
@@ -31,7 +38,9 @@ export interface Task {
   scope: string[]
   acceptance: string[]
   constraints?: string[]
-  status: "queued" | "in_progress" | "stuck" | "ready_for_reporter" | "passed" | "failed" | "rolled_back"
+  status: "queued" | "assigned" | "in_progress" | "stuck" | "ready_for_reporter" | "passed" | "failed" | "rolled_back"
+  verify_command?: string
+  proof_artifacts?: string[]
 }
 
 export interface RunState {
@@ -43,7 +52,7 @@ export interface RunState {
     | "in_progress"
     | "stuck"
     | "ready_for_reporter"
-    | "gating"
+    | "reporting"
     | "passed"
     | "failed"
     | "rolled_back"
@@ -52,6 +61,11 @@ export interface RunState {
   updated_at: string
   escalated_to_master?: boolean
   gate_result?: GateResult
+  proof_path?: string
+  log_path?: string
+  project_id?: string
+  attempts?: number
+  modified_files?: string[]
 }
 
 export interface Plan {
@@ -120,7 +134,17 @@ export interface InfinityConfig {
   idle_backoff_ms: number
   daemon: boolean
   watch: boolean
+  experimental?: boolean
 }
+
+export type StopReason = 
+  | "max_cycles_reached"
+  | "queue_empty"
+  | "manual_stop"
+  | "fatal_error"
+  | "no_eligible_targets"
+  | "initial_exhaustion"
+  | "post_cycle_exhaustion"
 
 export interface LockFile {
   pid: number
@@ -133,15 +157,11 @@ export interface LockFile {
 // ============================================================================
 
 const STAGES = [
-  "architect",
-  "suggester",
   "planner",
-  "dev",
-  "performance",
-  "havoc",
+  "inspect",
+  "patch",
+  "verify",
   "reporter",
-  "librarian",
-  "innovation",
   "rearm",
 ] as const
 export type Stage = (typeof STAGES)[number]
@@ -156,28 +176,38 @@ const MASTER_ESCALATION_STATES = ["stuck"]
 export class InfinityRuntime {
   private root: string
   private config: InfinityConfig
-  private currentRunId: string | null = null
-  private currentTaskId: string | null = null
-  private currentStage: Stage | null = null
-  private cycleCount = 0
-  private isRunning = false
+  private run: string | null = null
+  private task: string | null = null
+  private stage: Stage | null = null
+  private cycles = 0
+  private active = false
+  private aborted = false
+  private scanner: ProjectScanner
+  private adapter: InfinityAdapter
 
-  constructor(root: string, config: Partial<InfinityConfig> = {}) {
+  constructor(
+    root: string, 
+    config: Partial<InfinityConfig> = {}, 
+    overrides?: { scanner?: ProjectScanner; adapter?: InfinityAdapter }
+  ) {
     this.root = root
     this.config = {
       max_cycles: config.max_cycles ?? 1,
-      max_retries_per_task: config.max_retries_per_task ?? 2,
+      max_retries_per_task: config.max_retries_per_task ?? Flag.HEIDI_MAX_RETRIES,
       idle_backoff_ms: config.idle_backoff_ms ?? 5000,
       daemon: config.daemon ?? false,
       watch: config.watch ?? false,
+      experimental: config.experimental ?? false,
     }
+    this.scanner = overrides?.scanner ?? new ProjectScanner(root)
+    this.adapter = overrides?.adapter ?? new InfinityAdapter(root)
   }
 
   // ============================================================================
   // Database Persistence
   // ============================================================================
 
-  private async getProjectId(): Promise<string> {
+  protected async getProjectId(): Promise<ProjectID> {
     return Database.use(async (db) => {
       const project = await db
         .select()
@@ -211,22 +241,22 @@ export class InfinityRuntime {
         await db
           .insert(InfinityTable)
           .values({
-            id: Identifier.descending("infinity", pid),
-            project_id: pid as any,
-            status: this.isRunning ? "running" : "idle",
-            current_stage: this.currentStage || "none",
-            current_run_id: this.currentRunId,
-            current_task_id: this.currentTaskId,
+            id: Identifier.descending("infinity"),
+            project_id: pid,
+            status: this.active ? "running" : "idle",
+            current_stage: this.stage || "none",
+            current_run_id: this.run,
+            current_task_id: this.task,
             health_score: health,
             metrics,
           })
           .onConflictDoUpdate({
             target: InfinityTable.project_id,
             set: {
-              status: this.isRunning ? "running" : "idle",
-              current_stage: this.currentStage || "none",
-              current_run_id: this.currentRunId,
-              current_task_id: this.currentTaskId,
+              status: this.active ? "running" : "idle",
+              current_stage: this.stage || "none",
+              current_run_id: this.run,
+              current_task_id: this.task,
               health_score: health,
               metrics,
               time_updated: Date.now(),
@@ -238,18 +268,30 @@ export class InfinityRuntime {
     }
   }
 
+  private async getRepoOverview(): Promise<string> {
+    const discoveries = await this.scanner.scan()
+    const pkgs = discoveries.map(t => t.title).join(", ")
+    const gitLog = await Process.text(["git", "log", "-n", "10", "--oneline"], { cwd: this.root })
+    return `Repo Statistics:
+- Total Packages Detected: ${discoveries.length}
+- Packages: ${pkgs}
+
+Recent Git Activity:
+${gitLog}`
+  }
+
   private async loadState(): Promise<void> {
     try {
       const pid = await this.getProjectId()
       const state = await Database.use(async (db) => {
-        return db.select().from(InfinityTable).where(eq(InfinityTable.project_id, pid as any)).get()
+        return db.select().from(InfinityTable).where(eq(InfinityTable.project_id, pid)).get()
       })
 
       if (state) {
         this.log("DB_LOAD", `Restored state for project: ${pid} (stage: ${state.current_stage})`)
-        this.currentStage = state.current_stage as Stage
-        this.currentRunId = state.current_run_id
-        this.currentTaskId = state.current_task_id
+        this.stage = state.current_stage === "none" ? null : (state.current_stage as Stage)
+        this.run = state.current_run_id
+        this.task = state.current_task_id
       }
     } catch (e) {
       // Non-critical, just log it
@@ -376,6 +418,11 @@ export class InfinityRuntime {
   // Run Management
   // ============================================================================
 
+  private getCurrentTask(): Task | undefined {
+    if (!this.task) return undefined
+    return this.readQueue().find((t) => t.id === this.task)
+  }
+
   createRun(taskId: string): string {
     const runId = this.generateRunId()
     const runDir = path.join(this.root, ".opencode", "runs", runId)
@@ -395,8 +442,8 @@ export class InfinityRuntime {
     // Create empty events.jsonl
     fs.writeFileSync(path.join(runDir, "events.jsonl"), "", "utf-8")
 
-    this.currentRunId = runId
-    this.currentTaskId = taskId
+    this.run = runId
+    this.task = taskId
 
     this.log("RUN_CREATE", `Created run ${runId} for task ${taskId}`)
     return runId
@@ -404,14 +451,14 @@ export class InfinityRuntime {
 
   private generateRunId(): string {
     const now = new Date()
-    const date = now.toISOString().split("T")[0].replace(/-/g, "")
+    const date = now.toISOString().split("T")[0]
     const ms = String(now.getTime()).slice(-3)
     return `run-${date}-${ms}`
   }
 
   private generateTaskId(): string {
     const now = new Date()
-    const date = now.toISOString().split("T")[0].replace(/-/g, "")
+    const date = now.toISOString().split("T")[0]
     const ms = String(now.getTime()).slice(-3)
     return `task-${date}-${ms}`
   }
@@ -422,6 +469,22 @@ export class InfinityRuntime {
       return null
     }
     return JSON.parse(fs.readFileSync(statePath, "utf-8")) as RunState
+  }
+
+  private findRunForTask(taskId: string): string | null {
+    const runsDir = path.join(this.root, ".opencode", "runs")
+    if (!fs.existsSync(runsDir)) return null
+    const runs = fs.readdirSync(runsDir)
+    for (const rid of runs) {
+      const statePath = path.join(runsDir, rid, "state.json")
+      if (fs.existsSync(statePath)) {
+        try {
+          const s = JSON.parse(fs.readFileSync(statePath, "utf-8"))
+          if (s.task_id === taskId) return rid
+        } catch {}
+      }
+    }
+    return null
   }
 
   writeRunState(runId: string, state: RunState): void {
@@ -454,74 +517,101 @@ export class InfinityRuntime {
   // ============================================================================
 
   /**
-   * Deterministic stage machine - only executes in this order:
-   * suggester -> planner -> dev -> havoc -> reporter -> librarian -> rearm
+   * Deterministic stage machine — executes in this order:
+   * planner -> inspect -> patch -> verify -> reporter -> rearm
    */
   async runCycle(): Promise<void> {
-    this.cycleCount++
-    this.log("CYCLE_START", `Starting cycle ${this.cycleCount}/${this.config.max_cycles}`)
+    const cycleNum = this.cycles + 1
+    this.log("CYCLE_START", `Starting cycle ${cycleNum}/${this.config.max_cycles}`)
 
-    // Check for resume
+    // Decisions Matrix: Startup
     const resumeResult = this.tryResume()
     if (resumeResult) {
-      this.log("RESUME", `Resuming from stage: ${resumeResult.stage}, run: ${resumeResult.runId}`)
-      this.currentStage = resumeResult.stage
-      this.currentRunId = resumeResult.runId
-      this.currentTaskId = resumeResult.taskId
+      if (!this.validateResume(resumeResult)) {
+        this.log("RESUME_INVALID", `Resume state invalid for run ${resumeResult.runId}. Starting fresh.`)
+        this.stage = "planner"
+        this.run = null
+        this.task = null
+      } else {
+        this.log("RESUME", `Resuming from stage: ${resumeResult.stage}, run: ${resumeResult.runId}`)
+        this.stage = resumeResult.stage
+        this.run = resumeResult.runId
+        this.task = resumeResult.taskId
+      }
     } else {
-      // Start fresh cycle
-      this.currentStage = "architect"
+      this.stage = "planner"
     }
 
-    // Execute stages in deterministic order
-    while (this.currentStage) {
-      const stage = this.currentStage
-      this.log("STAGE_ENTER", `Entering stage: ${stage}`)
+    while (this.shouldContinue()) {
+      // 1. Ensure we have an active run or create one
+      if (!this.run) {
+        let queue = this.readQueue()
+        if (queue.length === 0) {
+          this.log("CONTROL", "Queue empty. Searching for targets...")
+          const discovered = await this.scanner.scan()
+          if (discovered.length > 0) {
+            this.writeQueue(discovered)
+            queue = discovered
+          }
+        }
 
-      try {
-        await this.executeStage(stage)
-      } catch (e) {
-        this.log("STAGE_ERROR", `Stage ${stage} failed: ${e}`)
-        throw e
+        const nextTask = queue.find((t) => t.status === "queued" || t.status === "assigned")
+        if (!nextTask) {
+          this.log("CONTROL", "No tasks to process. Waiting for next cycle.")
+          break
+        }
+
+        if (nextTask.status === "queued") {
+          this.log("CONTROL", `Planning task ${nextTask.id}...`)
+          this.stage = "planner"
+          this.task = nextTask.id
+          await this.stagePlanner()
+          // stagePlanner will have set run and advanced the stage
+        } else if (nextTask.status === "assigned") {
+          // Resume/Start existing run
+          this.task = nextTask.id
+          this.run = this.findRunForTask(nextTask.id)
+          this.stage = "inspect"
+          this.log("CONTROL", `Picked up assigned run ${this.run} for task ${nextTask.id}`)
+        }
       }
 
-      // Check if we should continue
-      if (!this.shouldContinue()) {
+      // 2. Execute current stage
+      if (this.stage) {
+        const stage = this.stage
+        this.log("STAGE_ENTER", `Entering stage: ${stage}`)
+        await this.executeStage(stage)
+      } else {
+        break 
+      }
+
+      // 3. Post-stage check: if rearm cleared the run, we are done with this target
+      if (!this.run) {
+        this.log("CONTROL", "Target lifecycle complete.")
+        // Cycle count is incremented in stageRearm()
         break
       }
     }
 
-    this.log("CYCLE_END", `Cycle ${this.cycleCount} complete`)
+    this.log("CYCLE_END", `Cycle ${this.cycles} finished`)
   }
 
   private async executeStage(stage: Stage): Promise<void> {
     switch (stage) {
-      case "architect":
-        await this.stageArchitect()
-        break
-      case "suggester":
-        await this.stageSuggester()
-        break
       case "planner":
         await this.stagePlanner()
         break
-      case "dev":
-        await this.stageDev()
+      case "inspect":
+        await this.stageInspect()
         break
-      case "performance":
-        await this.stagePerformance()
+      case "patch":
+        await this.stagePatch()
         break
-      case "havoc":
-        await this.stageHavoc()
+      case "verify":
+        await this.stageVerify()
         break
       case "reporter":
         await this.stageReporter()
-        break
-      case "librarian":
-        await this.stageLibrarian()
-        break
-      case "innovation":
-        await this.stageInnovation()
         break
       case "rearm":
         await this.stageRearm()
@@ -531,81 +621,6 @@ export class InfinityRuntime {
     }
   }
 
-  private async stageArchitect(): Promise<void> {
-    this.log("ARCHITECT", "Running Architect (Singularity Core) stage...")
-
-    // In a real implementation, this would invoke the Architect subagent
-    // to analyze the current state and decide if any overrides or shifts are needed.
-
-    const reportPath = path.join(this.root, ".opencode", "report.json")
-    let report: any = null
-    if (fs.existsSync(reportPath)) {
-      report = JSON.parse(fs.readFileSync(reportPath, "utf-8"))
-    }
-
-    // Metacognitive Tuning: Check for suggester efficiency
-    const runsDir = path.join(this.root, ".opencode", "runs")
-    const recentRuns = fs.existsSync(runsDir) ? fs.readdirSync(runsDir).slice(-5) : []
-
-    if (recentRuns.length > 3 && report && report.health_score > 90) {
-      this.log("ARCHITECT", "System too stable. Suggesting Havoc mode for deeper stress testing.")
-    }
-
-    // SWAT Dispatcher: Check for critical health drops
-    if (report && report.health_score < 70) {
-      this.log("ARCHITECT", "CRITICAL HEALTH DROP detected. Dispatching SWAT directive to Planner.")
-    }
-
-    this.advanceStage()
-  }
-
-  private async stageSuggester(): Promise<void> {
-    this.log("SUGGESTER", "Running suggester stage...")
-
-    // Invoke suggester agent - write 2-3 candidate tasks to queue.json
-    // The suggester agent should NOT execute, just propose tasks
-
-    // For now, we'll simulate the suggester output
-    // In production, this would call the suggester subagent
-    const newTasks = this.simulateSuggesterOutput()
-
-    if (newTasks.length === 0) {
-      this.log("SUGGESTER", "No tasks suggested, advancing to rearm")
-      this.advanceStage()
-      return
-    }
-
-    // Read existing queue
-    const queue = this.readQueue()
-
-    // Add new tasks (avoiding duplicates)
-    const existingIds = new Set(queue.map((t) => this.getTaskFingerprint(t)))
-    const filteredNewTasks = newTasks.filter((t) => !existingIds.has(this.getTaskFingerprint(t)))
-
-    queue.push(...filteredNewTasks)
-    this.writeQueue(queue)
-
-    this.log("SUGGESTER", `Added ${filteredNewTasks.length} tasks to queue`)
-    this.advanceStage()
-  }
-
-  private simulateSuggesterOutput(): Task[] {
-    // This simulates what the suggester agent would produce
-    // In production, this would be replaced with actual agent invocation
-    const taskId = this.generateTaskId()
-    return [
-      {
-        id: taskId,
-        title: "Simulated task from suggester",
-        source: "internal_audit",
-        priority: 1,
-        category: "stability",
-        scope: ["packages/opencode"],
-        acceptance: ["typecheck passes", "tests pass"],
-        status: "queued",
-      },
-    ]
-  }
 
   private getTaskFingerprint(task: Task): string {
     // Stable fingerprint derived from title + scope + acceptance
@@ -616,10 +631,19 @@ export class InfinityRuntime {
   private async stagePlanner(): Promise<void> {
     this.log("PLANNER", "Running planner stage...")
 
-    // Read queue
-    const queue = this.readQueue()
+    let queue = this.readQueue()
+    if (queue.length === 0) {
+      this.log("PLANNER", "Queue empty, scanning project for targets...")
+      const discovered = await this.scanner.scan()
+      if (discovered.length === 0) {
+        this.log("PLANNER", "No targets found by scanner, advancing to rearm")
+        this.advanceStage()
+        return
+      }
+      this.writeQueue(discovered)
+      queue = discovered
+    }
 
-    // Find next eligible task (status === "queued")
     const nextTask = queue.find((t) => t.status === "queued")
 
     if (!nextTask) {
@@ -632,284 +656,373 @@ export class InfinityRuntime {
     nextTask.status = "in_progress"
     this.writeQueue(queue)
 
-    // Create run
+    // Produce real plan with LLM
+    const overview = await this.getRepoOverview()
+    const plan = await this.adapter.createPlan(nextTask, overview)
+    
+    // Create run entry
     const runId = this.createRun(nextTask.id)
-
-    // Create plan
-    const plan: Plan = {
-      run_id: runId,
-      task_id: nextTask.id,
-      task: nextTask,
-      workers: [
-        {
-          worker_id: "dev-1",
-          scope: nextTask.scope,
-        },
-      ],
-      created_at: new Date().toISOString(),
-    }
+    this.run = runId
+    this.task = nextTask.id
+    plan.run_id = runId // Ensure it matches our tracker
+    
     this.writePlan(runId, plan)
-
-    // Update run state
+    
     const state = this.readRunState(runId)!
+
     state.status = "assigned"
-    state.workers = ["dev-1"]
+    state.workers = plan.workers.map(w => w.worker_id)
     this.writeRunState(runId, state)
+    
+    // Crucial: Update task status to pinned so it's not picked up by other workers
+    nextTask.status = "assigned"
+    this.writeQueue(queue)
 
-    this.log("PLANNER", `Assigned task ${nextTask.id} to run ${runId}`)
+    this.log("PLANNER", `Assigned task ${nextTask.id} to run ${runId} with LLM plan`)
     this.advanceStage()
   }
 
-  private async stageDev(): Promise<void> {
-    if (!this.currentRunId || !this.currentTaskId) {
-      throw new Error("No active run in dev stage")
+  private async stageInspect(): Promise<void> {
+    if (!this.run || !this.task) throw new Error("No active run")
+    this.log("INSPECT", `Inspecting target for run ${this.run}...`)
+    
+    const task = this.getCurrentTask()!
+    const context = await this.getWorkspaceContext(task.scope[0])
+    
+    // Closed-loop feedback: pass failure info if this is a retry
+    const state = this.readRunState(this.run)!
+    const failureLog = state.attempts && state.attempts > 0 && state.log_path && fs.existsSync(state.log_path)
+      ? fs.readFileSync(state.log_path, "utf-8")
+      : undefined
+    
+    const result = await this.adapter.inspectTarget(task, context, failureLog)
+    const inspectPath = path.join(this.root, ".opencode", "runs", this.run, "inspect.json")
+    fs.writeFileSync(inspectPath, JSON.stringify(result, null, 2))
+    
+    this.advanceStage()
+  }
+
+  private async getWorkspaceContext(filePath: string): Promise<string> {
+    const fullPath = path.join(this.root, filePath)
+    if (!fs.existsSync(fullPath)) return "File not found"
+    const content = await Bun.file(fullPath).text()
+    // Return focused slice (Phase 5 requirement)
+    return `File: ${filePath}\n\nContent:\n${content.slice(0, 5000)}` 
+  }
+
+  private async stagePatch(): Promise<void> {
+    if (!this.run || !this.task) throw new Error("No active run")
+    this.log("PATCH", `Applying bounded patch for run ${this.run}...`)
+    
+    const inspectPath = path.join(this.root, ".opencode", "runs", this.run, "inspect.json")
+    if (!fs.existsSync(inspectPath)) throw new Error("No inspect result found")
+    const inspectResult = JSON.parse(fs.readFileSync(inspectPath, "utf-8"))
+
+    // Change Budget Enforcement
+    if (inspectResult.allowed_files.length > 3) {
+      this.log("PATCH_REJECT", `Rejected: too many files requested (${inspectResult.allowed_files.length} > 3)`)
+      this.advanceStage()
+      return
     }
 
-    this.log("DEV", `Running dev stage for run ${this.currentRunId}...`)
-
-    // Read plan
-    const plan = this.readPlan(this.currentRunId)
-    if (!plan) {
-      throw new Error(`No plan found for run ${this.currentRunId}`)
+    const modified: string[] = []
+    for (const file of inspectResult.allowed_files) {
+      const fullPath = path.join(this.root, file)
+      if (!fs.existsSync(fullPath)) continue
+      
+      this.log("PATCH_FILE", `Patching ${file}...`)
+      const content = await Bun.file(fullPath).text()
+      const patch = await this.adapter.patchTarget(inspectResult, content)
+      
+      fs.writeFileSync(fullPath, patch.content)
+      modified.push(file)
     }
 
-    // Update run state
-    const state = this.readRunState(this.currentRunId)!
-    state.status = "in_progress"
-    this.writeRunState(this.currentRunId, state)
+    const state = this.readRunState(this.run)!
+    state.modified_files = modified
+    this.writeRunState(this.run, state)
 
-    // Emit progress event
-    this.appendEvent(this.currentRunId, {
-      type: "progress",
+    const diff = (await Process.text(["git", "diff"], { cwd: this.root })).text
+    if (diff.trim()) {
+      const proofPath = path.join(this.root, ".opencode", "runs", this.run, "proof.diff")
+      fs.writeFileSync(proofPath, diff)
+    }
+
+    this.advanceStage()
+  }
+
+  private async stageVerify(): Promise<void> {
+    if (!this.run) throw new Error("No active run")
+    this.log("VERIFY", `Verifying run ${this.run}...`)
+    
+    const task = this.getCurrentTask()!
+    const profile = this.getVerificationProfile(task.scope[0])
+    this.log("VERIFY_PROFILE", `Using profile: ${profile}`)
+
+    const command = task.verify_command || this.getProfileCommand(profile, task.scope[0])
+    
+    const start = Date.now()
+    const result = await Process.run(command.split(/\s+/), { cwd: this.root, nothrow: true })
+    const duration = Date.now() - start
+
+    const logs = `PROFILE: ${profile}\nCOMMAND: ${command}\nDURATION: ${duration}ms\nEXIT_CODE: ${result.code}\n\nSTDOUT:\n${result.stdout}\n\nSTDERR:\n${result.stderr}`
+    const logPath = path.join(this.root, ".opencode", "runs", this.run, "verify.log")
+    fs.writeFileSync(logPath, logs)
+    
+    const failureClass = result.code !== 0 ? this.classifyFailure(result.stderr.toString()) : null
+    
+    const state = this.readRunState(this.run)!
+    state.attempts = (state.attempts ?? 0) + 1
+    state.log_path = logPath
+    
+    if (result.code === 0) {
+      state.status = "ready_for_reporter"
+      this.writeRunState(this.run, state)
+      this.log("VERIFY_PASS", `Verification passed for run ${this.run}`)
+      this.advanceStage()
+    } else {
+      this.log("VERIFY_FAIL", `Verification failed (attempt ${state.attempts}/${this.config.max_retries_per_task})`)
+      
+      if (state.attempts < this.config.max_retries_per_task) {
+        state.status = "in_progress"
+        this.writeRunState(this.run, state)
+        // Rewind to inspect stage for another attempt
+        this.stage = "inspect"
+        this.log("RETRY", `Rewinding to INSPECT stage for run ${this.run}`)
+        await this.saveState()
+      } else {
+        this.log("ROLLBACK", `Max retries reached. Executing rollback for run ${this.run}`)
+        await this.rollback()
+        state.status = "rolled_back"
+        this.writeRunState(this.run, state)
+        this.advanceStage()
+      }
+    }
+    
+    this.appendEvent(this.run, {
+      type: "verification",
       timestamp: new Date().toISOString(),
-      message: "Dev stage executing...",
+      profile,
+      duration,
+      passed: result.code === 0,
+      failure_class: failureClass,
+      attempt: state.attempts
     })
-
-    // In production, this would invoke the dev subagent
-    // Dev can emit stuck or completion packets
-
-    // For now, we simulate a completion
-    this.appendEvent(this.currentRunId, {
-      type: "completion",
-      timestamp: new Date().toISOString(),
-      task_id: this.currentTaskId,
-      run_id: this.currentRunId,
-      worker_id: "dev-1",
-      files_changed: [],
-      tests_passed: true,
-      summary: "Simulated dev completion",
-    } as unknown as Event)
-
-    // Update state to ready_for_reporter
-    state.status = "ready_for_reporter"
-    this.writeRunState(this.currentRunId, state)
-
-    this.log("DEV", "Dev stage complete")
-    this.advanceStage()
   }
 
-  private async stagePerformance(): Promise<void> {
-    if (!this.currentRunId) {
-      throw new Error("No active run in performance stage")
+  private async rollback(): Promise<void> {
+    if (!this.run) return
+    const state = this.readRunState(this.run)
+    const files = state?.modified_files || []
+
+    if (files.length === 0) {
+      this.log("ROLLBACK_SKIP", "No recorded modified files to rollback")
+      return
     }
 
-    this.log("PERFORMANCE", `Running performance profiling for run ${this.currentRunId}...`)
-
-    const start = Bun.nanoseconds()
-    // In production, this would run actual benchmarks
-    // For now we simulate a small workload
-    await new Promise((r) => setTimeout(r, 100))
-    const end = Bun.nanoseconds()
-    const latencyMs = (end - start) / 1000000
-
-    this.log("PERFORMANCE", `Latency measured: ${latencyMs.toFixed(2)}ms`)
-
-    // Record performance event
-    this.appendEvent(this.currentRunId, {
-      type: "performance",
-      timestamp: new Date().toISOString(),
-      latency_ms: latencyMs,
-      score: latencyMs < 200 ? 100 : 50,
-    } as any)
-
-    this.advanceStage()
+    this.log("ROLLBACK_EXEC", `Rolling back ${files.length} files in ${this.root}...`)
+    try {
+      await Process.run(["git", "checkout", "--", ...files], { cwd: this.root })
+      this.log("ROLLBACK_SUCCESS", `Successfully rolled back: ${files.join(", ")}`)
+    } catch (e) {
+      this.log("ROLLBACK_ERROR", `Failed to rollback: ${e}`)
+    }
   }
 
-  private async stageHavoc(): Promise<void> {
-    if (!this.currentRunId) {
-      throw new Error("No active run in havoc stage")
+  private getVerificationProfile(filePath: string): string {
+    if (filePath.endsWith(".ts") || filePath.endsWith(".tsx")) return "ts-module"
+    if (filePath.endsWith(".py")) return "python-module"
+    return "repo-default"
+  }
+
+  private getProfileCommand(profile: string, filePath: string): string {
+    switch (profile) {
+      case "ts-module": return "bun typecheck"
+      case "python-module": return `ruff check ${filePath}`
+      default: return "bun test"
     }
+  }
 
-    this.log("HAVOC", `Running havoc stage for run ${this.currentRunId}...`)
-
-    // In production, this would invoke the havoc subagent
-    // Havoc runs adversarial testing
-
-    this.log("HAVOC", "Havoc passed")
-    this.advanceStage()
+  private classifyFailure(stderr: string): string {
+    if (stderr.includes("SyntaxError")) return "syntax"
+    if (stderr.includes("TypeError") || stderr.includes("not found")) return "type"
+    if (stderr.includes("failed")) return "test"
+    return "unknown"
   }
 
   private async stageReporter(): Promise<void> {
-    if (!this.currentRunId || !this.currentTaskId) {
+    if (!this.run || !this.task) {
       throw new Error("No active run in reporter stage")
     }
 
-    this.log("REPORTER", `Running reporter stage for run ${this.currentRunId}...`)
+    const task = this.getCurrentTask()
+    if (!task) return this.advanceStage()
 
-    // In production, this would invoke the reporter subagent
-    // Reporter runs deterministic gates
+    this.log("REPORTER", `Judging task ${this.task}...`)
+    
+    const state = this.readRunState(this.run)!
+    const logsPath = path.join(this.root, ".opencode", "runs", this.run, "verify.log")
+    const logs = fs.existsSync(logsPath) ? fs.readFileSync(logsPath, "utf-8") : "No logs"
+    const diffPath = path.join(this.root, ".opencode", "runs", this.run, "proof.diff")
+    const diff = fs.existsSync(diffPath) ? fs.readFileSync(diffPath, "utf-8") : "No diff"
 
-    // Simulate gate result
-    const gateResult: GateResult = {
-      task_id: this.currentTaskId,
-      run_id: this.currentRunId,
-      result: "pass",
-      gates: [
-        {
-          name: "cloud_ci",
-          status: "pass",
-          details: "CI passed",
-        },
-      ],
-    }
-
-    // Update run state
-    const state = this.readRunState(this.currentRunId)!
-    state.status = gateResult.result === "pass" ? "passed" : "failed"
-    state.gate_result = gateResult
-    this.writeRunState(this.currentRunId, state)
-
-    this.log("REPORTER", `Reporter result: ${gateResult.result}`)
-    this.advanceStage()
-  }
-
-  private async stageLibrarian(): Promise<void> {
-    if (!this.currentRunId || !this.currentTaskId) {
-      throw new Error("No active run in librarian stage")
-    }
-
-    this.log("LIBRARIAN", `Running librarian stage for run ${this.currentRunId}...`)
-
-    // Read run state
-    const state = this.readRunState(this.currentRunId)!
-
-    // Librarian only writes knowledge for passing runs
-    if (state.status === "passed") {
-      // Create notes directory
-      const notesDir = path.join(this.root, ".opencode", "runs", this.currentRunId, "notes")
-      this.ensureDir(notesDir)
-
-      // Write knowledge to .opencode/knowledge/
-      const knowledgeDir = path.join(this.root, ".opencode", "knowledge")
-      const lesson = {
-        id: `lesson-${Date.now()}`,
-        run_id: this.currentRunId,
-        task_id: this.currentTaskId,
-        category: "pattern",
-        title: "Example lesson",
-        body: "Lesson learned from this run",
-        files: [],
-        created_at: new Date().toISOString(),
+    try {
+      // Judge with LLM
+      const result = await this.adapter.judgeResult(diff, logs)
+      
+      state.status = result.pass ? "passed" : "failed"
+      state.gate_result = {
+        task_id: task.id,
+        run_id: this.run,
+        result: result.pass ? "pass" : "fail",
+        gates: [],
+        rollback_executed: !result.pass
       }
+      this.writeRunState(this.run, state)
 
-      const patternFile = path.join(knowledgeDir, "patterns", `${lesson.id}.json`)
-      fs.writeFileSync(patternFile, JSON.stringify(lesson, null, 2), "utf-8")
-
-      this.log("LIBRARIAN", "Wrote knowledge to .opencode/knowledge/")
-    } else {
-      this.log("LIBRARIAN", "Run did not pass, not writing knowledge")
+      this.log("REPORTER", `LLM Verdict: ${state.status.toUpperCase()} - ${result.summary}`)
+      this.advanceStage()
+    } catch (e) {
+      this.log("REPORTER_ERROR", `Judgment failed: ${e}`)
+      this.advanceStage()
     }
-
-    this.advanceStage()
-  }
-
-  private async stageInnovation(): Promise<void> {
-    this.log("INNOVATION", "Running innovation intelligence stage...")
-
-    // Discover opportunities
-    const opportunities = [
-      { id: "opt-001", title: "Add Redis Caching layer", impact: "high" },
-      { id: "opt-002", title: "Migrate to Edge Functions", impact: "medium" },
-    ]
-
-    this.log("INNOVATION", `Found ${opportunities.length} innovation opportunities`)
-
-    // Save blueprints
-    const blueprintDir = path.join(this.root, ".opencode", "blueprints")
-    this.ensureDir(blueprintDir)
-    fs.writeFileSync(
-      path.join(blueprintDir, `innovation-${Date.now()}.json`),
-      JSON.stringify({ opportunities, timestamp: new Date().toISOString() }, null, 2),
-      "utf-8",
-    )
-
-    this.advanceStage()
   }
 
   private async stageRearm(): Promise<void> {
     this.log("REARM", "Running rearm stage...")
 
-    // Mark the consumed queue item as complete
-    if (this.currentTaskId) {
+    if (this.task && this.run) {
       const queue = this.readQueue()
-      const taskIndex = queue.findIndex((t) => t.id === this.currentTaskId)
+      const taskIndex = queue.findIndex((t) => t.id === this.task)
+      const state = this.readRunState(this.run)!
+      
       if (taskIndex !== -1) {
-        const state = this.readRunState(this.currentRunId!)!
         queue[taskIndex].status = state.status === "passed" ? "passed" : "failed"
         this.writeQueue(queue)
-        this.log("REARM", `Updated task ${this.currentTaskId} status to ${queue[taskIndex].status}`)
+        this.log("REARM", `Updated task ${this.task} status to ${queue[taskIndex].status}`)
       }
+
+      await this.generateEvidencePack(this.run)
+      this.cycles++
     }
 
     // Clear current run
-    this.currentRunId = null
-    this.currentTaskId = null
-    this.currentStage = null
+    this.run = null
+    this.task = null
+    this.stage = null
 
-    this.log("REARM", "Rearm complete")
+    this.log("REARM", `Rearm complete. Cycle ${this.cycles} finished.`)
+  }
+
+  private async generateEvidencePack(runId: string): Promise<void> {
+    const runDir = path.join(this.root, ".opencode", "runs", runId)
+    const summaryPath = path.join(runDir, "summary.md")
+    const state = this.readRunState(runId)!
+    const task = this.getCurrentTask()!
+
+    const summary = `# Run Summary: ${runId}
+## Task: ${task.title}
+- Status: ${state.status}
+- Targets: ${task.scope.join(", ")}
+
+## Evidence
+- [Diff](proof.diff)
+- [Verification Log](verify.log)
+- [Inspect Data](inspect.json)
+
+## Verdict
+${state.gate_result?.result === "pass" ? "✅ Passed" : "❌ Failed"}
+${state.gate_result?.retry_actions ? `**Retry Actions:**\n${state.gate_result.retry_actions.join("\n")}` : ""}
+`
+    fs.writeFileSync(summaryPath, summary)
+    this.log("EVIDENCE", `Evidence pack generated at ${summaryPath}`)
   }
 
   private advanceStage(): void {
-    if (!this.currentStage) return
+    if (!this.stage) return
 
-    const currentIndex = STAGES.indexOf(this.currentStage)
+    const currentIndex = STAGES.indexOf(this.stage)
     if (currentIndex < STAGES.length - 1) {
-      this.currentStage = STAGES[currentIndex + 1]
-      this.log("STAGE_ADVANCE", `Advanced to: ${this.currentStage}`)
+      this.stage = STAGES[currentIndex + 1]
+      this.log("STAGE_ADVANCE", `Advanced to: ${this.stage}`)
     } else {
-      this.currentStage = null
+      this.stage = null
       this.log("STAGE_ADVANCE", "No more stages")
     }
     // Async save
     this.saveState().catch((e) => this.log("DB_ERROR", `Failed to save stage advance: ${e}`))
   }
 
-  private shouldContinue(): boolean {
+  private shouldContinue(reason?: StopReason): boolean {
     // Check max cycles
-    if (this.cycleCount >= this.config.max_cycles) {
-      this.log("CONTROL", `Max cycles reached: ${this.config.max_cycles}`)
+    if (this.cycles >= this.config.max_cycles) {
+      this.log("CONTROL", `Stop reason: max_cycles_reached (${this.config.max_cycles})`)
       return false
     }
 
-    // Check daemon/watch mode
-    if (this.config.daemon || this.config.watch) {
-      return true
+    // If we are currently in a stage, we should continue that stage sequence
+    if (this.stage) return true
+
+    // Check if we have work in queue
+    const queue = this.readQueue()
+    const hasWork = queue.some(t => t.status === "queued" || t.status === "in_progress")
+    
+    // Check abort flag
+    if (this.aborted) {
+      this.log("CONTROL", "Stop reason: manual_stop (signal aborted)")
+      return false
     }
 
-    return false
+    if (!hasWork && !this.config.daemon && !this.config.watch) {
+      this.log("CONTROL", `Stop reason: queue_empty`)
+      return false
+    }
+
+    if (reason) this.log("CONTROL", `Continuing. Context: ${reason}`)
+    return true
   }
 
   // ============================================================================
   // Resume Support
   // ============================================================================
 
+  private validateResume(resume: { stage: Stage; runId: string; taskId: string }): boolean {
+    // If current_task_id no longer exists in queue, mark run invalid
+    const queue = this.readQueue()
+    const task = queue.find(t => t.id === resume.taskId)
+    if (!task) return false
+
+    // If run directory exists but state file is corrupt, quarantine it and continue
+    const statePath = path.join(this.root, ".opencode", "runs", resume.runId, "state.json")
+    if (!fs.existsSync(statePath)) return false
+    try {
+      JSON.parse(fs.readFileSync(statePath, "utf-8"))
+    } catch {
+      this.quarantineRun(resume.runId, "Corrupt state file")
+      return false
+    }
+
+    return true
+  }
+
+  private quarantineRun(runId: string, reason: string): void {
+    this.log("QUARANTINE", `Quarantining run ${runId}: ${reason}`)
+    const runDir = path.join(this.root, ".opencode", "runs", runId)
+    const quarantineDir = path.join(this.root, ".opencode", "quarantine", runId)
+    this.ensureDir(path.join(this.root, ".opencode", "quarantine"))
+    if (fs.existsSync(runDir)) {
+      fs.renameSync(runDir, quarantineDir)
+      fs.writeFileSync(path.join(quarantineDir, "quarantine_reason.txt"), reason)
+    }
+  }
+
   private tryResume(): { stage: Stage; runId: string; taskId: string } | null {
     // If we have state in class from loadState(), it's already "resumed" in a sense
-    if (this.currentStage && this.currentRunId && this.currentTaskId) {
+    if (this.stage && this.run && this.task) {
       return {
-        stage: this.currentStage,
-        runId: this.currentRunId,
-        taskId: this.currentTaskId,
+        stage: this.stage,
+        runId: this.run,
+        taskId: this.task,
       }
     }
 
@@ -917,18 +1030,22 @@ export class InfinityRuntime {
     if (!fs.existsSync(runsDir)) return null
 
     const runDirs = fs.readdirSync(runsDir)
-    for (const runDir of runDirs) {
+    // Find most recent non-terminal run
+    for (const runDir of [...runDirs].reverse()) {
       const statePath = path.join(runsDir, runDir, "state.json")
       if (!fs.existsSync(statePath)) continue
 
-      const state = JSON.parse(fs.readFileSync(statePath, "utf-8")) as RunState
-      if (TERMINAL_STATES.includes(state.status)) continue
+      try {
+        const state = JSON.parse(fs.readFileSync(statePath, "utf-8")) as RunState
+        if (TERMINAL_STATES.includes(state.status)) continue
 
-      const stage = this.statusToStage(state.status)
-      if (!stage) continue
+        const stage = this.statusToStage(state.status)
+        if (!stage) continue
 
-      this.log("RESUME_FS", `Found resumable run on disk: ${runDir}`)
-      return { stage, runId: state.run_id, taskId: state.task_id }
+        return { stage, runId: state.run_id, taskId: state.task_id }
+      } catch {
+        continue
+      }
     }
 
     return null
@@ -939,19 +1056,26 @@ export class InfinityRuntime {
       case "planning":
         return "planner"
       case "assigned":
+        return "inspect"
       case "in_progress":
-        return "dev"
+        return "patch"
       case "ready_for_reporter":
-        return "havoc"
-      case "gating":
+        return "verify"
+      case "reporting":
         return "reporter"
       case "stuck":
-        return "reporter" // Escalation goes back to reporter after master handles it
+        return "reporter" 
       default:
         return null
     }
   }
 
+  // ============================================================================
+  // Database State Management
+  // ============================================================================
+
+  // ============================================================================
+  // Lock File
   // ============================================================================
   // Lock File
   // ============================================================================
@@ -1004,15 +1128,22 @@ export class InfinityRuntime {
 
   private log(type: string, message: string): void {
     const timestamp = new Date().toISOString()
-    const runId = this.currentRunId || "none"
-    const taskId = this.currentTaskId || "none"
-    const stage = this.currentStage || "none"
+    const runId = this.run || "none"
+    const taskId = this.task || "none"
+    const stage = this.stage || "none"
     const logLine = `[${timestamp}] ${type} run_id=${runId} task_id=${taskId} stage=${stage} ${message}`
     console.log(logLine)
 
-    // Also write to a log file
-    const logPath = path.join(this.root, ".opencode", "infinity.log")
-    fs.appendFileSync(logPath, logLine + "\n", "utf-8")
+    // Also write to a log file safely
+    try {
+      const opencodeDir = path.join(this.root, ".opencode")
+      if (fs.existsSync(opencodeDir)) {
+        const logPath = path.join(opencodeDir, "infinity.log")
+        fs.appendFileSync(logPath, logLine + "\n", "utf-8")
+      }
+    } catch {
+      // Ignore log write errors during bootstrap or shutdown
+    }
   }
 
   // ============================================================================
@@ -1027,23 +1158,37 @@ export class InfinityRuntime {
       throw new Error("Another Infinity Loop is already running.")
     }
 
-    this.isRunning = true
+
+    this.active = true
+    this.aborted = false
+    
+    const shutdown = () => {
+      if (this.aborted) return
+      this.log("SIGNAL", "Received termination signal. Shutting down gracefully...")
+      this.aborted = true
+    }
+
+    process.on("SIGTERM", shutdown)
+    process.on("SIGINT", shutdown)
+
     await this.loadState()
     await this.saveState()
 
     try {
-      while (this.shouldContinue()) {
+      while (this.shouldContinue("initial_exhaustion")) {
         await this.runCycle()
-        if (!this.shouldContinue()) break
+        if (!this.shouldContinue("post_cycle_exhaustion")) break
         if (this.config.idle_backoff_ms > 0) {
           this.log("IDLE", `Backing off for ${this.config.idle_backoff_ms}ms...`)
           await new Promise((r) => setTimeout(r, this.config.idle_backoff_ms))
         }
       }
     } finally {
-      this.isRunning = false
+      this.active = false
       await this.saveState()
       this.releaseLock()
+      process.off("SIGTERM", shutdown)
+      process.off("SIGINT", shutdown)
       this.log("STOP", "Infinity Loop stopped")
     }
   }
@@ -1053,48 +1198,125 @@ export class InfinityRuntime {
 // CLI Command
 // ============================================================================
 
-export const InfinityCommand = {
+interface InfinityArgv {
+  action: string
+  maxCycles?: number
+  maxRetries?: number
+  idleBackoff?: number
+  daemon?: boolean
+  watch?: boolean
+  experimental?: boolean
+  _: (string | number)[]
+}
+
+export const InfinityCommand = cmd({
   command: "infinity [action]",
   describe: "Run Infinity Loop Runtime",
-  builder: (yargs: any) => {
-    return yargs.positional("action", {
-      describe: "Action to run",
-      type: "string",
-      default: "start",
-      choices: ["start", "status", "resume"],
-    })
+  builder(yargs) {
+    return yargs
+      .positional("action", {
+        describe: "Action to run",
+        type: "string",
+        default: "start",
+        choices: ["start", "status", "resume", "pause", "stop", "requeue", "quarantine", "explain"],
+      })
+      .option("maxCycles", { type: "number" })
+      .option("maxRetries", { type: "number" })
+      .option("idleBackoff", { type: "number" })
+      .option("daemon", { type: "boolean" })
+      .option("watch", { type: "boolean" })
+      .option("experimental", { type: "boolean" })
   },
-  handler: async (argv: any) => {
+  async handler(argv: ArgumentsCamelCase<InfinityArgv>) {
     const root = process.cwd()
-    const action = argv.action || "start"
+    const action = (argv.action || "start") as string
 
-    if (action === "start") {
+    if (action === "start" || action === "resume") {
       const config: Partial<InfinityConfig> = {
-        max_cycles: (argv as any).maxCycles ?? 1,
-        max_retries_per_task: (argv as any).maxRetries ?? 2,
-        idle_backoff_ms: (argv as any).idleBackoff ?? 5000,
-        daemon: (argv as any).daemon ?? false,
-        watch: (argv as any).watch ?? false,
+        max_cycles: argv.maxCycles ?? 1,
+        max_retries_per_task: argv.maxRetries ?? 2,
+        idle_backoff_ms: argv.idleBackoff ?? 5000,
+        daemon: argv.daemon ?? false,
+        watch: argv.watch ?? false,
+        experimental: argv.experimental ?? false,
       }
 
       const runtime = new InfinityRuntime(root, config)
       await runtime.start()
     } else if (action === "status") {
-      // Show status of current runs
+      const runtime = new InfinityRuntime(root)
+      const queue = runtime.readQueue()
+      console.log(`\nInfinity Status for ${root}:`)
+      console.log(`Queue size: ${queue.length}`)
+      console.log(`Queued: ${queue.filter(t => t.status === "queued").length}`)
+      console.log(`Passed: ${queue.filter(t => t.status === "passed").length}`)
+      console.log(`Failed/Quarantined: ${queue.filter(t => t.status === "failed" || t.status === "stuck").length}`)
+      
       const runsDir = path.join(root, ".opencode", "runs")
-      if (!fs.existsSync(runsDir)) {
-        console.log("No runs found")
+      if (fs.existsSync(runsDir)) {
+        const runDirs = fs.readdirSync(runsDir)
+        console.log(`\nLast 5 runs:`)
+        for (const runDir of runDirs.slice(-5).reverse()) {
+          const statePath = path.join(runsDir, runDir, "state.json")
+          if (!fs.existsSync(statePath)) continue
+          const state = JSON.parse(fs.readFileSync(statePath, "utf-8")) as RunState
+          console.log(`- ${runDir}: ${state.status} (Task: ${state.task_id})`)
+        }
+      }
+    } else if (action === "stop") {
+      const lockPath = path.join(root, ".opencode", "infinity.lock")
+      if (!fs.existsSync(lockPath)) {
+        console.log("No infinity loop is running (no lock file).")
         return
       }
-
-      const runDirs = fs.readdirSync(runsDir)
-      for (const runDir of runDirs) {
-        const statePath = path.join(runsDir, runDir, "state.json")
-        if (!fs.existsSync(statePath)) continue
-
-        const state = JSON.parse(fs.readFileSync(statePath, "utf-8")) as RunState
-        console.log(`${runDir}: ${state.status} (task: ${state.task_id})`)
+      try {
+        const lock = JSON.parse(fs.readFileSync(lockPath, "utf-8")) as LockFile
+        console.log(`Stopping infinity loop (PID: ${lock.pid})...`)
+        process.kill(lock.pid, "SIGTERM")
+        
+        // Wait for lock to be removed
+        let attempts = 0
+        while (fs.existsSync(lockPath) && attempts < 10) {
+          await new Promise(r => setTimeout(r, 500))
+          attempts++
+        }
+        
+        if (fs.existsSync(lockPath)) {
+          console.log("Loop is still shutting down. It should exit soon.")
+        } else {
+          console.log("Loop stopped successfully.")
+        }
+      } catch (e) {
+        console.error(`Failed to stop loop: ${e}`)
+      }
+    } else if (action === "requeue") {
+      const taskId = String(argv._[1])
+      if (!taskId) {
+        console.error("Task ID required: infinity requeue <task-id>")
+        return
+      }
+      const runtime = new InfinityRuntime(root)
+      const queue = runtime.readQueue()
+      const task = queue.find(t => t.id === taskId)
+      if (task) {
+        task.status = "queued"
+        runtime.writeQueue(queue)
+        console.log(`Task ${taskId} moved back to queue.`)
+      } else {
+        console.error(`Task ${taskId} not found.`)
+      }
+    } else if (action === "explain") {
+      const runId = String(argv._[1])
+      if (!runId) {
+        console.error("Run ID required: infinity explain <run-id>")
+        return
+      }
+      const summaryPath = path.join(root, ".opencode", "runs", runId, "summary.md")
+      if (fs.existsSync(summaryPath)) {
+        console.log(fs.readFileSync(summaryPath, "utf-8"))
+      } else {
+        console.error(`Summary not found for run ${runId}`)
       }
     }
   },
-}
+})

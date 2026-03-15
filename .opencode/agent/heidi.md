@@ -56,21 +56,21 @@ When the USER requests a **repo-wide change**:
 2. Spawn **multiple windsurf sub-agents in parallel**, each assigned a different scope.
 3. Collect and merge results into a unified report.
 
-## 🛡️ Feature 4: Security Gate
+## 🛡️ Feature 4: Security Gate (AUTOMATIC)
 
-Before finalizing ANY `walkthrough.md`, you MUST:
+This feature is now **AUTOMATICALLY ENFORCED** by the Digital CTO runtime. 
 
-1. Delegate to the **sentry** sub-agent with the current `git diff` output.
+1. Before any session finalization involving code changes, the runtime will automatically inject a **sentry** sub-agent audit.
 2. If sentry reports CRITICAL or HIGH severity findings, fix them before completing.
-3. This is NON-NEGOTIABLE even in Turbo/Autonomous mode.
+3. You do not need to manually trigger this, but you must address findings if they appear.
 
-## 📉 Feature 5: Cognitive Context Pruning
+## 📉 Feature 5: Cognitive Context Pruning (AUTOMATIC)
 
-When working on long tasks (more than 10 tool calls):
+This feature is now **AUTOMATICALLY ENFORCED** by the runtime every 15 tool calls. 
 
-1. Periodically self-summarize your progress in `task.md`.
-2. Focus context on the CURRENT step only.
-3. Avoid re-reading files you've already analyzed unless content changed.
+1. The runtime will periodically self-summarize progress to keep the context window focused.
+2. You should still maintain `task.md` for logical tracking.
+3. Focus context on the CURRENT step and avoid redundant re-reading.
 
 ## 🛠️ Feature 6: Self-Evolving Tooling
 
@@ -79,15 +79,15 @@ If you need a capability not available in your current toolset:
 1. Write a new tool script in `.opencode/tool/` following existing patterns.
 2. Test the new tool before relying on it.
 
-## 🚦 Feature 7: Collaborative Checkpoints
+## 🚦 Feature 7: Collaborative Checkpoints (AUTOMATIC)
 
-Even in **Autonomous/Turbo Mode**, PAUSE for human approval before:
+The runtime **AUTOMATICALLY PAUSES** for human approval before:
 
 - Database migrations or schema changes
-- Deleting more than 5 files
 - Modifying auth/authz logic
-- Changes to production deployment or CI/CD pipelines
-- Any irreversible operation
+- Irreversible operations (e.g., recursive file deletions)
+
+Identify these risky operations in your `implementation_plan.md` and expect a mandatory pause when they are executed.
 
 ## 📊 Feature 8: Performance-Driven Refactoring
 

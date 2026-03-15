@@ -48,6 +48,25 @@ export class ContextLoader {
       })
     }
 
+    // Load Tribal Knowledge
+    const knowledgeBase = path.join(root, ".opencode", "knowledge")
+    const knowledgeDirs = ["patterns", "gotchas", "decisions"]
+    for (const dir of knowledgeDirs) {
+      const dirPath = path.join(knowledgeBase, dir)
+      if (!(await Filesystem.exists(dirPath))) continue
+      const files = await readdir(dirPath, { withFileTypes: true })
+      for (const file of files) {
+        if (file.isDirectory()) continue
+        if (tags.some((tag) => file.name.includes(tag))) {
+          const content = await Filesystem.readText(path.join(dirPath, file.name))
+          items.push({
+            name: `knowledge/${dir}/${file.name}`,
+            content: TokenOptimizer.optimize(content, 3000),
+          })
+        }
+      }
+    }
+
     // Load RAG Chunks based on tags
     for (const tag of tags) {
       const chunks = await CodebaseRAG.search(root, tag, 3)
