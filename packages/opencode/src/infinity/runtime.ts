@@ -211,7 +211,7 @@ export class InfinityRuntime {
         await db
           .insert(InfinityTable)
           .values({
-            id: Identifier.descending("infinity", pid),
+            id: Identifier.descending("infinity"),
             project_id: pid as any,
             status: this.isRunning ? "running" : "idle",
             current_stage: this.currentStage || "none",
@@ -553,7 +553,19 @@ export class InfinityRuntime {
 
     // SWAT Dispatcher: Check for critical health drops
     if (report && report.health_score < 70) {
-      this.log("ARCHITECT", "CRITICAL HEALTH DROP detected. Dispatching SWAT directive to Planner.")
+      this.log("ARCHITECT", "CRITICAL HEALTH DROP detected. Auto-injecting stability task.")
+      const queue = this.readQueue()
+      queue.unshift({
+        id: this.generateTaskId(),
+        title: "CRITICAL: Urgent Stability Audit (Auto-Generated)",
+        source: "internal_audit",
+        priority: 10,
+        category: "stability",
+        scope: ["*"],
+        acceptance: ["Health score returns to >80", "All critical logs resolved"],
+        status: "queued",
+      })
+      this.writeQueue(queue)
     }
 
     this.advanceStage()
@@ -562,30 +574,23 @@ export class InfinityRuntime {
   private async stageSuggester(): Promise<void> {
     this.log("SUGGESTER", "Running suggester stage...")
 
-    // Invoke suggester agent - write 2-3 candidate tasks to queue.json
-    // The suggester agent should NOT execute, just propose tasks
-
-    // For now, we'll simulate the suggester output
-    // In production, this would call the suggester subagent
-    const newTasks = this.simulateSuggesterOutput()
-
-    if (newTasks.length === 0) {
-      this.log("SUGGESTER", "No tasks suggested, advancing to rearm")
-      this.advanceStage()
-      return
+    // Add real bootstrap task if queue is completely empty
+    const queue = this.readQueue()
+    if (queue.length === 0) {
+      this.log("SUGGESTER", "Queue empty. Injecting project audit task.")
+      queue.push({
+        id: this.generateTaskId(),
+        title: "Perform Initial Codebase Integrity Audit",
+        source: "internal_audit",
+        priority: 1,
+        category: "stability",
+        scope: ["src", "packages"],
+        acceptance: ["No high-severity lint errors", "All core packages build"],
+        status: "queued",
+      })
+      this.writeQueue(queue)
     }
 
-    // Read existing queue
-    const queue = this.readQueue()
-
-    // Add new tasks (avoiding duplicates)
-    const existingIds = new Set(queue.map((t) => this.getTaskFingerprint(t)))
-    const filteredNewTasks = newTasks.filter((t) => !existingIds.has(this.getTaskFingerprint(t)))
-
-    queue.push(...filteredNewTasks)
-    this.writeQueue(queue)
-
-    this.log("SUGGESTER", `Added ${filteredNewTasks.length} tasks to queue`)
     this.advanceStage()
   }
 
@@ -724,12 +729,29 @@ export class InfinityRuntime {
 
     this.log("PERFORMANCE", `Latency measured: ${latencyMs.toFixed(2)}ms`)
 
+    // Base calculation from User Spec
+    let health = 100
+    const reportPath = path.join(this.root, ".opencode", "report.json")
+    if (fs.existsSync(reportPath)) {
+      try {
+        const report = JSON.parse(fs.readFileSync(reportPath, "utf-8"))
+        health -= (report.critical_alerts || 0) * 25
+        health -= (report.warning_alerts || 0) * 15
+        health -= (report.info_alerts || 0) * 10
+        if (report.fps < 55) health -= 20
+        if (report.memory_usage_mb > 100) health -= 15
+        if (latencyMs > 100) health -= 10
+      } catch {}
+    }
+
+    health = Math.max(0, health)
+
     // Record performance event
     this.appendEvent(this.currentRunId, {
       type: "performance",
       timestamp: new Date().toISOString(),
       latency_ms: latencyMs,
-      score: latencyMs < 200 ? 100 : 50,
+      score: health,
     } as any)
 
     this.advanceStage()

@@ -19,5 +19,8 @@ export const InfinityTable = sqliteTable(
     metrics: text({ mode: "json" }),
     ...Timestamps,
   },
-  (table) => [index("infinity_project_idx").on(table.project_id)],
+  (table) => [
+    index("infinity_project_idx").on(table.project_id),
+    index("infinity_project_unique_idx").on(table.project_id),
+  ],
 )
