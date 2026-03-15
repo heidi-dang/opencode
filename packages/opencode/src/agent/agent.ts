@@ -169,7 +169,6 @@ export namespace Agent {
         description: "Advanced Agentic Coding assistant. Full autonomy with mandatory planning and task tracking.",
         prompt: PROMPT_HEIDI,
         color: "#FFD700",
-        steps: 100,
         permission: PermissionNext.merge(
           defaults,
           PermissionNext.fromConfig({
