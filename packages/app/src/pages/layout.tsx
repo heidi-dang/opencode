@@ -131,7 +131,8 @@ export default function Layout(props: ParentProps) {
   const language = useLanguage()
   const currentDirFromPath = () => {
     const parts = location.pathname.split("/")
-    return parts.length > 1 && parts[1] ? parts[1] : undefined
+    if (parts.length > 2 && parts[1] === "infinity") return parts[2]
+    return parts.length > 1 && parts[1] && parts[1] !== "infinity" ? parts[1] : undefined
   }
   const decodedDirFromPath = () => decode64(currentDirFromPath())
   const initialDirectory = decodedDirFromPath() || decode64(params.dir)
@@ -316,6 +317,7 @@ export default function Layout(props: ParentProps) {
   }
 
   const navigateWithSidebarReset = (href: string) => {
+    localStorage.setItem("redirect_trace", href + "\n" + new Error().stack)
     clearSidebarHoverState()
     navigate(href)
     layout.mobileSidebar.hide()
@@ -1237,6 +1239,7 @@ export default function Layout(props: ParentProps) {
   }
 
   async function navigateToProject(directory: string | undefined) {
+    if (location.pathname.includes("/infinity")) return
     if (!directory) return
     const root = projectRoot(directory)
     server.projects.touch(root)
@@ -1957,7 +1960,7 @@ export default function Layout(props: ParentProps) {
     setHoverSession,
     navigateToInfinity: (directory: string) => {
       openProject(directory)
-      navigate(`/${base64Encode(directory)}/infinity`)
+      navigate(`/infinity/${base64Encode(directory)}`)
     },
   }
 
@@ -2145,17 +2148,17 @@ export default function Layout(props: ParentProps) {
                         <Button
                           size="large"
                           variant="ghost"
-                          class="w-full justify-start gap-2"
+                          class="w-full justify-start gap-2 bg-primary-base/5 hover:bg-primary-base/10 border border-primary-base/10"
                           onClick={() => {
                             const dir = worktree()
                             if (!dir) return
-                            navigateWithSidebarReset(`/${base64Encode(dir)}/infinity`)
+                            navigateWithSidebarReset(`/infinity/${base64Encode(dir)}`)
                           }}
                         >
                            <div class="shrink-0 size-4 flex items-center justify-center">
                              <div class="size-2 rounded-full bg-primary-base animate-pulse" />
                            </div>
-                           Infinity Loop
+                           <span class="text-primary-base font-semibold">Infinity Monitor</span>
                         </Button>
                       </div>
                     <div class="flex-1 min-h-0">
@@ -2187,17 +2190,17 @@ export default function Layout(props: ParentProps) {
                     <Button
                       size="large"
                       variant="ghost"
-                      class="w-full justify-start gap-2"
+                      class="w-full justify-start gap-2 bg-primary-base/5 hover:bg-primary-base/10 border border-primary-base/10"
                       onClick={() => {
                         const dir = worktree()
                         if (!dir) return
-                        navigateWithSidebarReset(`/${base64Encode(dir)}/infinity`)
+                        navigateWithSidebarReset(`/infinity/${base64Encode(dir)}`)
                       }}
                     >
                        <div class="shrink-0 size-4 flex items-center justify-center">
                          <div class="size-2 rounded-full bg-primary-base animate-pulse" />
                        </div>
-                       Infinity Loop
+                       <span class="text-primary-base font-semibold">Infinity Monitor</span>
                     </Button>
                   </div>
                   <div class="relative flex-1 min-h-0">

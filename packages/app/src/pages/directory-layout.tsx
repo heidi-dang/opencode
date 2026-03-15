@@ -36,6 +36,7 @@ export default function Layout(props: ParentProps) {
   const globalSDK = useGlobalSDK()
   const directory = createMemo(() => decode64(params.dir) ?? "")
   const [state, setState] = createStore({ invalid: "", resolved: "" })
+  console.log("DirectoryLayout processing", { dir: params.dir, pathname: location.pathname, search: location.search })
 
   createEffect(() => {
     if (!params.dir) return

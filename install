@@ -387,6 +387,11 @@ install_from_local_repo() {
     
     # Build the project
     cd "$REPO_ROOT"
+    print_message info "${MUTED}Running bun install at root...${NC}"
+    if ! bun install; then
+        print_message error "Failed to run bun install"
+        exit 1
+    fi
     if ! bun run --cwd packages/opencode build; then
         print_message error "Failed to build the project"
         exit 1

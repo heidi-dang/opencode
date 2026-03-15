@@ -189,6 +189,7 @@ for (const item of targets) {
       windows: {},
     },
     entrypoints: ["./src/index.ts", parserWorker, workerPath],
+    external: ["playwright-core"],
     define: {
       OPENCODE_VERSION: `'${Script.version}'`,
       OPENCODE_MIGRATIONS: JSON.stringify(migrations),
