@@ -65,6 +65,7 @@ export interface RunState {
   log_path?: string
   project_id?: string
   attempts?: number
+  modified_files?: string[]
 }
 
 export interface Plan {
@@ -724,6 +725,7 @@ ${gitLog}`
       return
     }
 
+    const modified: string[] = []
     for (const file of inspectResult.allowed_files) {
       const fullPath = path.join(this.root, file)
       if (!fs.existsSync(fullPath)) continue
@@ -733,7 +735,12 @@ ${gitLog}`
       const patch = await this.adapter.patchTarget(inspectResult, content)
       
       fs.writeFileSync(fullPath, patch.content)
+      modified.push(file)
     }
+
+    const state = this.readRunState(this.currentRunId)!
+    state.modified_files = modified
+    this.writeRunState(this.currentRunId, state)
 
     const diff = (await Process.text(["git", "diff"], { cwd: this.root })).text
     if (diff.trim()) {
@@ -804,10 +811,19 @@ ${gitLog}`
   }
 
   private async rollback(): Promise<void> {
-    this.log("ROLLBACK_EXEC", `Rolling back changes in ${this.root}...`)
+    if (!this.currentRunId) return
+    const state = this.readRunState(this.currentRunId)
+    const files = state?.modified_files || []
+
+    if (files.length === 0) {
+      this.log("ROLLBACK_SKIP", "No recorded modified files to rollback")
+      return
+    }
+
+    this.log("ROLLBACK_EXEC", `Rolling back ${files.length} files in ${this.root}...`)
     try {
-      await Process.run(["git", "checkout", "--", "."], { cwd: this.root })
-      this.log("ROLLBACK_SUCCESS", "Rollback successful")
+      await Process.run(["git", "checkout", "--", ...files], { cwd: this.root })
+      this.log("ROLLBACK_SUCCESS", `Successfully rolled back: ${files.join(", ")}`)
     } catch (e) {
       this.log("ROLLBACK_ERROR", `Failed to rollback: ${e}`)
     }

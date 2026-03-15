@@ -99,7 +99,7 @@ export class CodebaseRAG {
         const chunks = await CodeChunker.chunk(file)
         // Inject mtime into metadata for next run
         for (const chunk of chunks) {
-          chunk.metadata = { ...chunk.metadata, mtime }
+          chunk.metadata = { ...chunk.metadata, mtime } as any // Cast to any because the loop above might not have metadata yet
         }
         allChunks.push(...chunks)
       } catch (err) {
