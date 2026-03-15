@@ -1,3 +1,8 @@
+// Shim for Bun's internal Node.js compatibility layer
+if (typeof globalThis !== "undefined") {
+  ;(globalThis as any).util = require("util")
+}
+
 import yargs from "yargs"
 import { hideBin } from "yargs/helpers"
 import { RunCommand } from "./cli/cmd/run"

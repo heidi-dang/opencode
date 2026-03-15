@@ -37,6 +37,25 @@ export const WebCommand = cmd({
       UI.println(UI.Style.TEXT_WARNING_BOLD + "!  " + "OPENCODE_SERVER_PASSWORD is not set; server is unsecured.")
     }
     const opts = await resolveNetworkOptions(args)
+    
+    // Check if port is available (if not 0)
+    if (opts.port !== 0) {
+      const isAvailable = await new Promise<boolean>((resolve) => {
+        const server = require("net").createServer()
+        server.on("error", () => resolve(false))
+        server.on("listening", () => {
+          server.close()
+          resolve(true)
+        })
+        server.listen(opts.port, opts.hostname === "0.0.0.0" ? undefined : opts.hostname)
+      })
+
+      if (!isAvailable) {
+        UI.error(`Port ${opts.port} is already in use. Please use --port to specify a different port.`)
+        process.exit(1)
+      }
+    }
+
     const server = Server.listen(opts)
     UI.empty()
     UI.println(UI.logo("  "))
