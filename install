@@ -392,19 +392,6 @@ install_from_local_repo() {
         exit 1
     fi
     
-    # Also build the UI packages to ensure they're available
-    print_message info "${MUTED}Building UI packages for local development...${NC}"
-    if ! bun run --cwd packages/ui build 2>/dev/null; then
-        print_message warning "UI build failed, but continuing (UI may use source files directly)"
-    fi
-    
-    # Install dependencies for all packages to ensure workspace resolution works
-    print_message info "${MUTED}Installing dependencies for local development...${NC}"
-    if ! bun install; then
-        print_message error "Failed to install dependencies"
-        exit 1
-    fi
-    
     print_message info "${MUTED}Installing locally built version...${NC}"
     
     # Create a wrapper script that calls local development version
@@ -447,61 +434,12 @@ EOF
     chmod 755 "${INSTALL_DIR}/opencode"
     print_message info "${MUTED}Created development wrapper${NC}"
     
-    # Create a specific web launcher script
-    cat > "${INSTALL_DIR}/opencode-web" << EOF
-#!/usr/bin/env bash
-# OpenCode Web local development launcher
-REPO_ROOT="$REPO_ROOT"
-
-print_message info "Starting OpenCode Web with local UI packages..."
-
-# Ensure we're using the local workspace
-cd "\$REPO_ROOT"
-
-# Kill any existing processes on the ports
-lsof -ti:4096 | xargs kill -9 2>/dev/null || true
-lsof -ti:4444 | xargs kill -9 2>/dev/null || true
-
-# Start backend in background
-cd "\$REPO_ROOT/packages/opencode"
-print_message info "Starting backend on port 4096..."
-bun run --conditions=browser src/index.ts serve --port 4096 &
-BACKEND_PID=\$!
-
-# Wait a moment for backend to start
-sleep 3
-
-# Start frontend
-cd "\$REPO_ROOT/packages/app"
-print_message info "Starting frontend on port 4444..."
-bun dev -- --port 4444 &
-FRONTEND_PID=\$!
-
-print_message info ""
-print_message info "🎉 OpenCode Web is starting!"
-print_message info ""
-print_message info "Backend: http://localhost:4096"
-print_message info "Frontend: http://localhost:4444"
-print_message info ""
-print_message info "Press Ctrl+C to stop both servers"
-
-# Handle cleanup
-trap 'print_message info "Stopping servers..."; kill \$BACKEND_PID \$FRONTEND_PID 2>/dev/null; exit' INT TERM
-
-# Wait for processes
-wait
-EOF
-    
-    chmod 755 "${INSTALL_DIR}/opencode-web"
-    print_message info "${MUTED}Created web launcher script${NC}"
-    
     specific_version="local"
     print_message info "${MUTED}Local install completed successfully!${NC}"
     print_message info ""
     print_message info "${MUTED}Usage:${NC}"
     print_message info "  opencode web      - Start web development with local UI packages"
     print_message info "  opencode          - Start backend server"
-    print_message info "  opencode-web       - Start both backend and frontend (optional)"
     print_message info ""
     print_message info "${MUTED}Default workflow:${NC}"
     print_message info "  ./install --local-repo"

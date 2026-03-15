@@ -118,13 +118,20 @@ export function ServerRow(props: ServerRowProps) {
 
 export function ServerHealthIndicator(props: { health?: ServerHealth }) {
   return (
-    <div
-      classList={{
-        "size-1.5 rounded-full shrink-0": true,
-        "bg-icon-success-base": props.health?.healthy === true,
-        "bg-icon-critical-base": props.health?.healthy === false,
-        "bg-border-weak-base": props.health === undefined,
-      }}
-    />
+    <div class="flex items-center gap-1">
+      <div
+        classList={{
+          "size-1.5 rounded-full shrink-0": true,
+          "bg-icon-success-base": props.health?.healthy === true,
+          "bg-icon-critical-base": props.health?.healthy === false,
+          "bg-border-weak-base": props.health === undefined,
+        }}
+      />
+      <Show when={props.health?.version}>
+        <span class="text-11-regular text-text-weak bg-surface-base px-1 py-0.5 rounded">
+          {props.health?.version}
+        </span>
+      </Show>
+    </div>
   )
 }
