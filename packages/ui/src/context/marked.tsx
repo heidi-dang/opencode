@@ -7,7 +7,7 @@ import { codeToHtml, createCssVariablesTheme } from "shiki"
 import { createSimpleContext } from "./helper"
 
 // Create OpenCode theme using shiki's theme API
-const openCodeTheme = createCssVariablesTheme({
+export const openCodeTheme = createCssVariablesTheme({
   name: "OpenCode",
   variablePrefix: "--vscode-",
 })

@@ -113,18 +113,27 @@ async function installFromLocalRepo() {
   const spinner = prompts.spinner()
   spinner.start("Building...")
 
-  // Build the project
+  // Build the project using turbo if possible, fallback to bun build
   const buildResult = await Process.run(["bun", "run", "build"], { 
     cwd: repoRoot, 
     nothrow: true 
   })
 
   if (buildResult.code !== 0) {
-    spinner.stop("Build failed", 1)
-    prompts.log.error("Failed to build the project:")
-    prompts.log.error(buildResult.stderr.toString())
-    prompts.outro("Done")
-    return
+    spinner.message("Build failed, attempting to build UI specifically...")
+    // Fallback to building just the app if monorepo build fails
+    const appBuildResult = await Process.run(["bun", "run", "build"], {
+      cwd: path.join(repoRoot, "packages", "app"),
+      nothrow: true
+    })
+
+    if (appBuildResult.code !== 0) {
+      spinner.stop("Build failed", 1)
+      prompts.log.error("Failed to build both the project and the UI:")
+      prompts.log.error(appBuildResult.stderr.toString())
+      prompts.outro("Done")
+      return
+    }
   }
 
   spinner.start("Installing locally...")
@@ -153,6 +162,8 @@ async function installFromLocalRepo() {
       }
     })
     prompts.log.success(`Configured local UI at ${uiDist}`)
+  } else {
+    prompts.log.warn("Local UI dist folder not found at " + uiDist + ". Server will fallback to proxy.")
   }
 
   spinner.stop("Local install complete")
