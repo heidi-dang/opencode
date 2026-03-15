@@ -21,7 +21,6 @@
   "bin": {
     "opencode": "./bin/opencode"
   },
-  "randomField": "this-is-a-random-value-12345",
   "exports": {
     "./*": "./src/*.ts"
   },

@@ -177,7 +177,25 @@ for (const item of targets) {
   await Bun.build({
     conditions: ["browser"],
     tsconfig: "./tsconfig.json",
-    plugins: [solidPlugin],
+    plugins: [
+      solidPlugin,
+      {
+        name: "resolve-js-to-ts",
+        setup(build) {
+          build.onResolve({ filter: /\.js$/ }, (args) => {
+            if (args.importer && args.path.startsWith(".")) {
+              const dir = path.dirname(args.importer)
+              const js = path.resolve(dir, args.path)
+              if (!fs.existsSync(js)) {
+                const ts = js.replace(/\.js$/, ".ts")
+                if (fs.existsSync(ts)) return { path: ts }
+              }
+            }
+            return undefined
+          })
+        },
+      },
+    ],
     compile: {
       autoloadBunfig: false,
       autoloadDotenv: false,

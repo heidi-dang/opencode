@@ -1138,16 +1138,8 @@ export namespace ACP {
         (await (async () => {
           if (!availableModes.length) return undefined
           const defaultAgentName = await AgentModule.defaultAgent()
-          const defaultAgent = availableModes.find((mode) => mode.name === defaultAgentName)
-
-          if (!defaultAgent) {
-            throw new Error(
-              `Default agent "${defaultAgentName}" is not available in this context. ` +
-                `Available agents: ${availableModes.map((m) => m.id).join(", ")}`,
-            )
-          }
-
-          const resolvedModeId = defaultAgent.id
+          const resolvedModeId =
+            availableModes.find((mode) => mode.name === defaultAgentName)?.id ?? availableModes[0].id
           this.sessionManager.setMode(sessionId, resolvedModeId)
           return resolvedModeId
         })())
