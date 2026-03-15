@@ -1,6 +1,11 @@
 import z from "zod"
 import { Tool } from "./tool"
-import { chromium, type Browser, type BrowserContext, type Page } from "playwright-core"
+import type { Browser, BrowserContext, Page } from "playwright-core"
+
+async function pw() {
+  const mod = await import("playwright-core")
+  return mod
+}
 import { Instance } from "../project/instance"
 import { Log } from "../util/log"
 import { abortAfterAny } from "../util/abort"
@@ -44,6 +49,7 @@ async function ensureBrowser() {
   const s = state()
   if (s.browser && s.browser.isConnected()) return s.browser
   log.info("launching browser")
+  const { chromium } = await pw()
   s.browser = await chromium.launch({
     headless: true,
     args: ["--no-sandbox", "--disable-setuid-sandbox"],
