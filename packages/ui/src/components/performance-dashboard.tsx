@@ -128,9 +128,9 @@ export function PerformanceDashboard() {
             <div style="font-size: 10px; opacity: 0.8;">
               <div>Node Env: {process.env.NODE_ENV}</div>
               <div>User Agent: {navigator.userAgent.slice(0, 50)}...</div>
-              <div>CPU Cores: {navigator.hardwareConcurrency}</div>
-              <div>Device Memory: {navigator.deviceMemory}GB</div>
-              <div>Connection: {navigator.connection?.effectiveType || 'Unknown'}</div>
+              <div>CPU Cores: {navigator.hardwareConcurrency || 'Unknown'}</div>
+              <div>Device Memory: {(navigator as any).deviceMemory || 'Unknown'}GB</div>
+              <div>Connection: {(navigator as any).connection?.effectiveType || 'Unknown'}</div>
               <div>Pixel Ratio: {window.devicePixelRatio}</div>
             </div>
           </Show>
