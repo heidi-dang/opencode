@@ -54,6 +54,14 @@ export type EventServerInstanceDisposed = {
   }
 }
 
+export type EventBrowserFrame = {
+  type: "browser.frame"
+  properties: {
+    data: string
+    sessionId: string
+  }
+}
+
 export type EventServerConnected = {
   type: "server.connected"
   properties: {
@@ -970,6 +978,7 @@ export type Event =
   | EventInstallationUpdateAvailable
   | EventProjectUpdated
   | EventServerInstanceDisposed
+  | EventBrowserFrame
   | EventServerConnected
   | EventGlobalDisposed
   | EventLspClientDiagnostics

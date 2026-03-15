@@ -9,6 +9,7 @@ import { useParams } from "@solidjs/router"
 import { decode64 } from "@/utils/base64"
 import { base64Encode } from "@opencode-ai/util/encode"
 import { getFilename } from "@opencode-ai/util/path"
+import { BrowserViewer } from "@/components/browser/BrowserViewer"
 
 export default function InfinityPage() {
   const globalSDK = useGlobalSDK()
@@ -239,7 +240,8 @@ export default function InfinityPage() {
         </main>
 
         {/* Side Panel Partition */}
-        <aside class="w-full lg:w-[320px] shrink-0 border-t lg:border-t-0 lg:border-l border-border-weak-base bg-surface-base flex flex-col p-4 lg:p-6 gap-6 lg:gap-8 overflow-y-auto no-scrollbar max-h-[40vh] lg:max-h-none">
+        <aside class="w-full lg:w-[400px] shrink-0 border-t lg:border-t-0 lg:border-l border-border-weak-base bg-surface-base flex flex-col p-4 lg:p-6 gap-6 lg:gap-8 overflow-y-auto no-scrollbar max-h-[40vh] lg:max-h-none">
+          <BrowserViewer />
           <section>
             <h2 class="text-11-bold lg:text-12-bold text-text-strong uppercase tracking-widest mb-4 lg:mb-6">Pipeline Status</h2>
             <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-1 gap-3 lg:gap-4">
