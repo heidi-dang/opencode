@@ -1,0 +1,144 @@
+import { generateObject, type ModelMessage } from "ai"
+import { z } from "zod"
+import { Provider } from "../provider/provider"
+import type { Task, RunState, GateResult, Plan, WorkerAssignment } from "./runtime"
+import { Config } from "../config/config"
+import { Identifier } from "@/id/id"
+import { Log } from "../util/log"
+
+const log = Log.create({ service: "infinity-adapter" })
+
+export class InfinityAdapter {
+  private root: string
+
+  constructor(root: string) {
+    this.root = root
+  }
+
+  private async getModel() {
+    const provider = await Provider.defaultModel()
+    return await Provider.getModel(provider.providerID, provider.modelID)
+  }
+
+  async suggestTasks(repoOverview: string): Promise<Task[]> {
+    const model = await this.getModel()
+    const language = await Provider.getLanguage(model)
+
+    const { object } = await generateObject({
+      model: language,
+      system: "You are the Infinity Suggester. Analyze the repository state and suggest stability/performance tasks.",
+      prompt: `Repo Overview:\n${repoOverview}\n\nSuggest 3-5 high-impact tasks to improve project stability, performance, or security.`,
+      schema: z.object({
+        tasks: z.array(z.object({
+          id: z.string(),
+          title: z.string(),
+          source: z.enum(["internal_audit", "external_triage", "tech_radar", "cost_profile", "post_mortem"]),
+          priority: z.number().min(1).max(10),
+          category: z.enum(["stability", "performance", "feature", "cost", "security"]),
+          scope: z.array(z.string()),
+          acceptance: z.array(z.string()),
+          constraints: z.array(z.string()).optional(),
+          verify_command: z.string().optional(),
+        }))
+      })
+    })
+
+    return object.tasks.map(t => ({
+      ...t,
+      status: "queued" as const
+    }))
+  }
+
+  async createPlan(task: Task, repoContext: string): Promise<Plan> {
+    const model = await this.getModel()
+    const language = await Provider.getLanguage(model)
+
+    const { object } = await generateObject({
+      model: language,
+      system: "You are the Infinity Planner. Produce a detailed execution plan for the given task.",
+      prompt: `Task: ${task.title}\nAcceptance: ${task.acceptance.join(", ")}\nContext:\n${repoContext}`,
+      schema: z.object({
+        plan: z.object({
+          workers: z.array(z.object({
+            worker_id: z.string(),
+            scope: z.array(z.string()),
+            start_line: z.number().optional(),
+            end_line: z.number().optional(),
+          }))
+        })
+      })
+    })
+
+    return {
+      run_id: Identifier.descending("run"),
+      task_id: task.id,
+      task,
+      workers: object.plan.workers,
+      created_at: new Date().toISOString()
+    }
+  }
+
+  async reportResults(task: Task, diff: string, logs: string): Promise<GateResult> {
+    const model = await this.getModel()
+    const language = await Provider.getLanguage(model)
+
+    const { object } = await generateObject({
+      model: language,
+      system: "You are the Infinity Reporter. Judge the success of a task based on code changes and verification logs.",
+      prompt: `Task: ${task.title}\nDiff:\n${diff}\nLogs:\n${logs}`,
+      schema: z.object({
+        result: z.enum(["pass", "fail", "blocked", "retry_with_actions"]),
+        gates: z.array(z.object({
+          name: z.enum(["cloud_ci", "security", "visual", "benchmark"]),
+          status: z.enum(["pass", "fail", "skipped"]),
+          details: z.string()
+        })),
+        retry_actions: z.array(z.string()).optional()
+      })
+    })
+
+    return {
+      task_id: task.id,
+      run_id: Identifier.descending("infinity"),
+      result: object.result,
+      gates: object.gates,
+      retry_actions: object.retry_actions
+    }
+  }
+
+  async extractLessons(run: RunState, events: string): Promise<string[]> {
+    const model = await this.getModel()
+    const language = await Provider.getLanguage(model)
+
+    const { object } = await generateObject({
+      model: language,
+      system: "You are the Infinity Librarian. Extract reusable lessons from this autonomous run.",
+      prompt: `Run Status: ${run.status}\nEvents:\n${events}`,
+      schema: z.object({
+        lessons: z.array(z.string())
+      })
+    })
+
+    return object.lessons
+  }
+
+  async deriveOpportunities(repoState: string): Promise<any[]> {
+    const model = await this.getModel()
+    const language = await Provider.getLanguage(model)
+
+    const { object } = await generateObject({
+      model: language,
+      system: "You are the Infinity Innovator. Derive follow-up ideas or architectural expansion opportunities.",
+      prompt: `Repository State:\n${repoState}`,
+      schema: z.object({
+        opportunities: z.array(z.object({
+          title: z.string(),
+          description: z.string(),
+          impact: z.enum(["low", "medium", "high"])
+        }))
+      })
+    })
+
+    return object.opportunities
+  }
+}

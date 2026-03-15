@@ -19,6 +19,7 @@ import { eq, desc } from "drizzle-orm"
 import { Identifier } from "@/id/id"
 import { Process } from "../util/process"
 import { ProjectScanner } from "./scanner"
+import { InfinityAdapter } from "./adapter"
 
 // ============================================================================
 // Types
@@ -168,6 +169,7 @@ export class InfinityRuntime {
   private cycleCount = 0
   private isRunning = false
   private scanner: ProjectScanner
+  private adapter: InfinityAdapter
 
   constructor(root: string, config: Partial<InfinityConfig> = {}) {
     this.root = root
@@ -179,6 +181,7 @@ export class InfinityRuntime {
       watch: config.watch ?? false,
     }
     this.scanner = new ProjectScanner(root)
+    this.adapter = new InfinityAdapter(root)
   }
 
   // ============================================================================
@@ -244,6 +247,18 @@ export class InfinityRuntime {
     } catch (e) {
       this.log("DB_ERROR", `Failed to save state: ${e}`)
     }
+  }
+
+  private async getRepoOverview(): Promise<string> {
+    const discoveries = await this.scanner.scan()
+    const pkgs = discoveries.map(t => t.title).join(", ")
+    const gitLog = await Process.text(["git", "log", "-n", "10", "--oneline"], { cwd: this.root })
+    return `Repo Statistics:
+- Total Packages Detected: ${discoveries.length}
+- Packages: ${pkgs}
+
+Recent Git Activity:
+${gitLog}`
   }
 
   private async loadState(): Promise<void> {
@@ -586,12 +601,13 @@ export class InfinityRuntime {
   private async stageSuggester(): Promise<void> {
     this.log("SUGGESTER", "Running suggester stage...")
 
+    const overview = await this.getRepoOverview()
     const queue = this.readQueue()
-    const discoveries = await this.scanner.scan()
+    const discoveries = await this.adapter.suggestTasks(overview)
 
     for (const discovery of discoveries) {
-      // Avoid duplicates
-      const exists = queue.some((t) => t.title === discovery.title || t.id === discovery.id)
+      // Avoid duplicates based on title
+      const exists = queue.some((t) => t.title === discovery.title)
       if (!exists) {
         this.log("SUGGESTER", `Discovered new task: ${discovery.title}`)
         queue.push(discovery)
@@ -629,10 +645,7 @@ export class InfinityRuntime {
   private async stagePlanner(): Promise<void> {
     this.log("PLANNER", "Running planner stage...")
 
-    // Read queue
     const queue = this.readQueue()
-
-    // Find next eligible task (status === "queued")
     const nextTask = queue.find((t) => t.status === "queued")
 
     if (!nextTask) {
@@ -645,31 +658,23 @@ export class InfinityRuntime {
     nextTask.status = "in_progress"
     this.writeQueue(queue)
 
-    // Create run
+    // Produce real plan with LLM
+    const overview = await this.getRepoOverview()
+    const plan = await this.adapter.createPlan(nextTask, overview)
+    
+    // Create run entry
     const runId = this.createRun(nextTask.id)
-
-    // Create plan
-    const plan: Plan = {
-      run_id: runId,
-      task_id: nextTask.id,
-      task: nextTask,
-      workers: [
-        {
-          worker_id: "dev-1",
-          scope: nextTask.scope,
-        },
-      ],
-      created_at: new Date().toISOString(),
-    }
+    plan.run_id = runId // Ensure it matches our tracker
+    
     this.writePlan(runId, plan)
 
     // Update run state
     const state = this.readRunState(runId)!
     state.status = "assigned"
-    state.workers = ["dev-1"]
+    state.workers = plan.workers.map(w => w.worker_id)
     this.writeRunState(runId, state)
 
-    this.log("PLANNER", `Assigned task ${nextTask.id} to run ${runId}`)
+    this.log("PLANNER", `Assigned task ${nextTask.id} to run ${runId} with LLM plan`)
     this.advanceStage()
   }
 
@@ -687,28 +692,37 @@ export class InfinityRuntime {
     this.appendEvent(this.currentRunId, {
       type: "progress",
       timestamp: new Date().toISOString(),
-      message: "Dev stage executing real diff capture...",
+      message: "Dev stage executing real agent via opencode run...",
     })
 
     try {
-      // 1. Capture Pre-Diff
-      const preDiff = await Process.text(["git", "diff"], { cwd: this.root })
-      
-      this.log("DEV", "Simulating subagent activity (real diffs captured)...")
-      // In a real scenario, we'd spawn a subagent here.
-      await new Promise((r) => setTimeout(r, 1000))
+      const task = this.getCurrentTask()
+      if (!task) throw new Error("Task not found for dev stage")
 
-      // 2. Capture Post-Diff
-      const postDiff = await Process.text(["git", "diff"], { cwd: this.root })
+      const message = `Task: ${task.title}\nAcceptance: ${task.acceptance.join(", ")}`
+      this.log("DEV", `Spawning agent for task: ${task.title}`)
+
+      const result = await Process.run(["opencode", "run", message], { 
+        cwd: this.root,
+        nothrow: true 
+      })
+
+      if (result.code !== 0) {
+        this.log("DEV_ERROR", `Agent failed with code ${result.code}`)
+      }
+
+      const postDiffRaw = await Process.text(["git", "diff"], { cwd: this.root })
+      const postDiff = postDiffRaw.toString()
       
-      if (postDiff.text !== preDiff.text) {
+      if (postDiff.trim().length > 0) {
         const proofDir = path.join(this.root, ".opencode", "runs", this.currentRunId)
         if (!fs.existsSync(proofDir)) fs.mkdirSync(proofDir, { recursive: true })
         
         const proofPath = path.join(proofDir, "proof.diff")
-        fs.writeFileSync(proofPath, postDiff.text)
+        fs.writeFileSync(proofPath, postDiff)
         state.proof_path = proofPath
         this.writeRunState(this.currentRunId, state)
+        this.log("DEV", "Captured git diff proof")
       }
 
       this.appendEvent(this.currentRunId, {
@@ -718,8 +732,8 @@ export class InfinityRuntime {
         run_id: this.currentRunId,
         worker_id: "dev-1",
         files_changed: [], 
-        tests_passed: true,
-        summary: "Dev stage finished with real diff capture",
+        tests_passed: result.code === 0,
+        summary: `Dev stage finished with code ${result.code}`,
       } as any)
 
       state.status = "ready_for_reporter"
@@ -813,20 +827,27 @@ export class InfinityRuntime {
 
     try {
       this.log("REPORTER", `Executing: ${command}`)
-      // Split command into parts for Process.run
       const result = await Process.run(command.split(/\s+/), { cwd: this.root, nothrow: true })
       
-      const output = `COMMAND: ${command}\nEXIT_CODE: ${result.code}\n\nSTDOUT:\n${result.stdout.toString()}\n\nSTDERR:\n${result.stderr.toString()}`
-      fs.writeFileSync(logPath, output)
+      const logs = `COMMAND: ${command}\nEXIT_CODE: ${result.code}\n\nSTDOUT:\n${result.stdout.toString()}\n\nSTDERR:\n${result.stderr.toString()}`
+      fs.writeFileSync(logPath, logs)
 
+      // Capture final diff as evidence
+      const finalDiffRaw = await Process.text(["git", "diff", "HEAD~1"], { cwd: this.root })
+      const finalDiff = finalDiffRaw.toString()
+
+      // Judge with LLM
+      const gateResult = await this.adapter.reportResults(task, finalDiff, logs)
+      
       state.log_path = logPath
-      state.status = result.code === 0 ? "passed" : "failed"
+      state.status = gateResult.result === "pass" ? "passed" : "failed"
+      state.gate_result = gateResult
       this.writeRunState(this.currentRunId, state)
 
-      this.log("REPORTER", result.code === 0 ? "PASSED ✅" : "FAILED ❌")
+      this.log("REPORTER", `LLM Verdict: ${gateResult.result.toUpperCase()} (${gateResult.gates.length} gates checked)`)
       this.advanceStage()
     } catch (e) {
-      this.log("REPORTER_ERROR", `Verification execution failed: ${e}`)
+      this.log("REPORTER_ERROR", `Verification judge failed: ${e}`)
       this.advanceStage()
     }
   }
@@ -838,60 +859,49 @@ export class InfinityRuntime {
 
     this.log("LIBRARIAN", `Running librarian stage for run ${this.currentRunId}...`)
 
-    // Read run state
     const state = this.readRunState(this.currentRunId)!
+    const logPath = state.log_path || ""
+    const logs = fs.existsSync(logPath) ? fs.readFileSync(logPath, "utf-8") : "No logs found"
 
-    // Librarian only writes knowledge for passing runs
-    if (state.status === "passed") {
-      // Create notes directory
+    try {
+      this.log("LIBRARIAN", "Asking LLM to extract reusable lessons...")
+      const lessons = await this.adapter.extractLessons(state, logs)
+      
+      this.log("LIBRARIAN", `Extracted ${lessons.length} lessons`)
+      
       const notesDir = path.join(this.root, ".opencode", "runs", this.currentRunId, "notes")
       this.ensureDir(notesDir)
+      fs.writeFileSync(path.join(notesDir, "lessons.json"), JSON.stringify(lessons, null, 2))
 
-      // Write knowledge to .opencode/knowledge/
-      const knowledgeDir = path.join(this.root, ".opencode", "knowledge")
-      const lesson = {
-        id: `lesson-${Date.now()}`,
-        run_id: this.currentRunId,
-        task_id: this.currentTaskId,
-        category: "pattern",
-        title: "Example lesson",
-        body: "Lesson learned from this run",
-        files: [],
-        created_at: new Date().toISOString(),
-      }
-
-      const patternFile = path.join(knowledgeDir, "patterns", `${lesson.id}.json`)
-      fs.writeFileSync(patternFile, JSON.stringify(lesson, null, 2), "utf-8")
-
-      this.log("LIBRARIAN", "Wrote knowledge to .opencode/knowledge/")
-    } else {
-      this.log("LIBRARIAN", "Run did not pass, not writing knowledge")
+      this.advanceStage()
+    } catch (e) {
+      this.log("LIBRARIAN_ERROR", `Failed to extract lessons: ${e}`)
+      this.advanceStage()
     }
-
-    this.advanceStage()
   }
 
   private async stageInnovation(): Promise<void> {
-    this.log("INNOVATION", "Running innovation intelligence stage...")
+    this.log("INNOVATION", "Running innovation finder...")
 
-    // Discover opportunities
-    const opportunities = [
-      { id: "opt-001", title: "Add Redis Caching layer", impact: "high" },
-      { id: "opt-002", title: "Migrate to Edge Functions", impact: "medium" },
-    ]
+    try {
+      const overview = await this.getRepoOverview()
+      const discoveries = await this.adapter.deriveOpportunities(overview)
+      
+      this.log("INNOVATION", `Discovered ${discoveries.length} potential innovation points`)
+      
+      const blueprintDir = path.join(this.root, ".opencode", "blueprints")
+      this.ensureDir(blueprintDir)
+      fs.writeFileSync(
+        path.join(blueprintDir, `innovation-${Date.now()}.json`),
+        JSON.stringify({ discoveries, timestamp: new Date().toISOString() }, null, 2),
+        "utf-8",
+      )
 
-    this.log("INNOVATION", `Found ${opportunities.length} innovation opportunities`)
-
-    // Save blueprints
-    const blueprintDir = path.join(this.root, ".opencode", "blueprints")
-    this.ensureDir(blueprintDir)
-    fs.writeFileSync(
-      path.join(blueprintDir, `innovation-${Date.now()}.json`),
-      JSON.stringify({ opportunities, timestamp: new Date().toISOString() }, null, 2),
-      "utf-8",
-    )
-
-    this.advanceStage()
+      this.advanceStage()
+    } catch (e) {
+      this.log("INNOVATION_ERROR", `Failed to derive opportunities: ${e}`)
+      this.advanceStage()
+    }
   }
 
   private async stageRearm(): Promise<void> {
