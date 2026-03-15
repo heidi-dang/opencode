@@ -45,7 +45,7 @@ export function usePerformanceMetrics() {
       setMetrics(prev => ({
         ...prev,
         fps,
-        memoryUsage: performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) : prev.memoryUsage,
+        memoryUsage: (performance as any).memory ? Math.round((performance as any).memory.usedJSHeapSize / 1048576) : prev.memoryUsage,
         latency: Math.round(currentTime - lastTime),
         overallScore: calculateOverallScore({ fps, memoryUsage: prev.memoryUsage, latency: currentTime - lastTime, renderTime: prev.renderTime })
       }))
