@@ -146,10 +146,11 @@ export const BrowserNavigateTool = Tool.define("browser_navigate", {
         output: `Successfully navigated to ${params.url}`,
         metadata: { url: params.url, timeout: params.timeout },
       }
-    } catch (error: any) {
+    } catch (err: unknown) {
       clearTimeout()
       const attachment = await takeErrorScreenshot(page, "navigate")
-      throw new Error(`Navigation failed: ${error.message}${attachment ? " (See attached screenshot)" : ""}`)
+      const msg = err instanceof Error ? err.message : String(err)
+      throw new Error(`Navigation failed: ${msg}${attachment ? " (See attached screenshot)" : ""}`)
     }
   },
 })
@@ -219,9 +220,10 @@ export const BrowserClickTool = Tool.define("browser_click", {
         output: `Successfully clicked element: ${params.selector}`,
         metadata: { selector: params.selector },
       }
-    } catch (error: any) {
+    } catch (err: unknown) {
       const attachment = await takeErrorScreenshot(page, "click")
-      throw new Error(`Click failed: ${error.message}${attachment ? " (See attached screenshot)" : ""}`)
+      const msg = err instanceof Error ? err.message : String(err)
+      throw new Error(`Click failed: ${msg}${attachment ? " (See attached screenshot)" : ""}`)
     }
   },
 })
@@ -250,9 +252,10 @@ export const BrowserTypeTool = Tool.define("browser_type", {
         output: `Successfully typed text into element: ${params.selector}`,
         metadata: { selector: params.selector, text: params.text },
       }
-    } catch (error: any) {
+    } catch (err: unknown) {
       const attachment = await takeErrorScreenshot(page, "type")
-      throw new Error(`Type failed: ${error.message}${attachment ? " (See attached screenshot)" : ""}`)
+      const msg = err instanceof Error ? err.message : String(err)
+      throw new Error(`Type failed: ${msg}${attachment ? " (See attached screenshot)" : ""}`)
     }
   },
 })
@@ -352,9 +355,10 @@ export const BrowserWaitTool = Tool.define("browser_wait", {
           metadata: { selector: params.selector, timeMs: params.timeMs },
         }
       }
-    } catch (error: any) {
+    } catch (err: unknown) {
       const attachment = await takeErrorScreenshot(page, "wait")
-      throw new Error(`Wait failed: ${error.message}${attachment ? " (See attached screenshot)" : ""}`)
+      const msg = err instanceof Error ? err.message : String(err)
+      throw new Error(`Wait failed: ${msg}${attachment ? " (See attached screenshot)" : ""}`)
     }
   },
 })
@@ -383,9 +387,10 @@ export const BrowserHoverTool = Tool.define("browser_hover", {
         output: `Successfully hovered over element: ${params.selector}`,
         metadata: { selector: params.selector },
       }
-    } catch (error: any) {
+    } catch (err: unknown) {
       const attachment = await takeErrorScreenshot(page, "hover")
-      throw new Error(`Hover failed: ${error.message}${attachment ? " (See attached screenshot)" : ""}`)
+      const msg = err instanceof Error ? err.message : String(err)
+      throw new Error(`Hover failed: ${msg}${attachment ? " (See attached screenshot)" : ""}`)
     }
   },
 })
@@ -414,9 +419,10 @@ export const BrowserPressTool = Tool.define("browser_press", {
         output: `Successfully pressed key: ${params.key}`,
         metadata: { key: params.key },
       }
-    } catch (error: any) {
+    } catch (err: unknown) {
       const attachment = await takeErrorScreenshot(page, "press")
-      throw new Error(`Press failed: ${error.message}${attachment ? " (See attached screenshot)" : ""}`)
+      const msg = err instanceof Error ? err.message : String(err)
+      throw new Error(`Press failed: ${msg}${attachment ? " (See attached screenshot)" : ""}`)
     }
   },
 })
@@ -439,10 +445,10 @@ export const BrowserReadTool = Tool.define("browser_read", {
     const page = await ensurePage()
     
     if (params.format === "accessibility") {
-      const snapshot = await (page as any).accessibility.snapshot()
+      const ax = await (page as Page).accessibility.snapshot()
       return {
         title: "Accessibility Tree Snapshot",
-        output: JSON.stringify(snapshot, null, 2),
+        output: JSON.stringify(ax, null, 2),
         metadata: { format: params.format as string },
       }
     }
