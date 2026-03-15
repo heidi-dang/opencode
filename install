@@ -422,7 +422,7 @@ if [ -f "\$REPO_ROOT/packages/opencode/src/index.ts" ]; then
     
     # For web commands, ensure we use local UI packages
     case "\${1:-}" in
-        "dev:web"|"web"|"ui")
+        "web")
             print_message info "Starting OpenCode web with local UI packages..."
             cd "\$REPO_ROOT/packages/app"
             exec bun dev -- --port 4444 "\${@:2}"
@@ -499,12 +499,13 @@ EOF
     print_message info "${MUTED}Local install completed successfully!${NC}"
     print_message info ""
     print_message info "${MUTED}Usage:${NC}"
+    print_message info "  opencode web      - Start web development with local UI packages"
     print_message info "  opencode          - Start backend server"
-    print_message info "  opencode dev:web   - Start web development"
-    print_message info "  opencode-web       - Start both backend and frontend"
+    print_message info "  opencode-web       - Start both backend and frontend (optional)"
     print_message info ""
-    print_message info "${MUTED}For web development with local UI packages:${NC}"
-    print_message info "  opencode-web"
+    print_message info "${MUTED}Default workflow:${NC}"
+    print_message info "  ./install --local-repo"
+    print_message info "  opencode web"
     print_message info "  Then open: http://localhost:4444"
 }
 
