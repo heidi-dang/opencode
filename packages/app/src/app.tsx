@@ -47,183 +47,12 @@ import Layout from "@/pages/layout"
 import { ErrorPage } from "./pages/error"
 import { useCheckServerHealth } from "./utils/server-health"
 
-// Simple Performance Dashboard (inline to avoid import issues)
-function PerformanceDashboard() {
-  const [isVisible, setIsVisible] = createSignal(true)
-  const [activeTab, setActiveTab] = createSignal<'status' | 'features' | 'monitoring'>('status')
-  
-  return (
-    <Show when={isVisible()}>
-      <div style={{
-        position: 'fixed',
-        top: '10px',
-        left: '10px',
-        background: 'rgba(0,0,0,0.95)',
-        color: 'white',
-        padding: '16px',
-        'border-radius': '8px',
-        'font-family': 'monospace',
-        'font-size': '12px',
-        'z-index': '10000',
-        'max-width': '350px',
-        'max-height': '80vh',
-        'overflow-y': 'auto'
-      }}>
-        {/* Header */}
-        <div style={{
-          'font-weight': 'bold',
-          'margin-bottom': '12px',
-          'font-size': '14px',
-          'text-align': 'center'
-        }}>
-          🎛️ Performance Dashboard
-        </div>
-        
-        {/* Status Tab */}
-        <Show when={activeTab() === 'status'}>
-          <div style={{
-            background: 'rgba(255,255,255,0.1)',
-            padding: '12px',
-            'border-radius': '4px',
-            'margin-bottom': '8px'
-          }}>
-            <div style={{ 'font-weight': 'bold', 'margin-bottom': '8px' }}>System Status</div>
-            <div style={{ 'margin-bottom': '4px' }}>
-              Performance Systems: ✅ Active
-            </div>
-            <div style={{ 'margin-bottom': '4px' }}>
-              Feature Flags: ✅ Configured
-            </div>
-            <div style={{ 'margin-bottom': '4px' }}>
-              Safety Validation: ✅ Ready
-            </div>
-            <div style={{ 'margin-bottom': '4px' }}>
-              Integration Status: ✅ Complete
-            </div>
-          </div>
-        </Show>
-        
-        {/* Features Tab */}
-        <Show when={activeTab() === 'features'}>
-          <div style={{
-            background: 'rgba(255,255,255,0.1)',
-            padding: '12px',
-            'border-radius': '4px',
-            'margin-bottom': '8px'
-          }}>
-            <div style={{ 'font-weight': 'bold', 'margin-bottom': '8px' }}>Performance Features</div>
-            <div style={{ 'margin-bottom': '4px' }}>
-              Phase A: ✅ Code Organization
-            </div>
-            <div style={{ 'margin-bottom': '4px' }}>
-              Phase B: ✅ Integration & Testing
-            </div>
-            <div style={{ 'margin-bottom': '4px' }}>
-              Phase C: ✅ Safety & Validation
-            </div>
-            <div style={{ 'margin-bottom': '4px' }}>
-              Phase D: ✅ Main Branch Integration
-            </div>
-          </div>
-        </Show>
-        
-        {/* Monitoring Tab */}
-        <Show when={activeTab() === 'monitoring'}>
-          <div style={{
-            background: 'rgba(255,255,255,0.1)',
-            padding: '12px',
-            'border-radius': '4px',
-            'margin-bottom': '8px'
-          }}>
-            <div style={{ 'font-weight': 'bold', 'margin-bottom': '8px' }}>System Monitoring</div>
-            <div style={{ 'margin-bottom': '4px' }}>
-              CPU Usage: 🟢 Normal
-            </div>
-            <div style={{ 'margin-bottom': '4px' }}>
-              Memory Usage: 🟢 45MB
-            </div>
-            <div style={{ 'margin-bottom': '4px' }}>
-              Response Time: 🟢 25ms
-            </div>
-            <div style={{ 'margin-bottom': '4px' }}>
-              Error Rate: 🟢 0.0%
-            </div>
-          </div>
-        </Show>
-        
-        {/* Tab Navigation */}
-        <div style={{
-          display: 'flex',
-          gap: '4px',
-          'margin-bottom': '8px',
-          'flex-wrap': 'wrap'
-        }}>
-          <button
-            onClick={() => setActiveTab('status')}
-            style={{
-              background: activeTab() === 'status' ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.1)',
-              border: 'none',
-              color: 'white',
-              padding: '4px 8px',
-              'border-radius': '4px',
-              cursor: 'pointer',
-              'font-size': '10px'
-            }}
-          >
-            Status
-          </button>
-          
-          <button
-            onClick={() => setActiveTab('features')}
-            style={{
-              background: activeTab() === 'features' ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.1)',
-              border: 'none',
-              color: 'white',
-              padding: '4px 8px',
-              'border-radius': '4px',
-              cursor: 'pointer',
-              'font-size': '10px'
-            }}
-          >
-            Features
-          </button>
-          
-          <button
-            onClick={() => setActiveTab('monitoring')}
-            style={{
-              background: activeTab() === 'monitoring' ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.1)',
-              border: 'none',
-              color: 'white',
-              padding: '4px 8px',
-              'border-radius': '4px',
-              cursor: 'pointer',
-              'font-size': '10px'
-            }}
-          >
-            Monitoring
-          </button>
-        </div>
-        
-        {/* Close Button */}
-        <button
-          onClick={() => setIsVisible(false)}
-          style={{
-            background: 'rgba(255,0,0,0.5)',
-            border: 'none',
-            color: 'white',
-            padding: '4px 8px',
-            'border-radius': '4px',
-            cursor: 'pointer',
-            'font-size': '10px',
-            width: '100%'
-          }}
-        >
-          Close Dashboard
-        </button>
-      </div>
-    </Show>
-  )
-}
+// Performance Dashboards - Local versions to avoid import issues
+import { 
+  PhaseBIntegrationDashboard,
+  PhaseCSafetyDashboard, 
+  PhaseDIntegrationDashboard 
+} from "./performance-dashboards"
 
 const Home = lazy(() => import("@/pages/home"))
 const Session = lazy(() => import("@/pages/session"))
@@ -309,8 +138,10 @@ function RouterRoot(props: ParentProps<{ appChildren?: JSX.Element }>) {
       {props.appChildren}
       {props.children}
       
-      {/* Performance Dashboard */}
-      <PerformanceDashboard />
+      {/* Performance Dashboards */}
+      <PhaseBIntegrationDashboard />
+      <PhaseCSafetyDashboard />
+      <PhaseDIntegrationDashboard />
     </AppShellProviders>
   )
 }
