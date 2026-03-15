@@ -3,15 +3,6 @@
   "provider": {
     "opencode": {
       "options": {},
-    },
-    "ollama": {
-      "models": {
-        "qwen3:8b": { "name": "qwen3:8b", "reasoning": false },
-        "qwen3": { "name": "qwen3", "reasoning": false },
-        "qwen2.5-coder": { "name": "qwen2.5-coder", "reasoning": false },
-        "deepseek-coder": { "name": "deepseek-coder", "reasoning": false },
-        "codellama": { "name": "codellama", "reasoning": false }
-      }
     }
   },
   "permission": {
@@ -19,7 +10,24 @@
       "packages/opencode/migration/*": "deny",
     },
   },
-  "mcp": {},
+  "mcp": {
+    "playwright": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-playwright"]
+    },
+    "sequential-thinking": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-sequential-thinking"]
+    },
+    "fetch": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-fetch"]
+    },
+    "memory": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-memory"]
+    }
+  },
   "tools": {
     "github-triage": false,
     "github-pr-search": false,
