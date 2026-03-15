@@ -1,6 +1,12 @@
 import * as ts from "typescript"
 import { Filesystem } from "../../util/filesystem"
 
+export interface ChunkMetadata {
+  mtime: number
+  hash?: string
+  language?: string
+}
+
 export interface CodeChunk {
   id: string
   filePath: string
@@ -9,7 +15,7 @@ export interface CodeChunk {
   content: string
   startLine: number
   endLine: number
-  metadata?: any
+  metadata?: ChunkMetadata
 }
 
 export class CodeChunker {

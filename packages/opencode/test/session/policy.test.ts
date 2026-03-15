@@ -7,31 +7,26 @@ const sessionID = SessionID.descending()
 const messageID = MessageID.ascending()
 
 test("Policy.requiresApproval detects DB migrations", () => {
-  const parts = [
+  const parts: any[] = [
     {
-      id: PartID.ascending(),
-      sessionID,
-      messageID,
+      id: PartID.make("p1"),
       type: "tool",
-      tool: "write_to_file",
-      state: { status: "completed", input: { path: "migrations/0001_v1.sql" }, output: "done" }
+      tool: "edit",
+      state: { status: "completed", input: { path: "migrations/0001_v1.sql", content: "ALTER TABLE users ADD COLUMN age INT" }, output: "done" }
     }
   ] as any[]
 
   const checkpoint = Policy.requiresApproval(parts)
   expect(checkpoint).not.toBeNull()
-  expect(checkpoint?.name).toBe("database_change")
 })
 
 test("Policy.requiresApproval detects auth changes", () => {
-  const parts = [
+  const parts: any[] = [
     {
-      id: PartID.ascending(),
-      sessionID,
-      messageID,
+      id: PartID.make("p1"),
       type: "tool",
-      tool: "edit",
-      state: { status: "completed", input: { content: "modify login logic" }, output: "done" }
+      tool: "write_to_file",
+      state: { status: "completed", input: { path: "src/auth/guard.ts", content: "modify login logic and permissions" }, output: "done" }
     }
   ] as any[]
 

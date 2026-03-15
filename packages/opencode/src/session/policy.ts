@@ -70,38 +70,102 @@ export namespace Policy {
   }
 
   /**
+   * Verify that all executed quality gates have returned a successful verdict.
+   */
+  export function checkGates(agent: string, messages: MessageV2.WithParts[]): { pass: boolean; reason?: string } {
+    if (agent !== "heidi") return { pass: true }
+
+    const subtasks: { agent: string; found: boolean; index: number }[] = []
+    const allParts: { part: MessageV2.Part; messageIndex: number }[] = []
+
+    messages.forEach((m, mIdx) => {
+      m.parts.forEach((p) => {
+        allParts.push({ part: p, messageIndex: mIdx })
+        if (p.type === "subtask") {
+          subtasks.push({ agent: p.agent, found: false, index: allParts.length - 1 })
+        }
+      })
+    })
+
+    if (subtasks.length === 0) return { pass: true }
+
+    for (const task of subtasks) {
+      const following = allParts.slice(task.index + 1)
+      let verdict: "pass" | "fail" | null = null
+
+      for (const entry of following) {
+        const p = entry.part
+        const text = p.type === "text" ? p.text : p.type === "tool" && p.state.status === "completed" ? p.state.output : ""
+        const content = text.toLowerCase()
+
+        if (content.includes("verdict: pass") || content.includes("verdict: success") || content.includes("all checks passed")) {
+          verdict = "pass"
+          break
+        }
+        if (content.includes("verdict: fail") || content.includes("security issues found") || content.includes("regression detected")) {
+          verdict = "fail"
+          break
+        }
+      }
+
+      if (verdict === "fail") {
+        return { pass: false, reason: `Quality gate '${task.agent}' failed. Please fix the reported issues.` }
+      }
+      if (!verdict) {
+        return { pass: false, reason: `Quality gate '${task.agent}' has not completed with a verdict yet.` }
+      }
+    }
+
+    return { pass: true }
+  }
+
+  /**
    * Detect risky operations that require human approval checkpoints.
    */
   export function requiresApproval(parts: MessageV2.Part[]): CheckpointRule | null {
     for (const part of parts) {
       if (part.type === "tool") {
+        const tool = part.tool
         const input = JSON.stringify(part.state.input)
 
         // 1. Database migrations/schema changes
-        if (input.includes("migration") || input.includes("schema") || input.includes("sql")) {
-          return {
-            name: "database_change",
-            reason: "Database migration or schema change detected",
-            type: "irreversible"
+        const isDbTool = ["sql", "db", "drizzle"].some(t => tool.includes(t))
+        const hasDbKeywords = /\b(alter|drop|truncate|create\s+table|rename)\b/i.test(input)
+        const isSchemaFile = /\b(migration|schema|table)\b/i.test(input)
+        
+        if ((isDbTool || isSchemaFile) && hasDbKeywords) {
+          if (tool === "write_to_file" || tool === "edit" || tool === "patch" || isDbTool) {
+            return {
+              name: "database_change",
+              reason: "Database schema modification or migration detected",
+              type: "irreversible"
+            }
           }
         }
 
-        // 2. Auth/Authz logic
-        if (input.includes("auth") || input.includes("login") || input.includes("permission")) {
+        // 2. Auth/Authz logic in sensitive files
+        const isAuthContext = /\b(auth|login|session|password|jwt|permission|role)\b/i.test(input)
+        const isSensitiveFile = /\b(auth|permission|guard|middleware|passport)\b/i.test(input)
+        if (isAuthContext && isSensitiveFile && (tool === "write_to_file" || tool === "edit" || tool === "patch")) {
           return {
             name: "auth_change",
-            reason: "Modification to authentication or authorization logic",
+            reason: "Modification to authentication or authorization logic in sensitive files",
             type: "security"
           }
         }
 
-        // 3. Deleting files
-        if (part.tool === "bash" && (input.includes("rm ") || input.includes("unlink "))) {
-          // Simplistic check for now, could be improved with regex
-          return {
-            name: "file_deletion",
-            reason: "Potential file deletion detected via bash",
-            type: "safety"
+        // 3. Deleting files (more robust bash check)
+        if (tool === "bash") {
+          const bashCmd = part.state.input.command || ""
+          if (/\b(rm|unlink|delete)\s+-?[rf]*\s+([^\s;&|]+)/.test(bashCmd)) {
+             // Only if it's not a temp file or build artifact
+             if (!bashCmd.includes("/tmp/") && !bashCmd.includes("node_modules/")) {
+               return {
+                 name: "file_deletion",
+                 reason: "Potential system file deletion detected via bash",
+                 type: "safety"
+               }
+             }
           }
         }
       }

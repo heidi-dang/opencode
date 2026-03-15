@@ -752,6 +752,20 @@ export namespace SessionPrompt {
           continue
         }
 
+        // Hard Enforcement of Gate Verdicts
+        const check = Policy.checkGates(agent.name, msgs)
+        if (!check.pass && !processor.message.error) {
+          await Session.updatePart({
+            id: PartID.ascending(),
+            messageID: processor.message.id,
+            sessionID,
+            type: "text",
+            text: `⚠️ SESSION FINALIZATION BLOCKED: ${check.reason}\n\nQuality gates are mandatory. Please ensure all gates return a successful verdict.`,
+            synthetic: true,
+          } satisfies MessageV2.TextPart)
+          continue
+        }
+
         // Automatic Auditor Trigger for Build Agent
         if (agent.name === "build" && !processor.message.error) {
           const alreadyAudited = msgs.some((m) =>
