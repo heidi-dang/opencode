@@ -47,6 +47,13 @@ import Layout from "@/pages/layout"
 import { ErrorPage } from "./pages/error"
 import { useCheckServerHealth } from "./utils/server-health"
 
+// Performance Dashboards
+import { 
+  PhaseBIntegrationDashboard,
+  PhaseCSafetyDashboard, 
+  PhaseDIntegrationDashboard 
+} from "@opencode-ai/ui/performance"
+
 const Home = lazy(() => import("@/pages/home"))
 const Session = lazy(() => import("@/pages/session"))
 const Loading = () => <div class="size-full" />
@@ -129,6 +136,11 @@ function RouterRoot(props: ParentProps<{ appChildren?: JSX.Element }>) {
     <AppShellProviders>
       {props.appChildren}
       {props.children}
+      
+      {/* Performance Dashboards */}
+      <PhaseBIntegrationDashboard />
+      <PhaseCSafetyDashboard />
+      <PhaseDIntegrationDashboard />
     </AppShellProviders>
   )
 }
