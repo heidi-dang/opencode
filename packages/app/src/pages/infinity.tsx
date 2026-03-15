@@ -109,6 +109,30 @@ export default function InfinityPage() {
     { name: "Rearm", id: "rearm", icon: "reset" }
   ]
 
+  const activeRun = createMemo(() => {
+    const logs = data()?.logs || []
+    let runId = null, taskId = null, stage = "None", message = "Waiting for tasks..."
+    for (let i = logs.length - 1; i >= 0; i--) {
+      const line = logs[i]
+      if (line) {
+         const stageMatch = line.match(/stage=(\w+)/)
+         const runMatch = line.match(/run_id=([^\s]+)/)
+         const taskMatch = line.match(/task_id=([^\s]+)/)
+         
+         if (stageMatch && stageMatch[1] !== "none") {
+           stage = stageMatch[1]
+           if (runMatch && runMatch[1] !== "none") runId = runMatch[1]
+           if (taskMatch && taskMatch[1] !== "none") taskId = taskMatch[1]
+           
+           const msgMatch = line.match(/stage=\w+\s+(.*)/)
+           if (msgMatch) message = msgMatch[1]
+           break
+         }
+      }
+    }
+    return { runId, taskId, stage, message, active: stage !== "None" && status() !== "Idle" }
+  })
+
   return (
     <div class="h-full flex flex-col bg-background-base overflow-hidden">
       {/* Session Header Emulation */}
@@ -145,7 +169,7 @@ export default function InfinityPage() {
                onClick={() => setActiveTab("monitor")}
                class={`px-2 lg:px-4 py-1.5 rounded-md text-12-medium lg:text-13-medium transition-all ${activeTab() === 'monitor' ? 'bg-surface-base text-text-strong shadow-xs-border-strong' : 'text-text-weak hover:text-text-base hover:bg-surface-raised-base'}`}
              >
-               Monitor
+               Live Stream
              </button>
              <button 
                onClick={() => setActiveTab("score")}
@@ -180,7 +204,7 @@ export default function InfinityPage() {
             mobileTab() === "logs" ? "border-primary-base text-text-strong" : "border-transparent text-text-weak hover:text-text-base"
           }`}
         >
-          System Logs
+          Live Stream
         </button>
       </div>
 
@@ -256,41 +280,37 @@ export default function InfinityPage() {
         <main class={`flex-1 min-w-0 flex-col bg-background-base overflow-hidden ${mobileTab() === 'logs' ? 'flex' : 'hidden lg:flex'}`}>
           <Switch>
             <Match when={activeTab() === 'monitor'}>
-              <div class="flex-1 flex flex-col overflow-hidden">
-                <div class="px-6 py-4 border-b border-border-base flex items-center justify-between bg-surface-raised-base/30">
-                  <h2 class="text-14-bold text-text-strong uppercase tracking-widest flex items-center gap-2">
-                    <div class="size-1.5 bg-icon-success-base rounded-full" />
-                    System Events
-                  </h2>
-                  <div class="text-11-medium text-text-weak uppercase tracking-widest">Live Stream</div>
-                </div>
-                <div class="flex-1 overflow-y-auto p-4 lg:p-6 pt-2 font-mono text-12-regular lg:text-13-regular space-y-2 selection:bg-primary-base/20 scrollbar-thin">
-                  <For each={data()?.logs} fallback={<div class="flex flex-col items-center justify-center h-full gap-4 text-text-weak opacity-40 italic">
-                    <Spinner class="size-8" />
-                    Connecting to infinity stream...
-                  </div>}>
-                    {(line) => {
-                      const isError = line.toLowerCase().includes("error")
-                      const isWarn = line.toLowerCase().includes("warn")
-                      const isInfo = line.toLowerCase().includes("info")
-                      return (
-                        <div class="group flex gap-4 pr-12 hover:bg-surface-raised-base/30 rounded-lg p-1 transition-colors">
-                          <div class="shrink-0 text-text-weak opacity-30 select-none text-10-regular pt-1">
-                            {new Date().toLocaleTimeString('en-GB', { hour12: false, hour: '2-digit', minute: '2-digit' })}
-                          </div>
-                          <div class={`whitespace-pre-wrap leading-relaxed border-l-2 pl-4 transition-colors ${
-                            isError ? 'border-icon-critical-base text-icon-critical-base bg-icon-critical-base/5 rounded-r-md' : 
-                            isWarn ? 'border-icon-warning-base text-icon-warning-base' : 
-                            isInfo ? 'border-primary-base/40 text-text-base' :
-                            'border-transparent text-text-base/80 hover:text-text-strong'
-                          }`}>
-                            {line}
-                          </div>
-                        </div>
-                      )
-                    }}
-                  </For>
-                </div>
+              <div class="flex-1 flex flex-col items-center justify-center p-6 lg:p-8 text-center animate-in fade-in duration-500 overflow-y-auto">
+                 <Show when={activeRun().active} fallback={
+                   <div class="flex flex-col items-center gap-4 opacity-40">
+                     <Icon name="code" size="large" class="size-12 lg:size-16 mb-2" />
+                     <div class="text-13-medium lg:text-14-medium text-text-weak">Infinity Loop is idle. Waiting for tasks...</div>
+                   </div>
+                 }>
+                   <div class="bg-surface-raised-base border border-border-base rounded-2xl lg:rounded-3xl p-6 lg:p-10 max-w-xl w-full flex flex-col items-center shadow-lg relative overflow-hidden group">
+                     <div class="absolute inset-0 bg-gradient-to-b from-primary-base/[0.03] to-transparent pointer-events-none" />
+                     
+                     <div class="size-16 lg:size-20 rounded-2xl bg-primary-base/10 text-primary-base flex items-center justify-center mb-6 lg:mb-8 shadow-inner-border">
+                        <Icon name={stages.find(s => s.id === activeRun().stage)?.icon as any || "code"} class="size-8 lg:size-10" />
+                     </div>
+                     
+                     <div class="text-11-bold lg:text-12-bold text-primary-base uppercase tracking-widest mb-3">{activeRun().stage} Stage</div>
+                     <div class="text-16-semibold lg:text-20-semibold text-text-strong mb-3 lg:mb-4 px-4 leading-snug">{activeRun().message}</div>
+                     
+                     <div class="flex items-center gap-2 mb-8 lg:mb-10 px-3 py-1 bg-surface-base rounded-full border border-border-weak-base">
+                        <div class="size-2 rounded-full bg-icon-success-base animate-pulse" />
+                        <span class="text-11-medium text-text-weak">Task: {activeRun().taskId || "Unknown"}</span>
+                     </div>
+                     
+                     <button 
+                       onClick={() => project() && navigate(`/${base64Encode(project()!.worktree)}/session`)}
+                       class="w-full sm:w-auto bg-primary-base text-white hover:bg-primary-hover px-6 lg:px-8 py-3 lg:py-4 rounded-xl lg:rounded-full text-13-semibold lg:text-14-semibold transition-all shadow-md shadow-primary-base/20 flex flex-row items-center justify-center gap-2 group-hover:-translate-y-0.5"
+                     >
+                       Real coding stuff
+                       <Icon name="arrow-right" size="small" />
+                     </button>
+                   </div>
+                 </Show>
               </div>
             </Match>
             

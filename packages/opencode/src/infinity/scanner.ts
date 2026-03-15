@@ -94,7 +94,8 @@ export class ProjectScanner {
       })
     }
 
-    return tasks
+    // Return at most 5 tasks to prevent overwhelming the queue
+    return tasks.slice(0, 5)
   }
 
   private getVerifyCommand(filePath: string): string | undefined {
