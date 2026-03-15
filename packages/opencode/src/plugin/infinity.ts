@@ -1,6 +1,11 @@
 import { type Hooks, type PluginInput, tool } from "@opencode-ai/plugin"
 import { InfinityRuntime, InfinityCommand } from "../infinity/runtime"
 import { z } from "zod"
+import { Database } from "../storage/db"
+import { InfinityTable } from "../infinity/infinity.sql"
+import { ProjectTable } from "../project/project.sql"
+import { eq, desc } from "drizzle-orm"
+import { Identifier } from "@/id/id"
 
 export const InfinityPlugin = async (input: PluginInput): Promise<Hooks> => {
   return {
