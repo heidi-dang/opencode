@@ -1,0 +1,3 @@
+Hover the mouse over a specific element on the page.
+This triggers CSS :hover states and Javascript mouseenter events, which is very useful for expanding dropdown menus.
+Provide the CSS selector of the element you want to hover over.

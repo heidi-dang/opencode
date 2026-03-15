@@ -24,14 +24,14 @@ const DEFAULT_TIMEOUT = 30 * 1000
 interface BrowserState {
   browser: Browser | null
   context: BrowserContext | null
-  page: Page | null
+  pages: Page[]
 }
 
 const state = Instance.state<BrowserState>(
   () => ({
     browser: null,
     context: null,
-    page: null,
+    pages: [],
   }),
   async (s) => {
     if (s.context) await s.context.close().catch(() => {})
@@ -49,19 +49,28 @@ async function ensureBrowser() {
   })
   s.context = await s.browser.newContext({
     viewport: { width: 1280, height: 800 },
+    recordVideo: {
+      dir: path.join(Instance.directory, ".opencode", "recordings"),
+    },
   })
-  s.page = await s.context.newPage()
+  s.context.on("page", (newPage) => {
+    s.pages.push(newPage)
+    newPage.on("close", () => {
+      s.pages = s.pages.filter((p) => p !== newPage)
+    })
+  })
+  const initialPage = await s.context.newPage()
   return s.browser
 }
 
 async function ensurePage() {
   const s = state()
   await ensureBrowser()
-  if (!s.page || s.page.isClosed()) {
+  if (s.pages.length === 0) {
     if (!s.context) s.context = await s.browser!.newContext()
-    s.page = await s.context.newPage()
+    await s.context.newPage()
   }
-  return s.page
+  return s.pages[s.pages.length - 1]
 }
 
 async function takeErrorScreenshot(
@@ -84,11 +93,14 @@ async function takeErrorScreenshot(
 
 interface NavigateMeta { url: string; timeout?: number }
 interface ScreenshotMeta { fullPage?: boolean }
-interface ClickMeta { selector: string }
+interface ClickMeta { selector: string; force?: boolean }
 interface TypeMeta { selector: string; text: string }
 interface ScrollMeta { amount?: number; direction?: string }
 interface ResizeMeta { width: number; height: number }
 interface ReadMeta { format: string }
+interface WaitMeta { selector?: string; timeMs?: number }
+interface HoverMeta { selector: string }
+interface PressMeta { key: string }
 
 // -- 1. Navigate Tool --
 
@@ -173,18 +185,19 @@ export const BrowserClickTool = Tool.define("browser_click", {
   description: DESC_CLICK,
   parameters: z.object({
     selector: z.string().describe("CSS selector or Playwright locator for the element to click"),
+    force: z.boolean().optional().describe("Bypass actionability checks (e.g. if covered by another element)"),
   }),
   async execute(params, ctx) {
     await ctx.ask({
       permission: "browser",
       patterns: [params.selector],
       always: ["*"],
-      metadata: { action: "click", selector: params.selector },
+      metadata: { action: "click", selector: params.selector, force: params.force },
     })
 
     const page = await ensurePage()
     try {
-      await page.click(params.selector, { timeout: 5000 })
+      await page.click(params.selector, { timeout: 5000, force: params.force })
       return {
         title: `Clicked ${params.selector}`,
         output: `Successfully clicked element: ${params.selector}`,
@@ -285,7 +298,114 @@ export const BrowserResizeTool = Tool.define("browser_resize", {
   },
 })
 
-// -- 7. Read Tool --
+// -- 7. Wait Tool --
+
+import DESC_WAIT from "./browser-wait.txt"
+export const BrowserWaitTool = Tool.define("browser_wait", {
+  description: DESC_WAIT,
+  parameters: z.object({
+    selector: z.string().optional().describe("Wait for this CSS selector to appear in the DOM"),
+    timeMs: z.number().optional().describe("Wait for exactly this many milliseconds"),
+  }),
+  async execute(params, ctx) {
+    if (!params.selector && !params.timeMs) {
+      throw new Error("Must provide either selector or timeMs")
+    }
+    
+    await ctx.ask({
+      permission: "browser",
+      patterns: [params.selector || "timeout"],
+      always: ["*"],
+      metadata: { action: "wait", selector: params.selector, timeMs: params.timeMs },
+    })
+
+    const page = await ensurePage()
+    try {
+      if (params.selector) {
+        await page.waitForSelector(params.selector, { state: "visible", timeout: params.timeMs || 10000 })
+        return {
+          title: `Waited for ${params.selector}`,
+          output: `Successfully waited for element to become visible: ${params.selector}`,
+          metadata: { selector: params.selector, timeMs: params.timeMs },
+        }
+      } else {
+        await page.waitForTimeout(params.timeMs!)
+        return {
+          title: `Waited for ${params.timeMs}ms`,
+          output: `Successfully waited for ${params.timeMs}ms`,
+          metadata: { selector: params.selector, timeMs: params.timeMs },
+        }
+      }
+    } catch (error: any) {
+      const attachment = await takeErrorScreenshot(page, "wait")
+      throw new Error(`Wait failed: ${error.message}${attachment ? " (See attached screenshot)" : ""}`)
+    }
+  },
+})
+
+// -- 8. Hover Tool --
+
+import DESC_HOVER from "./browser-hover.txt"
+export const BrowserHoverTool = Tool.define("browser_hover", {
+  description: DESC_HOVER,
+  parameters: z.object({
+    selector: z.string().describe("CSS selector to hover over"),
+  }),
+  async execute(params, ctx) {
+    await ctx.ask({
+      permission: "browser",
+      patterns: [params.selector],
+      always: ["*"],
+      metadata: { action: "hover", selector: params.selector },
+    })
+
+    const page = await ensurePage()
+    try {
+      await page.hover(params.selector, { timeout: 5000 })
+      return {
+        title: `Hovered over ${params.selector}`,
+        output: `Successfully hovered over element: ${params.selector}`,
+        metadata: { selector: params.selector },
+      }
+    } catch (error: any) {
+      const attachment = await takeErrorScreenshot(page, "hover")
+      throw new Error(`Hover failed: ${error.message}${attachment ? " (See attached screenshot)" : ""}`)
+    }
+  },
+})
+
+// -- 9. Press Tool --
+
+import DESC_PRESS from "./browser-press.txt"
+export const BrowserPressTool = Tool.define("browser_press", {
+  description: DESC_PRESS,
+  parameters: z.object({
+    key: z.string().describe("Key to press (e.g. 'Enter', 'Escape', 'Tab', 'ArrowDown')"),
+  }),
+  async execute(params, ctx) {
+    await ctx.ask({
+      permission: "browser",
+      patterns: [params.key],
+      always: ["*"],
+      metadata: { action: "press", key: params.key },
+    })
+
+    const page = await ensurePage()
+    try {
+      await page.keyboard.press(params.key)
+      return {
+        title: `Pressed ${params.key}`,
+        output: `Successfully pressed key: ${params.key}`,
+        metadata: { key: params.key },
+      }
+    } catch (error: any) {
+      const attachment = await takeErrorScreenshot(page, "press")
+      throw new Error(`Press failed: ${error.message}${attachment ? " (See attached screenshot)" : ""}`)
+    }
+  },
+})
+
+// -- 10. Read Tool --
 
 export const BrowserReadTool = Tool.define("browser_read", {
   description: DESC_READ,
@@ -311,6 +431,18 @@ export const BrowserReadTool = Tool.define("browser_read", {
       }
     }
 
+    // Inject logical IDs recursively so that elements always have a selector
+    await page.evaluate(() => {
+      let counter = 1
+      const elements = document.querySelectorAll("a, button, input, select, textarea, [role='button'], [role='link'], [tabindex]")
+      elements.forEach((el) => {
+        if (!el.hasAttribute("id") && !el.hasAttribute("data-oc-id")) {
+          el.setAttribute("data-oc-id", `oc-${counter}`)
+          counter++
+        }
+      })
+    })
+
     const content = await page.content()
     
     if (params.format === "html") {
@@ -323,6 +455,24 @@ export const BrowserReadTool = Tool.define("browser_read", {
 
     const turndown = new TurndownService()
     turndown.remove(["script", "style", "meta", "link", "noscript"])
+    
+    // Custom rule to retain data-oc-id or id in markdown
+    turndown.addRule("interactiveItems", {
+      filter: ["a", "button", "input", "select", "textarea"],
+      replacement: function (content, node: any) {
+        const id = node.getAttribute("id")
+        const ocId = node.getAttribute("data-oc-id")
+        const selector = id ? `[id="${id}"]` : (ocId ? `[data-oc-id="${ocId}"]` : null)
+        
+        let text = content.trim() || node.getAttribute("aria-label") || node.getAttribute("title") || node.getAttribute("placeholder") || node.getAttribute("value") || node.tagName.toLowerCase()
+        
+        if (selector) {
+          return ` ${text} (selector: \`${selector}\`) `
+        }
+        return ` ${text} `
+      }
+    })
+
     const markdown = turndown.turndown(content)
     
     return {
