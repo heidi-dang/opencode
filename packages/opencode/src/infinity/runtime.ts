@@ -404,14 +404,14 @@ export class InfinityRuntime {
 
   private generateRunId(): string {
     const now = new Date()
-    const date = now.toISOString().split("T")[0].replace(/-/g, "")
+    const date = now.toISOString().split("T")[0]
     const ms = String(now.getTime()).slice(-3)
     return `run-${date}-${ms}`
   }
 
   private generateTaskId(): string {
     const now = new Date()
-    const date = now.toISOString().split("T")[0].replace(/-/g, "")
+    const date = now.toISOString().split("T")[0]
     const ms = String(now.getTime()).slice(-3)
     return `task-${date}-${ms}`
   }
