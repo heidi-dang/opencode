@@ -1,5 +1,5 @@
 import { createSignal, createEffect, onCleanup } from "solid-js"
-import { useProductionAnalytics } from "./production-analytics"
+import { useProductionAnalytics } from "../safety/production-analytics"
 
 // Advanced User Experience Optimizer for Phase 3
 export class UXOptimizer {

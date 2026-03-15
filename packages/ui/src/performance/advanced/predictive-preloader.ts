@@ -1,5 +1,5 @@
 import { createSignal, createEffect, onCleanup } from "solid-js"
-import { useProductionAnalytics } from "./production-analytics"
+import { useProductionAnalytics } from "../safety/production-analytics"
 
 // Predictive Preloading System for Phase 3
 export class PredictivePreloader {
