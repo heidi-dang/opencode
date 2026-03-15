@@ -203,7 +203,7 @@ export class InfinityAdapter {
     return object.lessons
   }
 
-  async deriveOpportunities(repoState: string): Promise<any[]> {
+  async deriveOpportunities(repoState: string): Promise<TaskDiscovery[]> {
     const model = await this.getModel("github-copilot/gpt-5-mini")
     const language = await Provider.getLanguage(model)
 
