@@ -143,13 +143,13 @@ export default function InfinityPage() {
                onClick={() => setActiveTab("monitor")}
                class={`px-2 lg:px-4 py-1.5 rounded-md text-12-medium lg:text-13-medium transition-all ${activeTab() === 'monitor' ? 'bg-surface-base text-text-strong shadow-xs-border-strong' : 'text-text-weak hover:text-text-base hover:bg-surface-raised-base'}`}
              >
-               Logs
+               Monitor
              </button>
              <button 
                onClick={() => setActiveTab("score")}
                class={`px-2 lg:px-4 py-1.5 rounded-md text-12-medium lg:text-13-medium transition-all ${activeTab() === 'score' ? 'bg-surface-base text-text-strong shadow-xs-border-strong' : 'text-text-weak hover:text-text-base hover:bg-surface-raised-base'}`}
              >
-               Score
+               Score Dashboard
              </button>
           </nav>
           
@@ -163,18 +163,86 @@ export default function InfinityPage() {
       </header>
 
       <div class="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden">
-        {/* Main Timeline View */}
+        {/* Left Column: Metrics, Pipeline, Queue */}
+        <aside class="w-full lg:w-[400px] shrink-0 border-r border-border-weak-base bg-surface-base flex flex-col p-4 lg:p-6 gap-6 lg:gap-8 overflow-y-auto no-scrollbar">
+          <BrowserViewer />
+          
+          <section>
+            <h2 class="text-11-bold lg:text-12-bold text-text-strong uppercase tracking-widest mb-4">Autonomous Pipeline</h2>
+            <div class="grid grid-cols-1 gap-3 lg:gap-4">
+              <For each={stages}>
+                {(stage) => {
+                  const active = createMemo(() => status().toLowerCase() === stage.id)
+                  return (
+                    <div class={`flex items-center gap-2 lg:gap-4 group p-2 rounded-xl transition-all ${active() ? 'bg-primary-base/[0.03]' : ''}`}>
+                      <div class={`size-8 lg:size-10 rounded-lg lg:rounded-xl flex items-center justify-center transition-all ${
+                        active() ? 'bg-primary-base text-white shadow-lg shadow-primary-base/20 scale-105 lg:scale-110' : 'bg-surface-raised-base text-icon-weak'
+                      }`}>
+                        <Icon name={stage.icon as any} size="normal" />
+                      </div>
+                      <div class="flex-1 min-w-0">
+                        <div class={`text-11-medium lg:text-13-medium transition-colors truncate ${active() ? 'text-primary-base' : 'text-text-base'}`}>{stage.name}</div>
+                        <Show when={active()}>
+                          <div class="text-10-regular text-primary-base opacity-70 hidden lg:block">Processing...</div>
+                        </Show>
+                      </div>
+                      <Show when={active()}>
+                         <div class="size-1.5 lg:size-2 rounded-full bg-primary-base animate-ping shrink-0" />
+                      </Show>
+                    </div>
+                  )
+                }}
+              </For>
+            </div>
+          </section>
+
+          <div class="h-px bg-border-weak-base opacity-50" />
+
+          <section class="flex-grow flex flex-col min-h-0">
+             <div class="flex items-center justify-between mb-4">
+               <h2 class="text-11-bold lg:text-12-bold text-text-strong uppercase tracking-widest">Task Queue</h2>
+               <div class="px-1.5 py-0.5 bg-surface-raised-base rounded-md text-10-bold lg:text-11-bold text-text-weak">{data()?.queue?.length ?? 0}</div>
+             </div>
+             
+             <div class="space-y-2 lg:space-y-3 pr-1 lg:pr-2">
+                <For each={data()?.queue} fallback={
+                  <div class="flex flex-col items-center justify-center py-6 lg:py-12 text-center opacity-30 grayscale grayscale-100">
+                    <Icon name="checklist" size="large" class="mb-2" />
+                    <div class="text-11-medium lg:text-12-medium text-text-weak italic">Queue is empty</div>
+                  </div>
+                }>
+                  {(task: any) => (
+                    <div class="p-3 lg:p-4 bg-surface-raised-base border border-border-weak-base rounded-xl lg:rounded-2xl flex flex-col gap-2 lg:gap-3 group hover:border-border-base transition-colors shadow-sm">
+                      <div class="text-12-semibold lg:text-13-semibold text-text-strong line-clamp-2 leading-relaxed">
+                        {task.title}
+                      </div>
+                      <div class="flex items-center justify-between mt-0.5 lg:mt-1">
+                        <div class="flex items-center gap-1.5 lg:gap-2">
+                           <div class={`size-1.5 lg:size-2 rounded-full ${task.status === 'in_progress' ? 'bg-primary-base animate-pulse shadow-[0_0_4px_rgba(var(--primary-base-rgb),0.5)]' : 'bg-text-weak'}`} />
+                           <span class={`text-9-bold lg:text-10-bold uppercase tracking-widest ${task.status === 'in_progress' ? 'text-primary-base' : 'text-text-weak'}`}>{task.status.replace('_', ' ')}</span>
+                        </div>
+                        <div class="text-9-medium lg:text-10-medium text-text-weak opacity-0 group-hover:opacity-100 transition-opacity">ID: {task.id?.slice(-4)}</div>
+                      </div>
+                    </div>
+                  )}
+                </For>
+             </div>
+          </section>
+        </aside>
+
+        {/* Right Column: Monitors / Reports */}
         <main class="flex-1 min-w-0 flex flex-col bg-background-base overflow-hidden">
           <Switch>
             <Match when={activeTab() === 'monitor'}>
               <div class="flex-1 flex flex-col overflow-hidden">
-                <div class="p-4 lg:p-6 pb-2">
-                  <h2 class="text-10-bold lg:text-11-bold text-text-weak uppercase tracking-widest flex items-center gap-2">
-                    <div class="size-1 bg-icon-success-base rounded-full" />
+                <div class="px-6 py-4 border-b border-border-base flex items-center justify-between bg-surface-raised-base/30">
+                  <h2 class="text-14-bold text-text-strong uppercase tracking-widest flex items-center gap-2">
+                    <div class="size-1.5 bg-icon-success-base rounded-full" />
                     System Events
                   </h2>
+                  <div class="text-11-medium text-text-weak uppercase tracking-widest">Live Stream</div>
                 </div>
-                <div class="flex-1 overflow-y-auto p-4 lg:p-6 pt-2 font-mono text-12-regular lg:text-13-regular space-y-2 selection:bg-primary-base/20">
+                <div class="flex-1 overflow-y-auto p-4 lg:p-6 pt-2 font-mono text-12-regular lg:text-13-regular space-y-2 selection:bg-primary-base/20 scrollbar-thin">
                   <For each={data()?.logs} fallback={<div class="flex flex-col items-center justify-center h-full gap-4 text-text-weak opacity-40 italic">
                     <Spinner class="size-8" />
                     Connecting to infinity stream...
@@ -252,72 +320,6 @@ export default function InfinityPage() {
             </Match>
           </Switch>
         </main>
-
-        {/* Side Panel Partition */}
-        <aside class="w-full lg:w-[400px] shrink-0 border-t lg:border-t-0 lg:border-l border-border-weak-base bg-surface-base flex flex-col p-4 lg:p-6 gap-6 lg:gap-8 overflow-y-auto no-scrollbar max-h-[40vh] lg:max-h-none">
-          <BrowserViewer />
-          <section>
-            <h2 class="text-11-bold lg:text-12-bold text-text-strong uppercase tracking-widest mb-4 lg:mb-6">Pipeline Status</h2>
-            <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-1 gap-3 lg:gap-4">
-              <For each={stages}>
-                {(stage) => {
-                  const active = createMemo(() => status().toLowerCase() === stage.id)
-                  return (
-                    <div class={`flex items-center gap-2 lg:gap-4 group p-1 rounded-xl transition-all ${active() ? 'bg-primary-base/[0.03]' : ''}`}>
-                      <div class={`size-8 lg:size-10 rounded-lg lg:rounded-xl flex items-center justify-center transition-all ${
-                        active() ? 'bg-primary-base text-white shadow-lg shadow-primary-base/20 scale-105 lg:scale-110' : 'bg-surface-raised-base text-icon-weak'
-                      }`}>
-                        <Icon name={stage.icon as any} size="normal" />
-                      </div>
-                      <div class="flex-1 min-w-0">
-                        <div class={`text-11-medium lg:text-13-medium transition-colors truncate ${active() ? 'text-primary-base' : 'text-text-base'}`}>{stage.name}</div>
-                        <Show when={active()}>
-                          <div class="text-10-regular text-primary-base opacity-70 hidden lg:block">Processing...</div>
-                        </Show>
-                      </div>
-                      <Show when={active()}>
-                         <div class="size-1.5 lg:size-2 rounded-full bg-primary-base animate-ping shrink-0" />
-                      </Show>
-                    </div>
-                  )
-                }}
-              </For>
-            </div>
-          </section>
-
-          <div class="h-px bg-border-weak-base opacity-50 hidden lg:block" />
-
-          <section class="flex-grow flex flex-col min-h-0">
-             <div class="flex items-center justify-between mb-3 lg:mb-4">
-               <h2 class="text-11-bold lg:text-12-bold text-text-strong uppercase tracking-widest">Active Tasks</h2>
-               <div class="px-1.5 py-0.5 bg-surface-raised-base rounded-md text-10-bold lg:text-11-bold text-text-weak">{data()?.queue?.length ?? 0}</div>
-             </div>
-             
-             <div class="flex-grow overflow-y-auto space-y-2 lg:space-y-3 pr-1 lg:pr-2 scrollbar-thin">
-                <For each={data()?.queue} fallback={
-                  <div class="flex flex-col items-center justify-center py-6 lg:py-12 text-center opacity-30 grayscale grayscale-100">
-                    <Icon name="checklist" size="large" class="mb-2" />
-                    <div class="text-11-medium lg:text-12-medium text-text-weak italic">Queue is empty</div>
-                  </div>
-                }>
-                  {(task: any) => (
-                    <div class="p-3 lg:p-4 bg-surface-raised-base border border-border-weak-base rounded-xl lg:rounded-2xl flex flex-col gap-2 lg:gap-3 group hover:border-border-base transition-colors shadow-sm">
-                      <div class="text-12-semibold lg:text-13-semibold text-text-strong line-clamp-2 leading-relaxed">
-                        {task.title}
-                      </div>
-                      <div class="flex items-center justify-between mt-0.5 lg:mt-1">
-                        <div class="flex items-center gap-1.5 lg:gap-2">
-                           <div class={`size-1.5 lg:size-2 rounded-full ${task.status === 'in_progress' ? 'bg-primary-base animate-pulse shadow-[0_0_4px_rgba(var(--primary-base-rgb),0.5)]' : 'bg-text-weak'}`} />
-                           <span class={`text-9-bold lg:text-10-bold uppercase tracking-widest ${task.status === 'in_progress' ? 'text-primary-base' : 'text-text-weak'}`}>{task.status.replace('_', ' ')}</span>
-                        </div>
-                        <div class="text-9-medium lg:text-10-medium text-text-weak opacity-0 group-hover:opacity-100 transition-opacity">ID: {task.id?.slice(-4)}</div>
-                      </div>
-                    </div>
-                  )}
-                </For>
-             </div>
-          </section>
-        </aside>
       </div>
     </div>
   )

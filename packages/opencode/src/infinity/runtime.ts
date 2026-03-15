@@ -178,6 +178,7 @@ export class InfinityRuntime {
   private currentStage: Stage | null = null
   private cycleCount = 0
   private isRunning = false
+  private isAborted = false
   private scanner: ProjectScanner
   private adapter: InfinityAdapter
 
@@ -911,6 +912,12 @@ ${state.gate_result?.retry_actions ? `**Retry Actions:**\n${state.gate_result.re
     const queue = this.readQueue()
     const hasWork = queue.some(t => t.status === "queued" || t.status === "in_progress")
     
+    // Check abort flag
+    if (this.isAborted) {
+      this.log("CONTROL", "Stop reason: manual_stop (signal aborted)")
+      return false
+    }
+
     if (!hasWork && !this.config.daemon && !this.config.watch) {
       this.log("CONTROL", `Stop reason: queue_empty`)
       return false
@@ -1113,6 +1120,17 @@ ${state.gate_result?.retry_actions ? `**Retry Actions:**\n${state.gate_result.re
     this.saveStateToDb("suggester")
 
     this.isRunning = true
+    this.isAborted = false
+    
+    const shutdown = () => {
+      if (this.isAborted) return
+      this.log("SIGNAL", "Received termination signal. Shutting down gracefully...")
+      this.isAborted = true
+    }
+
+    process.on("SIGTERM", shutdown)
+    process.on("SIGINT", shutdown)
+
     await this.loadState()
     await this.saveState()
 
@@ -1130,6 +1148,8 @@ ${state.gate_result?.retry_actions ? `**Retry Actions:**\n${state.gate_result.re
       await this.saveState()
       this.clearStateFromDb()
       this.releaseLock()
+      process.off("SIGTERM", shutdown)
+      process.off("SIGINT", shutdown)
       this.log("STOP", "Infinity Loop stopped")
     }
   }
@@ -1196,6 +1216,32 @@ export const InfinityCommand = cmd({
           const state = JSON.parse(fs.readFileSync(statePath, "utf-8")) as RunState
           console.log(`- ${runDir}: ${state.status} (Task: ${state.task_id})`)
         }
+      }
+    } else if (action === "stop") {
+      const lockPath = path.join(root, ".opencode", "infinity.lock")
+      if (!fs.existsSync(lockPath)) {
+        console.log("No infinity loop is running (no lock file).")
+        return
+      }
+      try {
+        const lock = JSON.parse(fs.readFileSync(lockPath, "utf-8")) as LockFile
+        console.log(`Stopping infinity loop (PID: ${lock.pid})...`)
+        process.kill(lock.pid, "SIGTERM")
+        
+        // Wait for lock to be removed
+        let attempts = 0
+        while (fs.existsSync(lockPath) && attempts < 10) {
+          await new Promise(r => setTimeout(r, 500))
+          attempts++
+        }
+        
+        if (fs.existsSync(lockPath)) {
+          console.log("Loop is still shutting down. It should exit soon.")
+        } else {
+          console.log("Loop stopped successfully.")
+        }
+      } catch (e) {
+        console.error(`Failed to stop loop: ${e}`)
       }
     } else if (action === "requeue") {
       const taskId = argv._[1]
