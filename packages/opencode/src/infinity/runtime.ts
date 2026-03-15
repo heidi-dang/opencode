@@ -255,7 +255,7 @@ export class InfinityRuntime {
 
       if (state) {
         this.log("DB_LOAD", `Restored state for project: ${pid} (stage: ${state.current_stage})`)
-        this.currentStage = state.current_stage as Stage
+        this.currentStage = state.current_stage === "none" ? null : (state.current_stage as Stage)
         this.currentRunId = state.current_run_id
         this.currentTaskId = state.current_task_id
       }
@@ -471,8 +471,7 @@ export class InfinityRuntime {
    * suggester -> planner -> dev -> havoc -> reporter -> librarian -> rearm
    */
   async runCycle(): Promise<void> {
-    this.cycleCount++
-    this.log("CYCLE_START", `Starting cycle ${this.cycleCount}/${this.config.max_cycles}`)
+    this.log("CYCLE_START", `Starting cycle ${this.cycleCount + 1}/${this.config.max_cycles}`)
 
     // Check for resume
     const resumeResult = this.tryResume()
@@ -915,7 +914,8 @@ export class InfinityRuntime {
     this.currentTaskId = null
     this.currentStage = null
 
-    this.log("REARM", "Rearm complete")
+    this.cycleCount++
+    this.log("REARM", `Rearm complete. Cycle ${this.cycleCount} finished.`)
   }
 
   private advanceStage(): void {
@@ -933,18 +933,27 @@ export class InfinityRuntime {
     this.saveState().catch((e) => this.log("DB_ERROR", `Failed to save stage advance: ${e}`))
   }
 
-  private shouldContinue(): boolean {
+  private shouldContinue(reason?: string): boolean {
     // Check max cycles
     if (this.cycleCount >= this.config.max_cycles) {
       this.log("CONTROL", `Max cycles reached: ${this.config.max_cycles}`)
       return false
     }
 
+    // If we are currently in a stage, we should continue that stage sequence
+    if (this.currentStage) return true
+
     // Check daemon/watch mode
     if (this.config.daemon || this.config.watch) {
       return true
     }
 
+    // If we have pending items in the queue and we are start-fresh, attempt at least one cycle
+    if (this.cycleCount < this.config.max_cycles) {
+      return true
+    }
+
+    if (reason) this.log("CONTROL", `Stopping: ${reason}`)
     return false
   }
 
@@ -1103,9 +1112,9 @@ export class InfinityRuntime {
     await this.saveState()
 
     try {
-      while (this.shouldContinue()) {
+      while (this.shouldContinue("initial_exhaustion")) {
         await this.runCycle()
-        if (!this.shouldContinue()) break
+        if (!this.shouldContinue("post_cycle_exhaustion")) break
         if (this.config.idle_backoff_ms > 0) {
           this.log("IDLE", `Backing off for ${this.config.idle_backoff_ms}ms...`)
           await new Promise((r) => setTimeout(r, this.config.idle_backoff_ms))
