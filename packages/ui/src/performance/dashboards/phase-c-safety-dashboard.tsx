@@ -301,7 +301,7 @@ export function PhaseCSafetyDashboard() {
             <div>Safety Monitor: {safetyValidator.isMonitoring() ? '🟢 Running' : '🔴 Stopped'}</div>
             <div>Impact Monitor: {impactAssessor.isAssessing() ? '🟡 Running' : '🟢 Idle'}</div>
             <div>Monitor Interval: 30s (Safety) / 60s (Impact)</div>
-            <div>Alert Threshold: Warning > 25%, Critical > 50%</div>
+            <div>Alert Threshold: Warning {'>'} 25%, Critical {'>'} 50%</div>
           </div>
           
           <div style={{ display: 'flex', gap: '4px', 'flex-wrap': 'wrap' }}>
