@@ -596,6 +596,9 @@ export type SessionStatus =
   | {
       type: "busy"
     }
+  | {
+      type: "connecting"
+    }
 
 export type EventSessionStatus = {
   type: "session.status"
@@ -1043,6 +1046,10 @@ export type ServerConfig = {
    * Additional domains to allow for CORS
    */
   cors?: Array<string>
+  /**
+   * Path to local UI dist folder
+   */
+  uiDist?: string
 }
 
 export type PermissionActionConfig = "ask" | "allow" | "deny"
@@ -1105,6 +1112,8 @@ export type AgentConfig = {
   options?: {
     [key: string]: unknown
   }
+  topP?: number
+  native?: boolean
   /**
    * Hex color code (e.g., #FF5733) or theme color (e.g., primary)
    */
