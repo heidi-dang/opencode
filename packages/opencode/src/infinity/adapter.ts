@@ -111,12 +111,12 @@ export class InfinityAdapter {
     }
   }
 
-  async inspectTarget(task: Task, context: string): Promise<InspectResult> {
+  async inspectTarget(task: Task, context: string, failure?: string): Promise<InspectResult> {
     const model = await this.getModel("github-copilot/gpt-5-mini")
     const { object } = await generateObject({
       model: await Provider.getLanguage(model),
       system: "You are the Infinity Inspector. Analyze the target and provide a root cause hypothesis and fix plan in JSON format.",
-      prompt: `Task: ${task.title}\nContext:\n${context}\n\nReturn your analysis as a JSON object.`,
+      prompt: `Task: ${task.title}\nContext:\n${context}\n${failure ? `\nPREVIOUS FAILURE CONTEXT:\n${failure}\n\nPlease analyze why the previous attempt failed and providing a revised fix plan.` : ""}\n\nReturn your analysis as a JSON object.`,
       schema: z.object({
         defect_summary: z.string(),
         root_cause: z.string(),

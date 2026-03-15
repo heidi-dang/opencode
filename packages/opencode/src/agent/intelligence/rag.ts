@@ -3,6 +3,7 @@ import { CodeChunker } from "./chunker"
 import { Filesystem } from "../../util/filesystem"
 import { Log } from "../../util/log"
 import * as path from "path"
+import * as fs from "fs"
 import { Glob } from "../../util/glob"
 
 export interface RAGIndex {
@@ -60,6 +61,17 @@ export class CodebaseRAG {
   static async reindex(root: string): Promise<void> {
     this.log.info("Reindexing codebase for RAG...")
 
+    const indexPath = path.join(root, ".opencode", "rag", "index.json")
+    const existingIndex: RAGIndex | null = await Filesystem.readJson(indexPath).catch(() => null)
+    const existingChunksMap = new Map<string, CodeChunk[]>()
+    if (existingIndex) {
+      for (const chunk of existingIndex.chunks) {
+        const chunks = existingChunksMap.get(chunk.filePath) || []
+        chunks.push(chunk)
+        existingChunksMap.set(chunk.filePath, chunks)
+      }
+    }
+
     // Find all TS/JS files
     const allFiles = await Glob.scan("**/*.{ts,js,tsx,jsx}", {
       cwd: root,
@@ -67,7 +79,6 @@ export class CodebaseRAG {
       include: "file",
     })
 
-    // Manual filtering since Glob.scan doesn't support ignore in this implementation
     const files = allFiles.filter(
       (f) => !f.includes("/node_modules/") && !f.includes("/dist/") && !f.includes("/.opencode/"),
     )
@@ -75,7 +86,21 @@ export class CodebaseRAG {
     const allChunks: CodeChunk[] = []
     for (const file of files) {
       try {
+        const stats = await fs.promises.stat(file)
+        const mtime = stats.mtimeMs
+        const cached = existingChunksMap.get(file)
+
+        // Incremental logic: if file matches cached mtime, reuse chunks
+        if (cached && cached[0].metadata?.mtime === mtime) {
+          allChunks.push(...cached)
+          continue
+        }
+
         const chunks = await CodeChunker.chunk(file)
+        // Inject mtime into metadata for next run
+        for (const chunk of chunks) {
+          chunk.metadata = { ...chunk.metadata, mtime }
+        }
         allChunks.push(...chunks)
       } catch (err) {
         this.log.warn("Failed to chunk file", { file, error: err })
@@ -87,9 +112,8 @@ export class CodebaseRAG {
       lastIndexed: Date.now(),
     }
 
-    const indexPath = path.join(root, ".opencode", "rag", "index.json")
     await Filesystem.writeJson(indexPath, this.index)
-    this.log.info("Reindexing complete", { totalChunks: allChunks.length })
+    this.log.info("Reindexing complete", { totalChunks: allChunks.length, incremental: allChunks.length - existingChunksMap.size })
   }
 
   static async search(root: string, query: string, limit: number = 5): Promise<CodeChunk[]> {

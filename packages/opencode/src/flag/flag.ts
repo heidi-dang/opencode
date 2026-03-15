@@ -1,12 +1,3 @@
-function truthy(key: string) {
-  const value = process.env[key]?.toLowerCase()
-  return value === "true" || value === "1"
-}
-
-function falsy(key: string) {
-  const value = process.env[key]?.toLowerCase()
-  return value === "false" || value === "0"
-}
 
 export namespace Flag {
   export const OPENCODE_AUTO_SHARE = truthy("OPENCODE_AUTO_SHARE")
@@ -65,12 +56,13 @@ export namespace Flag {
   export const OPENCODE_SKIP_MIGRATIONS = truthy("OPENCODE_SKIP_MIGRATIONS")
   export const OPENCODE_STRICT_CONFIG_DEPS = truthy("OPENCODE_STRICT_CONFIG_DEPS")
 
-  function number(key: string) {
-    const value = process.env[key]
-    if (!value) return undefined
-    const parsed = Number(value)
-    return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined
-  }
+  // Heidi Frontier Flags (Dynamic for testing)
+  export declare const HEIDI_ENABLE_FRONTIER: boolean
+  export declare const HEIDI_ENABLE_SENTRY_GATE: boolean
+  export declare const HEIDI_ENABLE_VORTEX_GATE: boolean
+  export declare const HEIDI_ENABLE_REVIEWER_GATE: boolean
+  export declare const HEIDI_MAX_RETRIES: number
+
 }
 
 // Dynamic getter for OPENCODE_DISABLE_PROJECT_CONFIG
@@ -116,3 +108,50 @@ Object.defineProperty(Flag, "OPENCODE_CLIENT", {
   enumerable: true,
   configurable: false,
 })
+
+Object.defineProperty(Flag, "HEIDI_ENABLE_FRONTIER", {
+  get() { return !falsy("HEIDI_ENABLE_FRONTIER") },
+  enumerable: true,
+  configurable: false,
+})
+
+Object.defineProperty(Flag, "HEIDI_ENABLE_SENTRY_GATE", {
+  get() { return Flag.HEIDI_ENABLE_FRONTIER || truthy("HEIDI_ENABLE_SENTRY_GATE") },
+  enumerable: true,
+  configurable: false,
+})
+
+Object.defineProperty(Flag, "HEIDI_ENABLE_VORTEX_GATE", {
+  get() { return Flag.HEIDI_ENABLE_FRONTIER || truthy("HEIDI_ENABLE_VORTEX_GATE") },
+  enumerable: true,
+  configurable: false,
+})
+
+Object.defineProperty(Flag, "HEIDI_ENABLE_REVIEWER_GATE", {
+  get() { return Flag.HEIDI_ENABLE_FRONTIER || truthy("HEIDI_ENABLE_REVIEWER_GATE") },
+  enumerable: true,
+  configurable: false,
+})
+
+Object.defineProperty(Flag, "HEIDI_MAX_RETRIES", {
+  get() { return number("HEIDI_MAX_RETRIES") ?? 2 },
+  enumerable: true,
+  configurable: false,
+})
+
+function truthy(key: string) {
+  const value = process.env[key]?.toLowerCase()
+  return value === "true" || value === "1"
+}
+
+function falsy(key: string) {
+  const value = process.env[key]?.toLowerCase()
+  return value === "false" || value === "0"
+}
+
+function number(key: string) {
+  const value = process.env[key]
+  if (!value) return undefined
+  const parsed = Number(value)
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined
+}
