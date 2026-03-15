@@ -123,6 +123,22 @@ export interface LockFile {
   run_id?: string
 }
 
+export interface Report {
+  score: number
+  metrics: {
+    stability: number
+    performance: number
+    security: number
+    coverage: number
+  }
+  history: {
+    timestamp: string
+    score: number
+    task_id: string
+  }[]
+  updated_at: string
+}
+
 // ============================================================================
 // Constants
 // ============================================================================
@@ -193,6 +209,9 @@ export class InfinityRuntime {
 
     // Create lock file path (but don't create it yet)
     // It will be created when the runtime starts
+
+    // Initial report
+    this.updateReport()
 
     this.log("BOOTSTRAP", "Bootstrap complete")
   }
@@ -671,6 +690,7 @@ export class InfinityRuntime {
         queue[taskIndex].status = state.status === "passed" ? "passed" : "failed"
         this.writeQueue(queue)
         this.log("REARM", `Updated task ${this.currentTaskId} status to ${queue[taskIndex].status}`)
+        this.updateReport()
       }
     }
 
@@ -869,6 +889,58 @@ export class InfinityRuntime {
       this.releaseLock()
       this.log("STOP", "Infinity Loop Runtime stopped")
     }
+  }
+
+  // ============================================================================
+  // Reporting
+  // ============================================================================
+
+  private updateReport(): void {
+    const reportPath = path.join(this.root, ".opencode", "report.json")
+    const queue = this.readQueue()
+    const finishedTasks = queue.filter((t) => ["passed", "failed"].includes(t.status))
+
+    if (finishedTasks.length === 0) {
+      // Initial state
+      const initialReport: Report = {
+        score: 0,
+        metrics: { stability: 0, performance: 0, security: 0, coverage: 0 },
+        history: [],
+        updated_at: new Date().toISOString(),
+      }
+      fs.writeFileSync(reportPath, JSON.stringify(initialReport, null, 2), "utf-8")
+      return
+    }
+
+    const passedCount = finishedTasks.filter((t) => t.status === "passed").length
+    const score = Math.round((passedCount / finishedTasks.length) * 100)
+
+    // Calculate metrics based on categories
+    const getMetric = (category: string) => {
+      const catTasks = finishedTasks.filter((t) => t.category === category)
+      if (catTasks.length === 0) return 0
+      const catPassed = catTasks.filter((t) => t.status === "passed").length
+      return Math.round((catPassed / catTasks.length) * 100)
+    }
+
+    const currentReport: Report = {
+      score,
+      metrics: {
+        stability: getMetric("stability"),
+        performance: getMetric("performance"),
+        security: getMetric("security"),
+        coverage: 0, // Placeholder
+      },
+      history: finishedTasks.map((t) => ({
+        timestamp: new Date().toISOString(),
+        score: t.status === "passed" ? 100 : 0,
+        task_id: t.id,
+      })),
+      updated_at: new Date().toISOString(),
+    }
+
+    fs.writeFileSync(reportPath, JSON.stringify(currentReport, null, 2), "utf-8")
+    this.log("REPORT", `Updated report score to ${score}`)
   }
 }
 

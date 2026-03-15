@@ -28,7 +28,6 @@ import { TuiThreadCommand } from "./cli/cmd/tui/thread"
 import { AcpCommand } from "./cli/cmd/acp"
 import { EOL } from "os"
 import { WebCommand } from "./cli/cmd/web"
-import { InfinityCommand } from "./infinity/runtime"
 import { PrCommand } from "./cli/cmd/pr"
 import { SessionCommand } from "./cli/cmd/session"
 import { DbCommand } from "./cli/cmd/db"
@@ -36,6 +35,7 @@ import path from "path"
 import { Global } from "./global"
 import { JsonMigration } from "./storage/json-migration"
 import { Database } from "./storage/db"
+import { Plugin } from "./plugin"
 
 process.on("unhandledRejection", (e) => {
   Log.Default.error("rejection", {
@@ -153,7 +153,10 @@ let cli = yargs(hideBin(process.argv))
   .command(PrCommand)
   .command(SessionCommand)
   .command(DbCommand)
-  .command(InfinityCommand)
+
+for (const command of await Plugin.listCliCommands()) {
+  cli = cli.command(command)
+}
 
 if (Installation.isLocal()) {
   cli = cli.command(WorkspaceServeCommand)

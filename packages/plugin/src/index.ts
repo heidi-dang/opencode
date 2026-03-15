@@ -152,6 +152,7 @@ export interface Hooks {
     [key: string]: ToolDefinition
   }
   auth?: AuthHook
+  cli?: () => any
   /**
    * Called when a new message is received
    */

@@ -12,6 +12,7 @@ import { Session } from "../session"
 import { NamedError } from "@opencode-ai/util/error"
 import { CopilotAuthPlugin } from "./copilot"
 import { gitlabAuthPlugin as GitlabAuthPlugin } from "@gitlab/opencode-gitlab-auth"
+import { InfinityPlugin } from "./infinity"
 
 export namespace Plugin {
   const log = Log.create({ service: "plugin" })
@@ -19,7 +20,7 @@ export namespace Plugin {
   const BUILTIN = ["opencode-anthropic-auth@0.0.13"]
 
   // Built-in plugins that are directly imported (not installed from npm)
-  const INTERNAL_PLUGINS: PluginInstance[] = [CodexAuthPlugin, CopilotAuthPlugin, GitlabAuthPlugin]
+  const INTERNAL_PLUGINS: PluginInstance[] = [CodexAuthPlugin, CopilotAuthPlugin, GitlabAuthPlugin, InfinityPlugin]
 
   const state = Instance.state(async () => {
     const client = createOpencodeClient({
@@ -128,6 +129,15 @@ export namespace Plugin {
 
   export async function list() {
     return state().then((x) => x.hooks)
+  }
+
+  export async function listCliCommands() {
+    const hooks = await list()
+    return hooks.flatMap((h) => {
+      const cli = h.cli?.()
+      if (!cli) return []
+      return Array.isArray(cli) ? cli : [cli]
+    })
   }
 
   export async function init() {

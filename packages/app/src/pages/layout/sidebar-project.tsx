@@ -12,6 +12,28 @@ import { useLanguage } from "@/context/language"
 import { useNotification } from "@/context/notification"
 import { ProjectIcon, SessionItem, type SessionItemProps } from "./sidebar-items"
 import { childMapByParent, displayName, sortedRootSessions } from "./helpers"
+import { useSDK } from "@/context/sdk"
+import { createResource } from "solid-js"
+
+const InfinityStatus = (props: { directory: string; onNavigate: () => void }) => {
+  const sdk = useSDK()
+  const [report] = createResource(async () => {
+    const res = await sdk.client.file.read({ path: ".opencode/report.json" })
+    return res.data
+  })
+
+  return (
+    <Show when={report()}>
+      <Button
+        variant="ghost"
+        class="flex w-full text-left justify-start text-text-base px-2 hover:bg-transparent active:bg-transparent"
+        onClick={props.onNavigate}
+      >
+        View Infinity Loop
+      </Button>
+    </Show>
+  )
+}
 
 export type ProjectSidebarContext = {
   currentDir: Accessor<string>
@@ -32,6 +54,7 @@ export type ProjectSidebarContext = {
   workspaceLabel: (directory: string, branch?: string, projectId?: string) => string
   sessionProps: Omit<SessionItemProps, "session" | "list" | "slug" | "children" | "mobile" | "dense" | "popover">
   setHoverSession: (id: string | undefined) => void
+  navigateToInfinity: (directory: string) => void
 }
 
 export const ProjectDragOverlay = (props: {
@@ -265,6 +288,13 @@ const ProjectPreviewPanel = (props: {
       >
         {props.language.t("sidebar.project.viewAllSessions")}
       </Button>
+      <InfinityStatus
+        directory={props.project.worktree}
+        onNavigate={() => {
+          props.setOpen(false)
+          props.ctx.navigateToInfinity(props.project.worktree)
+        }}
+      />
     </div>
   </div>
 )
