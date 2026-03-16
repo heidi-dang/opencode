@@ -750,6 +750,7 @@ export namespace SessionPrompt {
         SystemPrompt.persistence(),
         SystemPrompt.learning(),
         SystemPrompt.benchmark(),
+        SystemPrompt.quality(),
       ] as string[]
       if (format.type === "json_schema") {
         system.push(STRUCTURED_OUTPUT_SYSTEM_PROMPT)

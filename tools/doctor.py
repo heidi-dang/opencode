@@ -449,6 +449,7 @@ def get_all_checks(verbose: bool = False) -> List[DoctorCheck]:
         P7PersistentRunMemoryCheck(verbose),
         P8FailureLearningStoreCheck(verbose),
         P9BenchmarkGateCheck(verbose),
+        P10BestResultCheck(verbose),
         MasterSpecCheck(verbose),
     ]
 
@@ -626,6 +627,24 @@ class P9BenchmarkGateCheck(DoctorCheck):
             return run_check(self.verbose)
         except Exception as e:
             self.errors.append(f"Error running P9 benchmark gate check: {e}")
+            return False
+
+class P10BestResultCheck(DoctorCheck):
+    """Check for Intelligence Phase 10 (Best Result Engine) implementation."""
+    
+    name = "p10-best-result"
+    description = "Check for quality rubric and bounded stopping rules"
+    
+    def run(self) -> bool:
+        try:
+            root = get_project_root()
+            if str(root) not in sys.path:
+                sys.path.append(str(root))
+            
+            from tools.check_p10_best_result import run_check
+            return run_check(self.verbose)
+        except Exception as e:
+            self.errors.append(f"Error running P10 best result check: {e}")
             return False
 
 class MasterSpecCheck(DoctorCheck):

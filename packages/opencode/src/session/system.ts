@@ -24,6 +24,7 @@ import { RecoveryEngine } from "../agent/intelligence/recovery"
 import { RunMemory } from "../agent/intelligence/run-memory"
 import { FailureStore } from "../agent/intelligence/failure-store"
 import { BenchmarkGate } from "../agent/intelligence/benchmark"
+import { BestResultEngine } from "../agent/intelligence/best-result"
 
 export namespace SystemPrompt {
   export function instructions() {
@@ -59,6 +60,10 @@ export namespace SystemPrompt {
 
   export function benchmark() {
     return BenchmarkGate.getPolicy()
+  }
+
+  export function quality() {
+    return BestResultEngine.getPolicy()
   }
 
   export function task(obj: any) {
