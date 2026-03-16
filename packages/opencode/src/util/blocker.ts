@@ -11,10 +11,19 @@ export namespace Blocker {
   ])
   export type Type = z.infer<typeof Type>
 
+  export const ExecutionState = z.enum([
+    "running",
+    "partial_continue",
+    "blocked",
+    "complete",
+  ])
+  export type ExecutionState = z.infer<typeof ExecutionState>
+
   export interface Info {
     type: Type
     reason: string
     requiredInput?: string
+    state: ExecutionState
   }
 
   /**
@@ -34,6 +43,7 @@ export namespace Blocker {
          return {
            type: "destructive_approval_required",
            reason: "Action requires explicit user approval due to destructive nature.",
+           state: "blocked",
          }
       }
 
@@ -41,6 +51,7 @@ export namespace Blocker {
         return {
           type: "no_tool_fallback",
           reason: `Tool execution failed with no automated fallback: ${error.message}`,
+          state: "blocked",
         }
       }
 
@@ -51,6 +62,7 @@ export namespace Blocker {
         return {
           type: "hard_execution_failure",
           reason: error.message,
+          state: "blocked",
         }
       }
     }

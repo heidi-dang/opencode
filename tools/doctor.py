@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import List, Optional
 from check_diff_theme_resolution import check_diff_theme_resolution
 from check_p1_task_compiler import run_check as run_p1_check
+from check_10_10_spec import run_check as run_master_check
 
 
 def get_project_root() -> Path:
@@ -440,6 +441,7 @@ def get_all_checks(verbose: bool = False) -> List[DoctorCheck]:
         DiffThemeCheck(verbose),
         AgentAutonomyCheck(verbose),
         P1TaskCompilerCheck(verbose),
+        MasterSpecCheck(verbose),
     ]
 
 class AgentAutonomyCheck(DoctorCheck):
@@ -472,6 +474,19 @@ class P1TaskCompilerCheck(DoctorCheck):
             return run_p1_check(self.verbose)
         except Exception as e:
             self.errors.append(f"Error running P1 task compiler check: {e}")
+            return False
+
+class MasterSpecCheck(DoctorCheck):
+    """Check for Heidi 10/10 Human-Like Agent System Master Specification."""
+    
+    name = "heidi-10-10-spec"
+    description = "Check for 10/10 Master Spec adherence (P0-P1 foundations)"
+    
+    def run(self) -> bool:
+        try:
+            return run_master_check(self.verbose)
+        except Exception as e:
+            self.errors.append(f"Error running Master Spec check: {e}")
             return False
 
 

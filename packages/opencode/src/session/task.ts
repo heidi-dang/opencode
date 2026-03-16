@@ -6,12 +6,13 @@ import { ProviderID, ModelID } from "@/provider/schema";
 import { SystemPrompt } from "./system";
 
 export const TaskObjectSchema = z.object({
-  goal: z.string().describe("The high-level objective of the task."),
-  constraints: z.array(z.string()).describe("Rules and constraints the agent must follow."),
-  success_criteria: z.array(z.string()).describe("Specific, measurable conditions that define completion."),
-  required_evidence: z.array(z.string()).describe("Required proof artifacts (e.g. log outputs, screenshots, files)."),
-  preferred_output: z.string().optional().describe("Description of how the final result should be presented."),
-  blocker_policy: z.string().optional().describe("Guidance on when to stop and ask the user."),
+  goal: z.string().describe("The primary objective of the task"),
+  constraints: z.string().array().describe("Non-negotiable limits or requirements"),
+  success_criteria: z.string().array().describe("Measurable outcomes that define success"),
+  required_evidence: z.string().array().describe("The specific proof needed to confirm the task is complete"),
+  allowed_tools: z.string().array().describe("The specific set of tools allowed for this task"),
+  blocker_rules: z.string().array().describe("Specific conditions that should trigger a hard stop or user clarification"),
+  preferred_output_format: z.string().describe("The desired structure or format for the final result"),
 });
 
 export type TaskObject = z.infer<typeof TaskObjectSchema>;
