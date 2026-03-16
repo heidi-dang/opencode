@@ -380,10 +380,6 @@ export namespace SessionProcessor {
             const error = MessageV2.fromError(e, { providerID: input.model.providerID })
             if (MessageV2.ContextOverflowError.isInstance(error)) {
               needsCompaction = true
-              Bus.publish(Session.Event.Error, {
-                sessionID: input.sessionID,
-                error,
-              })
             } else {
               const retry = SessionRetry.retryable(error)
               if (retry !== undefined) {
