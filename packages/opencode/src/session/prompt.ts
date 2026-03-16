@@ -50,6 +50,7 @@ import { Truncate } from "@/tool/truncation"
 import { decodeDataUrl } from "@/util/data-url"
 import { Policy } from "./policy"
 import { Blocker } from "@/util/blocker"
+import { TaskCompiler } from "./task"
 
 // @ts-ignore
 globalThis.AI_SDK_LOG_WARNINGS = false
@@ -320,6 +321,33 @@ export namespace SessionPrompt {
       }
 
       if (!lastUser) throw new Error("No user message found in stream. This should never happen.")
+
+      // Phase 1 Task Compiler: Structure the request into a Task Object
+      const hasTask = msgs.some((m) => m.parts.some((p) => p.type === "task_object"))
+      let taskObject = msgs.flatMap((m) => m.parts).find((p) => p.type === "task_object")?.task
+
+      if (!hasTask && lastUser && step === 0) {
+        const userText = msgs
+          .filter((m) => m.info.id === lastUser!.id)
+          .flatMap((m) => m.parts)
+          .filter((p) => p.type === "text")
+          .map((p) => (p as MessageV2.TextPart).text)
+          .join("\n")
+
+        if (userText.trim()) {
+          const compiledTask = await TaskCompiler.compile(userText)
+          taskObject = compiledTask
+          await Session.updatePart({
+            id: PartID.ascending(),
+            messageID: lastUser.id,
+            sessionID,
+            type: "task_object",
+            task: compiledTask,
+          } as MessageV2.TaskPart)
+          msgs = await MessageV2.filterCompacted(MessageV2.stream(sessionID))
+        }
+      }
+
       if (
         lastAssistant?.finish &&
         !["tool-calls", "unknown"].includes(lastAssistant.finish) &&
@@ -712,6 +740,7 @@ export namespace SessionPrompt {
         ...(skills ? [skills] : []),
         ...intelligence,
         ...(await InstructionPrompt.system()),
+        ...(taskObject ? [SystemPrompt.task(taskObject)] : []),
       ] as string[]
       if (format.type === "json_schema") {
         system.push(STRUCTURED_OUTPUT_SYSTEM_PROMPT)

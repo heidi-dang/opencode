@@ -17,6 +17,7 @@ import sys
 from pathlib import Path
 from typing import List, Optional
 from check_diff_theme_resolution import check_diff_theme_resolution
+from check_p1_task_compiler import run_check as run_p1_check
 
 
 def get_project_root() -> Path:
@@ -438,6 +439,7 @@ def get_all_checks(verbose: bool = False) -> List[DoctorCheck]:
         InfinityLoopCheck(verbose),
         DiffThemeCheck(verbose),
         AgentAutonomyCheck(verbose),
+        P1TaskCompilerCheck(verbose),
     ]
 
 class AgentAutonomyCheck(DoctorCheck):
@@ -457,6 +459,19 @@ class AgentAutonomyCheck(DoctorCheck):
             return run_check(self.verbose)
         except ImportError as e:
             self.errors.append(f"tools/check_agent_finish_mode.py not found or could not be imported: {e}")
+            return False
+
+class P1TaskCompilerCheck(DoctorCheck):
+    """Check for Intelligence Phase 1 (Task Compiler) implementation."""
+    
+    name = "p1-task-compiler"
+    description = "Check for TaskCompiler implementation and integration"
+    
+    def run(self) -> bool:
+        try:
+            return run_p1_check(self.verbose)
+        except Exception as e:
+            self.errors.append(f"Error running P1 task compiler check: {e}")
             return False
 
 

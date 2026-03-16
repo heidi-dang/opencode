@@ -20,6 +20,23 @@ export namespace SystemPrompt {
   export function instructions() {
     return PROMPT_CODEX.trim()
   }
+ 
+  export function task(obj: any) {
+    if (!obj) return []
+    return [
+      `<task>`,
+      `  Goal: ${obj.goal}`,
+      `  Constraints:`,
+      ...(obj.constraints ?? []).map((c: string) => `    - ${c}`),
+      `  Success Criteria:`,
+      ...(obj.success_criteria ?? []).map((s: string) => `    - ${s}`),
+      `  Required Evidence:`,
+      ...(obj.required_evidence ?? []).map((e: string) => `    - ${e}`),
+      obj.preferred_output ? `  Preferred Output: ${obj.preferred_output}` : "",
+      obj.blocker_policy ? `  Blocker Policy: ${obj.blocker_policy}` : "",
+      `</task>`,
+    ].filter(Boolean).join("\n")
+  }
 
   export function provider(model: Provider.Model) {
     if (model.api.id.includes("gpt-5")) return [PROMPT_BEAST]
