@@ -734,7 +734,7 @@ export namespace SessionPrompt {
       const tags =
         lastUserWithParts?.parts.filter((p) => p.type === "text").map((p) => (p as MessageV2.TextPart).text) ?? []
       const skills = await SystemPrompt.skills(agent)
-      const intelligence = await SystemPrompt.intelligence(agent, tags)
+      const intelligence = await SystemPrompt.intelligence(agent, tags, lastUser.sessionID)
       const system = [
         ...(await SystemPrompt.environment(model)),
         ...(skills ? [skills] : []),

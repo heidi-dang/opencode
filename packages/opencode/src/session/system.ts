@@ -79,7 +79,7 @@ export namespace SystemPrompt {
     ]
   }
 
-  export async function intelligence(agent: Agent.Info, tags: string[] = []) {
+  export async function intelligence(agent: Agent.Info, tags: string[] = [], sessionID: string) {
     if (agent.name !== "heidi") return []
 
     const root = Instance.worktree
@@ -87,7 +87,7 @@ export namespace SystemPrompt {
     await ContextScout.persist(root, patterns)
 
     const context = await ContextLoader.load(root, tags)
-    const workingSet = await WorkingSet.format(root, Global.sessionID)
+    const workingSet = await WorkingSet.format(root, sessionID)
 
     return [
       `<intelligence>`,
