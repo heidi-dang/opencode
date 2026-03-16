@@ -15,6 +15,7 @@ import { PermissionNext } from "@/permission/next"
 import { Skill } from "@/skill"
 import { ContextScout } from "../agent/intelligence/scout"
 import { ContextLoader } from "../agent/intelligence/loader"
+import { WorkingSet } from "../agent/intelligence/working-set"
 
 export namespace SystemPrompt {
   export function instructions() {
@@ -32,8 +33,11 @@ export namespace SystemPrompt {
       ...(obj.success_criteria ?? []).map((s: string) => `    - ${s}`),
       `  Required Evidence:`,
       ...(obj.required_evidence ?? []).map((e: string) => `    - ${e}`),
-      obj.preferred_output ? `  Preferred Output: ${obj.preferred_output}` : "",
-      obj.blocker_policy ? `  Blocker Policy: ${obj.blocker_policy}` : "",
+      `  Allowed Tools:`,
+      ...(obj.allowed_tools ?? []).map((t: string) => `    - ${t}`),
+      `  Blocker Rules:`,
+      ...(obj.blocker_rules ?? []).map((r: string) => `    - ${r}`),
+      obj.preferred_output_format ? `  Preferred Output Format: ${obj.preferred_output_format}` : "",
       `</task>`,
     ].filter(Boolean).join("\n")
   }
@@ -83,7 +87,7 @@ export namespace SystemPrompt {
     await ContextScout.persist(root, patterns)
 
     const context = await ContextLoader.load(root, tags)
-    if (context.length === 0) return []
+    const workingSet = await WorkingSet.format(root, Global.sessionID)
 
     return [
       `<intelligence>`,
@@ -91,10 +95,11 @@ export namespace SystemPrompt {
       `  Conventions: ${patterns.conventions.join(", ")}`,
       `  Project Structure: ${patterns.dirs.join(", ")}`,
       `</intelligence>`,
+      workingSet,
       `<context>`,
       ...context.map(item => `  <file name="${item.name}">\n${item.content}\n  </file>`),
       `</context>`
-    ].join("\n")
+    ].filter(Boolean).join("\n")
   }
 
   export async function skills(agent: Agent.Info) {
