@@ -29,6 +29,7 @@ import { SessionID, MessageID, PartID } from "./schema"
 import type { Provider } from "@/provider/provider"
 import { ModelID, ProviderID } from "@/provider/schema"
 import { PermissionNext } from "@/permission/next"
+import { SessionStatus } from "./status"
 import { Global } from "@/global"
 import type { LanguageModelV2Usage } from "@ai-sdk/provider"
 import { iife } from "@/util/iife"
@@ -63,6 +64,7 @@ export namespace Session {
         : undefined
     const share = row.share_url ? { url: row.share_url } : undefined
     const revert = row.revert ?? undefined
+    const status = row.status ? JSON.parse(row.status) : undefined
     return {
       id: row.id,
       slug: row.slug,
@@ -76,6 +78,7 @@ export namespace Session {
       share,
       revert,
       permission: row.permission ?? undefined,
+      status: status as SessionStatus.Info | undefined,
       time: {
         created: row.time_created,
         updated: row.time_updated,
@@ -102,6 +105,7 @@ export namespace Session {
       summary_diffs: info.summary?.diffs,
       revert: info.revert ?? null,
       permission: info.permission,
+      status: info.status ? JSON.stringify(info.status) : null,
       time_created: info.time.created,
       time_updated: info.time.updated,
       time_compacting: info.time.compacting,
@@ -157,6 +161,7 @@ export namespace Session {
           diff: z.string().optional(),
         })
         .optional(),
+      status: SessionStatus.Info.optional(),
     })
     .meta({
       ref: "Session",
@@ -659,6 +664,70 @@ export namespace Session {
         .all(),
     )
     return rows.map(fromRow)
+  })
+
+  // Wait for all child sessions to complete
+  // Polls SessionStatus until all children have status.type === "completed"
+  export const waitForChildren = fn(SessionID.zod, async (parentID) => {
+    const pollInterval = 500 // ms
+    const maxWaitTime = 60000 // 60 seconds max
+    const startTime = Date.now()
+
+    while (Date.now() - startTime < maxWaitTime) {
+      const childSessions = await children(parentID)
+
+      // If no children, resolve immediately
+      if (childSessions.length === 0) {
+        return
+      }
+
+      // Check if all children are completed
+      const allCompleted = childSessions.every((child) => {
+        const status = SessionStatus.get(child.id)
+        return status.type === "completed"
+      })
+
+      if (allCompleted) {
+        return
+      }
+
+      // Wait before polling again
+      await new Promise((resolve) => setTimeout(resolve, pollInterval))
+    }
+
+    // Timeout - throw error
+    throw new Error(`Timeout waiting for child sessions to complete for parent: ${parentID}`)
+  })
+
+  // Clean up orphaned child sessions (children whose parent no longer exists)
+  export const cleanupOrphans = fn(z.object({ projectID: ProjectID.zod.optional() }).optional(), async (input) => {
+    const project = Instance.project
+    const targetProjectID = input?.projectID ?? project.id
+
+    // Get all sessions with a parent_id
+    const allSessions = Database.use((db) =>
+      db
+        .select({ id: SessionTable.id, parent_id: SessionTable.parent_id })
+        .from(SessionTable)
+        .where(eq(SessionTable.project_id, targetProjectID))
+        .all(),
+    )
+
+    // Get all session IDs that exist
+    const existingIDs = new Set(allSessions.map((s) => s.id))
+
+    // Find orphaned sessions (children whose parent doesn't exist)
+    const orphans = allSessions.filter((s) => s.parent_id && !existingIDs.has(s.parent_id))
+
+    // Delete orphaned sessions
+    let deletedCount = 0
+    for (const orphan of orphans) {
+      await remove(orphan.id)
+      deletedCount++
+    }
+
+    log.info("orphan cleanup completed", { deletedCount, projectID: targetProjectID })
+    return { deletedCount }
   })
 
   export const remove = fn(SessionID.zod, async (sessionID) => {
