@@ -609,7 +609,7 @@ export namespace Server {
     uiDevUrl?: string
     uiDist?: string
   }) {
-    const config = await Config.get()
+    const config = await Config.getGlobal()
     const { source, reason } = await UiSourceResolver.resolve({ 
       uiDevUrl: opts.uiDevUrl, 
       uiDist: opts.uiDist,

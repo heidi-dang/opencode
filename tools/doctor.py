@@ -81,5 +81,42 @@ def check_ui_resolution():
     print("   - Explicit sources fail loudly.")
     print("   - No hardcoded ports or symlink dependencies remain.")
 
+def check_startup_context_isolation():
+    print("🔍 [Doctor] Checking Startup Context Isolation...")
+    
+    repo_root = Path(__file__).parent.parent
+    server_ts = repo_root / "packages" / "opencode" / "src" / "server" / "server.ts"
+    config_ts = repo_root / "packages" / "opencode" / "src" / "config" / "config.ts"
+    
+    errors = []
+
+    # 1. Verify Server.listen uses Config.getGlobal
+    if server_ts.exists():
+        content = server_ts.read_text()
+        if "Config.getGlobal()" not in content:
+            errors.append("VIOLATION: Server.listen() should call Config.getGlobal() for context-free startup.")
+        else:
+            print("✅ Server.listen() uses Config.getGlobal()")
+
+    # 2. Verify Config.get() remains project-aware (strict)
+    if config_ts.exists():
+        content = config_ts.read_text()
+        # It should NOT have the isProvided check or getGlobal fallback anymore
+        if "Instance.isProvided()" in content:
+            errors.append("VIOLATION: Config.get() should not contain Instance.isProvided() (keep fix narrow).")
+        if "state().then((x) => x.config)" not in content:
+             errors.append("VIOLATION: Config.get() lacks project-aware state resolution.")
+        else:
+            print("✅ Config.get() remains project-aware")
+
+    if errors:
+        print("\n❌ Startup Context Isolation failed:")
+        for err in errors:
+            print(f"   - {err}")
+        sys.exit(1)
+
+    print("✅ Startup Context Isolation is maintained.")
+
 if __name__ == "__main__":
     check_ui_resolution()
+    check_startup_context_isolation()
