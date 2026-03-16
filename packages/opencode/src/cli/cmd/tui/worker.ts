@@ -38,7 +38,7 @@ GlobalBus.on("event", (event) => {
   Rpc.emit("global.event", event)
 })
 
-let server: Bun.Server<BunWebSocketData> | undefined
+let activeServer: Bun.Server<BunWebSocketData> | undefined
 
 const eventStream = {
   abort: undefined as AbortController | undefined,
@@ -119,9 +119,10 @@ export const rpc = {
     }
   },
   async server(input: { port: number; hostname: string; mdns?: boolean; cors?: string[] }) {
-    if (server) await server.stop(true)
-    server = await Server.listen(input)
-    return { url: server.url.toString() }
+    if (activeServer) await activeServer.stop(true)
+    const configured = await Server.listen(input)
+    activeServer = configured
+    return { url: configured.url.toString() }
   },
   async checkUpgrade(input: { directory: string }) {
     await Instance.provide({
@@ -143,7 +144,7 @@ export const rpc = {
     Log.Default.info("worker shutting down")
     if (eventStream.abort) eventStream.abort.abort()
     await Instance.disposeAll()
-    if (server) server.stop(true)
+    if (activeServer) activeServer.stop(true)
   },
 }
 
