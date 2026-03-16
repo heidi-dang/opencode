@@ -481,7 +481,7 @@ export namespace SessionPrompt {
         if (result && part.state.status === "running") {
           // Use bounded capture to prevent unbounded output in message payload
           const bounded = await Truncate.boundedCapture(result.output ?? "")
-          
+
           await Session.updatePart({
             ...part,
             state: {
@@ -489,7 +489,7 @@ export namespace SessionPrompt {
               input: part.state.input,
               title: result.title,
               metadata: result.metadata,
-              output: bounded.preview,  // Bounded preview for message
+              output: bounded.preview, // Bounded preview for message
               attachments,
               time: {
                 ...part.state.time,
@@ -675,9 +675,7 @@ export namespace SessionPrompt {
       const format = lastUser.format ?? { type: "text" }
       const lastUserWithParts = msgs.findLast((m) => m.info.role === "user")
       const tags =
-        lastUserWithParts?.parts
-          .filter((p) => p.type === "text")
-          .map((p) => (p as MessageV2.TextPart).text) ?? []
+        lastUserWithParts?.parts.filter((p) => p.type === "text").map((p) => (p as MessageV2.TextPart).text) ?? []
       const skills = await SystemPrompt.skills(agent)
       const intelligence = await SystemPrompt.intelligence(agent, tags)
       const system = [
@@ -757,7 +755,9 @@ export namespace SessionPrompt {
         if (!check.pass && !processor.message.error) {
           // Track gate retries to prevent infinite loops
           const gateRetries = msgs.reduce((acc, m) => {
-            return acc + m.parts.filter(p => p.type === "text" && p.text.includes("SESSION FINALIZATION BLOCKED")).length
+            return (
+              acc + m.parts.filter((p) => p.type === "text" && p.text.includes("SESSION FINALIZATION BLOCKED")).length
+            )
           }, 0)
 
           if (gateRetries >= 3) {
@@ -785,9 +785,7 @@ export namespace SessionPrompt {
 
         // Automatic Auditor Trigger for Build Agent
         if (agent.name === "build" && !processor.message.error) {
-          const alreadyAudited = msgs.some((m) =>
-            m.parts.some((p) => p.type === "subtask" && p.agent === "auditor"),
-          )
+          const alreadyAudited = msgs.some((m) => m.parts.some((p) => p.type === "subtask" && p.agent === "auditor"))
           if (!alreadyAudited) {
             await Session.updatePart({
               id: PartID.ascending(),
@@ -795,8 +793,7 @@ export namespace SessionPrompt {
               sessionID,
               type: "subtask",
               agent: "auditor",
-              description:
-                "Perform a final audit of the implementation, running tests and verifying requirements.",
+              description: "Perform a final audit of the implementation, running tests and verifying requirements.",
               prompt:
                 "Please review the changes made by the build agent. Run any necessary tests, verify that all requirements from implementation_plan.md are met, and provide a final score from 0-100.",
             } satisfies MessageV2.SubtaskPart)
@@ -819,9 +816,7 @@ export namespace SessionPrompt {
         )
 
         if (wrotePlan) {
-          const alreadyReviewed = msgs.some((m) =>
-            m.parts.some((p) => p.type === "subtask" && p.agent === "reviewer"),
-          )
+          const alreadyReviewed = msgs.some((m) => m.parts.some((p) => p.type === "subtask" && p.agent === "reviewer"))
           if (!alreadyReviewed) {
             await Session.updatePart({
               id: PartID.ascending(),
@@ -829,8 +824,7 @@ export namespace SessionPrompt {
               sessionID,
               type: "subtask",
               agent: "reviewer",
-              description:
-                "Review the proposed implementation plan for architectural integrity and potential bugs.",
+              description: "Review the proposed implementation plan for architectural integrity and potential bugs.",
               prompt:
                 "Please review the implementation_plan.md file and provide feedback on its correctness, security, and performance. Assign a score from 0-100.",
             } satisfies MessageV2.SubtaskPart)
@@ -864,6 +858,7 @@ export namespace SessionPrompt {
       }
       continue
     }
+    SessionStatus.set(sessionID, { type: "idle" })
     SessionCompaction.prune({ sessionID })
     for await (const item of MessageV2.stream(sessionID)) {
       if (item.info.role === "user") continue
@@ -1845,7 +1840,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
     if (part.state.status === "running") {
       // Use bounded capture to prevent unbounded output in message payload
       const bounded = await Truncate.boundedCapture(output)
-      
+
       part.state = {
         status: "completed",
         time: {
@@ -1858,7 +1853,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
           output,
           description: "",
         },
-        output: bounded.preview,  // Bounded preview for message
+        output: bounded.preview, // Bounded preview for message
         // Bounded output metadata
         outputHasMore: bounded.hasMore,
         outputRef: bounded.ref,
