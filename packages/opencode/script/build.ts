@@ -15,6 +15,72 @@ process.chdir(dir)
 import { Script } from "@opencode-ai/script"
 import pkg from "../package.json"
 
+// Fix for Bun snap environment: ensure BUN_INSTALL points to a writable local path.
+// We must set this BEFORE Bun's native compiler starts. If we are in a snap and it's not set,
+// we re-spawn the process with the correct environment.
+if (process.env.SNAP && process.env.HOME && !process.env.BUN_INSTALL?.startsWith(process.env.HOME)) {
+  const localBun = path.join(process.env.HOME, ".bun")
+  const env = { ...process.env, BUN_INSTALL: localBun }
+  const proc = Bun.spawnSync([process.argv[0], ...process.argv.slice(1)], {
+    env,
+    stdio: ["inherit", "inherit", "inherit"],
+  })
+  process.exit(proc.exitCode)
+}
+
+async function prefetch(baseTarget: string) {
+  const version = process.versions.bun
+  const isWin = baseTarget.includes("windows")
+  const os = isWin ? "windows" : baseTarget.split("-")[0]
+  let arch = baseTarget.split("-")[1]
+  if (arch === "arm64") arch = "aarch64"
+  const baseline = baseTarget.includes("baseline") ? "-baseline" : ""
+  const abi = baseTarget.includes("musl") ? "-musl" : ""
+  const releaseName = `bun-${os}-${arch}${baseline}${abi}`
+
+  const bunInstall = process.env.BUN_INSTALL || path.join(process.env.HOME || "/home/heidi", ".bun")
+  const cacheDir = path.join(bunInstall, "install/cache", `bun-v${version}`)
+  const targetDir = path.join(cacheDir, releaseName)
+  const binaryName = isWin ? "bun.exe" : "bun"
+  const binaryPath = path.join(targetDir, binaryName)
+
+  if (fs.existsSync(binaryPath)) {
+    console.log(`  [cache] ${releaseName} found at ${binaryPath}`)
+    return
+  }
+
+  console.log(`  [prefetch] ${releaseName} starting...`)
+  const url = `https://github.com/oven-sh/bun/releases/download/bun-v${version}/${releaseName}.zip`
+  try {
+    const res = await fetch(url)
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status} when fetching ${url}`)
+    }
+    const buffer = await res.arrayBuffer()
+    const zipPath = path.join(process.env.TMPDIR || "/tmp", `${releaseName}.zip`)
+    await Bun.write(zipPath, buffer)
+
+    if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true })
+
+    const proc = Bun.spawnSync(["python3", "-m", "zipfile", "-e", zipPath, cacheDir])
+    if (!proc.success) {
+      throw new Error(`Failed to extract ${releaseName}: ${proc.stderr.toString()}`)
+    }
+    
+    // Set executable bit for the binary
+    if (fs.existsSync(binaryPath)) {
+      fs.chmodSync(binaryPath, 0o755)
+      console.log(`  [prefetch] ${releaseName} successfully cached`)
+    } else {
+      console.warn(`  [prefetch] binary not found after extraction at ${binaryPath}`)
+    }
+
+    fs.unlinkSync(zipPath)
+  } catch (err: any) {
+    console.warn(`  [prefetch] failed for ${releaseName}: ${err.message}. Bun will try its internal downloader.`)
+  }
+}
+
 const modelsUrl = process.env.OPENCODE_MODELS_URL || "https://models.dev"
 // Fetch and generate models.dev snapshot
 const modelsData = process.env.MODELS_DEV_API_JSON
@@ -125,6 +191,10 @@ for (const item of targets) {
   ]
     .filter(Boolean)
     .join("-")
+  
+  const baseTarget = name.replace(pkg.name + "-", "")
+  await prefetch(baseTarget)
+
   console.log(`building ${name}`)
   await $`mkdir -p dist/${name}/bin`
 
