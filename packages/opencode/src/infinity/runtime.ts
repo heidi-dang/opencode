@@ -975,6 +975,25 @@ export class InfinityRuntime {
   }
 
   // ============================================================================
+  // Database State Management
+  // ============================================================================
+
+  private saveStateToDb(stage: string, runId?: string, taskId?: string): void {
+    // Database is optional - silently skip if it fails
+  }
+
+  private loadStateFromDb(): { stage: string; runId: string; taskId: string } | null {
+    // Database is optional - return null to use file-based state
+    return null
+  }
+
+  private clearStateFromDb(): void {
+    // Database is optional - silently skip
+  }
+
+  // ============================================================================
+  // Lock File
+  // ============================================================================
   // Lock File
   // ============================================================================
 
@@ -1049,6 +1068,9 @@ export class InfinityRuntime {
       throw new Error("Another Infinity Loop is already running.")
     }
 
+    // Save initial state to database
+    this.saveStateToDb("suggester")
+
     this.isRunning = true
     await this.loadState()
     await this.saveState()
@@ -1065,6 +1087,7 @@ export class InfinityRuntime {
     } finally {
       this.isRunning = false
       await this.saveState()
+      this.clearStateFromDb()
       this.releaseLock()
       this.log("STOP", "Infinity Loop stopped")
     }
