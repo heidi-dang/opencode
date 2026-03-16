@@ -70,6 +70,7 @@ export const { use: useSDK, provider: SDKProvider } = createSimpleContext({
       flush()
     }
 
+    let delay = 1000
     function startSSE() {
       sse?.abort()
       const ctrl = new AbortController()
@@ -84,8 +85,16 @@ export const { use: useSDK, provider: SDKProvider } = createSimpleContext({
             handleEvent(event)
           }
 
+          // Successful connection - reset backoff
+          delay = 1000
+
           if (timer) clearTimeout(timer)
           if (queue.length > 0) flush()
+
+          // Exponential backoff with jitter before reconnecting
+          const jitter = Math.random() * 1000
+          await new Promise((r) => setTimeout(r, delay + jitter))
+          delay = Math.min(delay * 2, 30000)
         }
       })().catch(() => {})
     }
