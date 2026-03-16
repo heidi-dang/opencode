@@ -170,6 +170,19 @@ export class PatchViolation extends Error {
 }
 
 // ============================================================================
+// Phase 3: Learning Memory
+// ============================================================================
+
+export interface KnowledgePattern {
+  id: string
+  task_category: string
+  scope_hint: string[]
+  lesson: string
+  outcome: "pass" | "fail"
+  created_at: string
+}
+
+// ============================================================================
 // Constants
 // ============================================================================
 
@@ -608,6 +621,49 @@ export class InfinityRuntime {
     }
   }
 
+  protected readEvents(runId: string): any[] {
+    const journalPath = path.join(this.root, ".opencode", "runs", runId, "journal.jsonl")
+    if (!fs.existsSync(journalPath)) return []
+    return fs
+      .readFileSync(journalPath, "utf-8")
+      .split("\n")
+      .filter(Boolean)
+      .map(line => {
+        try { return JSON.parse(line) }
+        catch { return null }
+      })
+      .filter(Boolean)
+  }
+
+  protected readMemory(scope: string[]): string {
+    const patternsDir = path.join(this.root, ".opencode", "knowledge", "patterns")
+    if (!fs.existsSync(patternsDir)) return ""
+
+    const patterns = fs.readdirSync(patternsDir)
+      .filter(f => f.endsWith(".json"))
+      .map(f => {
+        try {
+          return JSON.parse(fs.readFileSync(path.join(patternsDir, f), "utf-8")) as KnowledgePattern
+        } catch {
+          return null
+        }
+      })
+      .filter(p => p !== null)
+      // Filter for overlap in scope hints
+      .filter(p => p!.scope_hint.some(s => scope.includes(s)))
+      // Sort by newest
+      .sort((a, b) => new Date(b!.created_at).getTime() - new Date(a!.created_at).getTime())
+      .slice(0, 10)
+
+    if (patterns.length === 0) return ""
+
+    return patterns
+      .map(p => {
+        return `[Pattern ${p!.id}] (${p!.task_category}, ${p!.outcome}): ${p!.lesson}`
+      })
+      .join("\n")
+  }
+
   // ============================================================================
   // Phase 2: Bounded Patching Helpers
   // ============================================================================
@@ -967,8 +1023,9 @@ export class InfinityRuntime {
     if (this.deps?.adapter) {
       const task = plan.task
 
-      // Build context from scoped files
-      const context = task.scope
+      // Build context from scoped files with memory injection (Phase 3)
+      const memory = this.readMemory(task.scope)
+      const fileCtx = task.scope
         .map(f => {
           const p = path.join(this.root, f)
           if (fs.existsSync(p) && fs.statSync(p).isFile()) {
@@ -977,6 +1034,9 @@ export class InfinityRuntime {
           return `### ${f}\n(file not found)\n`
         })
         .join("\n")
+      const context = memory
+        ? `## Previous Learnings\n${memory}\n\n## Repo Context\n${fileCtx}`
+        : fileCtx
 
       const inspect = await this.deps.adapter.inspectTarget(task, context)
       this.log("DEV", `Inspect confidence: ${inspect.confidence} — ${inspect.defect_summary}`)
@@ -1205,33 +1265,56 @@ export class InfinityRuntime {
 
     this.log("LIBRARIAN", `Running librarian stage for run ${this.run}...`)
 
-    // Read run state
     const state = this.readRunState(this.run)!
+    const notesDir = path.join(this.root, ".opencode", "runs", this.run, "notes")
+    this.ensureDir(notesDir)
 
-    // Librarian only writes knowledge for passing runs
+    const knowledgeDir = path.join(this.root, ".opencode", "knowledge")
+    const patternDir = path.join(knowledgeDir, "patterns")
+    this.ensureDir(patternDir)
+
+    const lessonIds: string[] = []
+
     if (state.status === "passed") {
-      // Create notes directory
-      const notesDir = path.join(this.root, ".opencode", "runs", this.run, "notes")
-      this.ensureDir(notesDir)
+      // ---- Phase 3: Real adapter path ----
+      if (this.deps?.adapter?.extractLessons) {
+        const plan = this.readPlan(this.run)
+        const events = this.readEvents(this.run).map(e => JSON.stringify(e)).join("\n")
+        const rawLessons = await this.deps.adapter.extractLessons(state, events)
 
-      // Write knowledge to .opencode/knowledge/
-      const knowledgeDir = path.join(this.root, ".opencode", "knowledge")
-      const lesson = {
-        id: `lesson-${Date.now()}`,
-        run_id: this.run,
-        task_id: this.task,
-        category: "pattern",
-        title: "Example lesson",
-        body: "Lesson learned from this run",
-        files: [],
-        created_at: new Date().toISOString(),
+        for (const lesson of rawLessons) {
+          const pattern: KnowledgePattern = {
+            id: `lesson-${Date.now()}-${lessonIds.length}`,
+            task_category: plan?.task.category ?? "stability",
+            scope_hint: plan?.task.scope ?? [],
+            lesson,
+            outcome: "pass",
+            created_at: new Date().toISOString(),
+          }
+          lessonIds.push(pattern.id)
+          fs.writeFileSync(
+            path.join(patternDir, `${pattern.id}.json`),
+            JSON.stringify(pattern, null, 2),
+            "utf-8",
+          )
+        }
+        this.log("LIBRARIAN", `Extracted ${rawLessons.length} lessons from adapter`)
+      } else {
+        // ---- Stub path ----
+        const plan = this.readPlan(this.run)
+        const stub: KnowledgePattern = {
+          id: `lesson-${Date.now()}`,
+          task_category: plan?.task.category ?? "stability",
+          scope_hint: plan?.task.scope ?? [],
+          lesson: "Lesson learned from this run",
+          outcome: "pass",
+          created_at: new Date().toISOString(),
+        }
+        lessonIds.push(stub.id)
+        fs.writeFileSync(path.join(patternDir, `${stub.id}.json`), JSON.stringify(stub, null, 2), "utf-8")
       }
 
-      const patternFile = path.join(knowledgeDir, "patterns", `${lesson.id}.json`)
-      this.ensureDir(path.dirname(patternFile))
-      fs.writeFileSync(patternFile, JSON.stringify(lesson, null, 2), "utf-8")
-
-      this.log("LIBRARIAN", "Wrote knowledge to .opencode/knowledge/")
+      this.log("LIBRARIAN", `Wrote ${lessonIds.length} pattern(s) to .opencode/knowledge/patterns/`)
     }
 
     // Generate proof.md deliverable (Phase 1)
@@ -1268,6 +1351,22 @@ export class InfinityRuntime {
     proofText += `- [Before Snapshots](./before/)\n`
     proofText += `- [After Snapshots](./after/)\n`
     proofText += `- [Journal](./journal.jsonl)\n`
+
+    const notesDir = path.join(runDir, "notes")
+    if (fs.existsSync(notesDir)) {
+      const lessons = fs.readdirSync(path.join(this.root, ".opencode", "knowledge", "patterns"))
+        .filter(f => {
+          try {
+            const data = JSON.parse(fs.readFileSync(path.join(this.root, ".opencode", "knowledge", "patterns", f), "utf-8"))
+            return data.run_id === runId || data.id.includes(runId) // Best effort match if ID includes timestamp
+          } catch { return false }
+        })
+      
+      if (lessons.length > 0) {
+        proofText += `\n## Memory Written\n`
+        proofText += `Extracted ${lessons.length} lesson(s) during this favorable run.\n`
+      }
+    }
 
     fs.writeFileSync(path.join(runDir, "proof.md"), proofText, "utf-8")
     this.log("PROOF", `Generated proof.md for run ${runId}`)
