@@ -11,17 +11,9 @@
     },
   },
   "mcp": {
-    "playwright": {
-      "type": "local",
-      "command": ["npx", "-y", "@modelcontextprotocol/server-playwright"]
-    },
     "sequential-thinking": {
       "type": "local",
       "command": ["npx", "-y", "@modelcontextprotocol/server-sequential-thinking"]
-    },
-    "fetch": {
-      "type": "local",
-      "command": ["npx", "-y", "@modelcontextprotocol/server-fetch"]
     },
     "memory": {
       "type": "local",
