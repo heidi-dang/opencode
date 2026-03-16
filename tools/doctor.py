@@ -441,6 +441,7 @@ def get_all_checks(verbose: bool = False) -> List[DoctorCheck]:
         DiffThemeCheck(verbose),
         AgentAutonomyCheck(verbose),
         P1TaskCompilerCheck(verbose),
+        P2ContextEngineCheck(verbose),
         MasterSpecCheck(verbose),
     ]
 
@@ -474,6 +475,24 @@ class P1TaskCompilerCheck(DoctorCheck):
             return run_p1_check(self.verbose)
         except Exception as e:
             self.errors.append(f"Error running P1 task compiler check: {e}")
+            return False
+
+class P2ContextEngineCheck(DoctorCheck):
+    """Check for Intelligence Phase 2 (Context Engine) implementation."""
+    
+    name = "p2-context-engine"
+    description = "Check for WorkingSet and RepoMap integration"
+    
+    def run(self) -> bool:
+        try:
+            root = get_project_root()
+            if str(root) not in sys.path:
+                sys.path.append(str(root))
+            
+            from tools.check_p2_context_engine import run_check
+            return run_check(self.verbose)
+        except Exception as e:
+            self.errors.append(f"Error running P2 context engine check: {e}")
             return False
 
 class MasterSpecCheck(DoctorCheck):
