@@ -39,7 +39,7 @@ export class UiSourceResolver {
       if (await this.isReachable(configDevUrl)) {
         return { 
           source: { type: "dev-url", origin: configDevUrl }, 
-          reason: "config/env server.uiDevUrl" 
+          reason: "explicit uiDevUrl" 
         }
       }
       this.log.warn(`Config server.uiDevUrl "${configDevUrl}" is unreachable.`, {
@@ -53,7 +53,7 @@ export class UiSourceResolver {
       if (await this.isValidDist(fullPath)) {
         return { 
           source: { type: "dist", path: fullPath }, 
-          reason: "CLI flag --ui-dist"
+          reason: "explicit uiDist"
         }
       }
       this.log.error(`!! Explicitly requested CLI --ui-dist "${opts.uiDist}" is invalid (missing index.html).`, {
@@ -68,7 +68,7 @@ export class UiSourceResolver {
       if (await this.isValidDist(fullPath)) {
         return { 
           source: { type: "dist", path: fullPath }, 
-          reason: "persistent config server.uiDist"
+          reason: "explicit uiDist"
         }
       }
       this.log.warn(`Config server.uiDist "${config.uiDist}" is invalid (missing index.html).`, {
@@ -82,7 +82,7 @@ export class UiSourceResolver {
     if (repoDist) {
       return { 
         source: { type: "repo-dist", path: repoDist }, 
-        reason: "auto-detected repo-local packages/app/dist" 
+        reason: "auto-detected local build" 
       }
     }
 
@@ -90,7 +90,7 @@ export class UiSourceResolver {
     this.log.info("No valid local UI source detected; using hosted fallback.")
     return { 
       source: { type: "hosted", origin: "https://app.opencode.ai" }, 
-      reason: "hosted fallback" 
+      reason: "no valid local UI source found" 
     }
   }
 

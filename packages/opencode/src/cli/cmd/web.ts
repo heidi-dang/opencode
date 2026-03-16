@@ -57,8 +57,8 @@ export const WebCommand = cmd({
     const server = await Server.listen({ 
       ...opts, 
       metrics,
-      uiDevUrl: args["--ui-dev-url"] as string | undefined,
-      uiDist: args["--ui-dist"] as string | undefined,
+      uiDevUrl: args.uiDevUrl as string | undefined,
+      uiDist: args.uiDist as string | undefined,
     })
     
     // Server on Bun.serve returns a server object with a port. 
