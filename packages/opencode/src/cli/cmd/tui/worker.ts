@@ -38,7 +38,7 @@ GlobalBus.on("event", (event) => {
   Rpc.emit("global.event", event)
 })
 
-let activeServer: Bun.Server<BunWebSocketData> | undefined
+let activeServer: any | undefined
 
 const eventStream = {
   abort: undefined as AbortController | undefined,
