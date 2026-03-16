@@ -38,7 +38,8 @@ GlobalBus.on("event", (event) => {
   Rpc.emit("global.event", event)
 })
 
-let activeServer: any | undefined
+type ActiveServer = Awaited<ReturnType<typeof Server.listen>>
+let activeServer: ActiveServer | undefined
 
 const eventStream = {
   abort: undefined as AbortController | undefined,
