@@ -127,6 +127,16 @@ export namespace SessionCompaction {
         replay = undefined
         messages = input.messages
       }
+
+      // Aggressive trimming: If we are still in overflow, slice out the middle
+      // Keep oldest 10% and newest 30% of turns to ensure compaction model can fit the prompt.
+      const TRIMMING_THRESHOLD = 50
+      if (messages.length > TRIMMING_THRESHOLD) {
+        const headCount = Math.floor(messages.length * 0.1)
+        const tailCount = Math.floor(messages.length * 0.3)
+        log.info("aggressive trimming", { original: messages.length, headCount, tailCount })
+        messages = [...messages.slice(0, headCount), ...messages.slice(-tailCount)]
+      }
     }
 
     const agent = await Agent.get("compaction")
