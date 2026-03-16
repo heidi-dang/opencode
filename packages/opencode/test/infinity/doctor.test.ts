@@ -1,10 +1,13 @@
+import { tmpdir as osTmpdir } from "os"
+import * as path from "path"
+const testHome = path.join(osTmpdir(), `opencode-test-${Date.now()}`)
+process.env.OPENCODE_TEST_HOME = testHome
+
 import { describe, it, expect, beforeEach, afterEach } from "bun:test"
 import { InfinityRuntime, type Stage } from "../../src/infinity/runtime"
 import { ProjectScanner } from "../../src/infinity/scanner"
 import { InfinityAdapter, type TaskDiscovery, type InspectResult, type PatchResult, type JudgeResult } from "../../src/infinity/adapter"
 import * as fs from "fs"
-import * as path from "path"
-import { tmpdir } from "os"
 import { Database } from "../../src/storage/db"
 import { ProjectTable } from "../../src/project/project.sql"
 import { Identifier } from "../../src/id/id"
@@ -98,10 +101,10 @@ describe("Infinity Doctor", () => {
   let testRoot: string
 
   beforeEach(async () => {
-    testRoot = path.join(tmpdir(), `infinity-doctor-${Date.now()}`)
+    testRoot = path.join(osTmpdir(), `infinity-doctor-${Date.now()}`)
     fs.mkdirSync(testRoot, { recursive: true })
     fs.writeFileSync(path.join(testRoot, "test.ts"), "const x = 'broken'")
-    
+
     // Initialize git repo for tests
     const { Process } = await import("../../src/util/process")
     await Process.run(["git", "init"], { cwd: testRoot })
@@ -139,17 +142,17 @@ describe("Infinity Doctor", () => {
 
     // 2. State Machine Transitions
     await runtime.runCycle()
-    
+
     const runsDir = path.join(testRoot, ".opencode", "runs")
     const runs = fs.readdirSync(runsDir)
     expect(runs.length).toBeGreaterThan(0)
-    
+
     const runId = runs[0]
     const runPath = path.join(runsDir, runId)
-    
+
     // 3. Evidence Pack Check
     expect(fs.existsSync(path.join(runPath, "proof.md"))).toBe(true)
-    
+
     const proof = fs.readFileSync(path.join(runPath, "proof.md"), "utf-8")
     expect(proof).toContain("✅ PASSED")
   })
@@ -163,7 +166,7 @@ describe("Infinity Doctor", () => {
         }
       }
     }(testRoot)
-    
+
     const scanner = new MockScanner(testRoot)
     const runtime = new DoctorRuntime(testRoot, { max_cycles: 1 }, { scanner, adapter: extremeAdapter })
     await runtime.runCycle()

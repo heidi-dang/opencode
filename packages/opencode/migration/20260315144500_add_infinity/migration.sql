@@ -1,4 +1,4 @@
-CREATE TABLE `infinity` (
+CREATE TABLE IF NOT EXISTS `infinity` (
 	`id` text PRIMARY KEY NOT NULL,
 	`project_id` text NOT NULL UNIQUE,
 	`status` text NOT NULL,
@@ -12,5 +12,5 @@ CREATE TABLE `infinity` (
 	FOREIGN KEY (`project_id`) REFERENCES `project`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE INDEX `infinity_project_idx` ON `infinity` (`project_id`);
-CREATE UNIQUE INDEX `infinity_project_unique_idx` ON `infinity` (`project_id`);
+CREATE INDEX IF NOT EXISTS `infinity_project_idx` ON `infinity` (`project_id`);
+CREATE UNIQUE INDEX IF NOT EXISTS `infinity_project_unique_idx` ON `infinity` (`project_id`);

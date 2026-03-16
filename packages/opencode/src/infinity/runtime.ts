@@ -47,6 +47,7 @@ export interface RunState {
     | "in_progress"
     | "stuck"
     | "ready_for_reporter"
+    | "ready_for_performance"
     | "gating"
     | "passed"
     | "failed"
@@ -56,10 +57,10 @@ export interface RunState {
   updated_at: string
   escalated_to_master?: boolean
   gate_result?: GateResult
-  before_snapshot?: Record<string, string>
   after_snapshot?: Record<string, string>
   attempts?: number
   patch_contract?: PatchContract
+  winner_worker_id?: string
 }
 
 export interface Plan {
@@ -138,6 +139,7 @@ export interface InfinityConfig {
   daemon: boolean
   watch: boolean
   github_enabled?: boolean
+  max_workers?: number
 }
 
 export interface LockFile {
@@ -227,6 +229,7 @@ export class InfinityRuntime {
       daemon: config.daemon ?? false,
       watch: config.watch ?? false,
       github_enabled: config.github_enabled ?? false,
+      max_workers: config.max_workers ?? 1,
     }
     this.deps = deps
   }
@@ -964,16 +967,20 @@ export class InfinityRuntime {
     const runId = this.createRun(nextTask.id)
 
     // Create plan
+    const maxWorkers = this.config.max_workers || 1
+    const workers: WorkerAssignment[] = []
+    for (let i = 1; i <= maxWorkers; i++) {
+      workers.push({
+        worker_id: `dev-${i}`,
+        scope: nextTask.scope,
+      })
+    }
+
     const plan: Plan = {
       run_id: runId,
       task_id: nextTask.id,
       task: nextTask,
-      workers: [
-        {
-          worker_id: "dev-1",
-          scope: nextTask.scope,
-        },
-      ],
+      workers,
       created_at: new Date().toISOString(),
     }
     this.writePlan(runId, plan)
@@ -981,7 +988,7 @@ export class InfinityRuntime {
     // Update run state
     const state = this.readRunState(runId)!
     state.status = "assigned"
-    state.workers = ["dev-1"]
+    state.workers = workers.map(w => w.worker_id)
     this.writeRunState(runId, state)
 
     // Capture Baseline (Phase 1)
@@ -1013,90 +1020,90 @@ export class InfinityRuntime {
     state.status = "in_progress"
     this.writeRunState(this.run, state)
 
-    this.appendEvent(this.run, {
-      type: "progress",
-      timestamp: new Date().toISOString(),
-      message: "Dev stage executing...",
-    })
+    const runDir = path.join(this.root, ".opencode", "runs", this.run)
+    const candidatesDir = path.join(runDir, "candidates")
+    this.ensureDir(candidatesDir)
 
-    // ---- Phase 2: Real adapter path ----
-    if (this.deps?.adapter) {
-      const task = plan.task
+    for (const worker of plan.workers) {
+      this.log("DEV", `Worker ${worker.worker_id} starting...`)
+      
+      // Ensure clean baseline for each worker
+      this.restoreFiles(this.run, plan.task.scope)
 
-      // Build context from scoped files with memory injection (Phase 3)
-      const memory = this.readMemory(task.scope)
-      const fileCtx = task.scope
-        .map(f => {
-          const p = path.join(this.root, f)
-          if (fs.existsSync(p) && fs.statSync(p).isFile()) {
-            return `### ${f}\n\`\`\`\n${fs.readFileSync(p, "utf-8")}\n\`\`\`\n`
-          }
-          return `### ${f}\n(file not found)\n`
-        })
-        .join("\n")
-      const context = memory
-        ? `## Previous Learnings\n${memory}\n\n## Repo Context\n${fileCtx}`
-        : fileCtx
-
-      const inspect = await this.deps.adapter.inspectTarget(task, context)
-      this.log("DEV", `Inspect confidence: ${inspect.confidence} — ${inspect.defect_summary}`)
-
-      const contract = this.buildContract(task.scope, inspect.allowed_files, task.constraints)
-      state.patch_contract = contract
-      this.writeRunState(this.run, state)
-      this.log("DEV", `Contract: ${contract.allowed_files.length} files, max ${contract.max_lines_changed} lines`)
+      const candidateDir = path.join(candidatesDir, worker.worker_id)
+      const afterDir = path.join(candidateDir, "after")
+      this.ensureDir(afterDir)
 
       const changed: string[] = []
-      for (const rel of contract.allowed_files) {
-        const abs = path.join(this.root, rel)
-        if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) {
-          this.log("DEV", `Skipping (not a file): ${rel}`)
-          continue
+
+      // ---- Real adapter path ----
+      if (this.deps?.adapter) {
+        const task = plan.task
+        const memory = this.readMemory(task.scope)
+        const fileCtx = task.scope
+          .map(f => {
+            const p = path.join(this.root, f)
+            if (fs.existsSync(p) && fs.statSync(p).isFile()) {
+              return `### ${f}\n\`\`\`\n${fs.readFileSync(p, "utf-8")}\n\`\`\`\n`
+            }
+            return `### ${f}\n(file not found)\n`
+          })
+          .join("\n")
+        
+        const context = memory
+          ? `## Previous Learnings\n${memory}\n\n## Repo Context\n${fileCtx}`
+          : fileCtx
+
+        const inspect = await this.deps.adapter.inspectTarget(task, context)
+        const contract = this.buildContract(task.scope, inspect.allowed_files, task.constraints)
+        
+        for (const rel of contract.allowed_files) {
+          const abs = path.join(this.root, rel)
+          if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) continue
+
+          const before = fs.readFileSync(abs, "utf-8")
+          const patch = await this.deps.adapter.patchTarget(inspect, before)
+          
+          this.validatePatch(contract, rel, before, patch.content)
+          await this.writeTempAndMove(abs, patch.content, contract.require_syntax_check)
+          changed.push(rel)
         }
-
-        const before = fs.readFileSync(abs, "utf-8")
-        const patch = await this.deps.adapter.patchTarget(inspect, before)
-        this.log("DEV", `Patch received for ${rel} (${patch.rationale.slice(0, 80)})`)
-
-        this.validatePatch(contract, rel, before, patch.content)
-        await this.writeTempAndMove(abs, patch.content, contract.require_syntax_check)
-        changed.push(rel)
-        this.log("DEV", `Patched: ${rel}`)
+      } else {
+        // Stub path (no change)
+        this.log("DEV", `Worker ${worker.worker_id} using stub (noop)`)
       }
 
+      // Snapshot candidate "after" state
+      this.snapshotFiles(this.run, plan.task.scope, "after") // Temporarily write to run root after
+      // Move from runs/<runId>/after to runs/<runId>/candidates/<workerId>/after
+      const runAfterDir = path.join(runDir, "after")
+      if (fs.existsSync(runAfterDir)) {
+        fs.cpSync(runAfterDir, afterDir, { recursive: true })
+        fs.rmSync(runAfterDir, { recursive: true })
+      }
+
+      // Calculate candidate metrics
+      const metrics = await this.calculateMetrics(this.run, plan.task.scope)
+      fs.writeFileSync(
+        path.join(candidateDir, "metrics.json"),
+        JSON.stringify(metrics, null, 2),
+        "utf-8"
+      )
+
       this.appendEvent(this.run, {
-        type: "completion",
+        type: "candidate_generated",
         timestamp: new Date().toISOString(),
-        task_id: this.task,
-        run_id: this.run,
-        worker_id: "dev-1",
+        worker_id: worker.worker_id,
         files_changed: changed,
-        tests_passed: true,
-        summary: `Patched ${changed.length} file(s) via adapter`,
+        metrics,
       } as unknown as Event)
 
-      state.status = "ready_for_reporter"
-      this.writeRunState(this.run, state)
-      this.log("DEV", `Dev stage complete — ${changed.length} file(s) changed`)
-      this.advanceStage()
-      return
+      this.log("DEV", `Worker ${worker.worker_id} complete. Metrics: L:${metrics.lint_errors} T:${metrics.type_errors} F:${metrics.test_failures}`)
     }
 
-    // ---- Stub path (no adapter) ----
-    this.appendEvent(this.run, {
-      type: "completion",
-      timestamp: new Date().toISOString(),
-      task_id: this.task,
-      run_id: this.run,
-      worker_id: "dev-1",
-      files_changed: [],
-      tests_passed: true,
-      summary: "Simulated dev completion",
-    } as unknown as Event)
-
-    state.status = "ready_for_reporter"
+    state.status = "ready_for_performance"
     this.writeRunState(this.run, state)
-    this.log("DEV", "Dev stage complete")
+    this.log("DEV", "Dev stage complete (all candidates generated)")
     this.advanceStage()
   }
 
@@ -1105,42 +1112,63 @@ export class InfinityRuntime {
       throw new Error("No active run in performance stage")
     }
 
-    this.log("PERFORMANCE", `Running performance profiling for run ${this.run}...`)
+    this.log("PERFORMANCE", `Ranking candidates for run ${this.run}...`)
 
-    const start = Bun.nanoseconds()
-    // In production, this would run actual benchmarks
-    // For now we simulate a small workload
-    await new Promise((r) => setTimeout(r, 100))
-    const end = Bun.nanoseconds()
-    const latencyMs = (end - start) / 1000000
-
-    this.log("PERFORMANCE", `Latency measured: ${latencyMs.toFixed(2)}ms`)
-
-    // Base calculation from User Spec
-    let health = 100
-    const reportPath = path.join(this.root, ".opencode", "report.json")
-    if (fs.existsSync(reportPath)) {
-      try {
-        const report = JSON.parse(fs.readFileSync(reportPath, "utf-8"))
-        health -= (report.critical_alerts || 0) * 25
-        health -= (report.warning_alerts || 0) * 15
-        health -= (report.info_alerts || 0) * 10
-        if (report.fps < 55) health -= 20
-        if (report.memory_usage_mb > 100) health -= 15
-        if (latencyMs > 100) health -= 10
-      } catch {}
+    const runDir = path.join(this.root, ".opencode", "runs", this.run)
+    const candidatesDir = path.join(runDir, "candidates")
+    
+    if (!fs.existsSync(candidatesDir)) {
+      this.log("PERFORMANCE", "No candidates found, skipping ranking")
+      this.advanceStage()
+      return
     }
 
-    health = Math.max(0, health)
+    const workers = fs.readdirSync(candidatesDir)
+    const candidates = workers.map(workerId => {
+      const metricsPath = path.join(candidatesDir, workerId, "metrics.json")
+      const metrics = JSON.parse(fs.readFileSync(metricsPath, "utf-8")) as Metrics
+      return { workerId, metrics }
+    })
 
-    // Record performance event
-    this.appendEvent(this.run, {
-      type: "performance",
-      timestamp: new Date().toISOString(),
-      latency_ms: latencyMs,
-      score: health,
-    } as any)
+    // Rank logic: 
+    // 1. Least test failures
+    // 2. Least type errors
+    // 3. Least lint errors
+    candidates.sort((a, b) => {
+      if (a.metrics.test_failures !== b.metrics.test_failures) {
+        return a.metrics.test_failures - b.metrics.test_failures
+      }
+      if (a.metrics.type_errors !== b.metrics.type_errors) {
+        return a.metrics.type_errors - b.metrics.type_errors
+      }
+      return a.metrics.lint_errors - b.metrics.lint_errors
+    })
 
+    const winner = candidates[0]
+    this.log("PERFORMANCE", `Winner selected: ${winner.workerId} (F:${winner.metrics.test_failures} T:${winner.metrics.type_errors} L:${winner.metrics.lint_errors})`)
+
+    // Apply winner's files to root
+    const winnerAfterDir = path.join(candidatesDir, winner.workerId, "after")
+    if (fs.existsSync(winnerAfterDir)) {
+      const plan = this.readPlan(this.run)
+      if (plan) {
+        for (const rel of plan.task.scope) {
+          const src = path.join(winnerAfterDir, rel)
+          const dest = path.join(this.root, rel)
+          if (fs.existsSync(src)) {
+            this.ensureDir(path.dirname(dest))
+            fs.copyFileSync(src, dest)
+          }
+        }
+      }
+    }
+
+    const state = this.readRunState(this.run)!
+    state.status = "ready_for_reporter"
+    state.winner_worker_id = winner.workerId
+    this.writeRunState(this.run, state)
+
+    this.log("PERFORMANCE", "Performance stage complete — winner applied to workspace")
     this.advanceStage()
   }
 
@@ -1352,6 +1380,23 @@ export class InfinityRuntime {
     proofText += `- [After Snapshots](./after/)\n`
     proofText += `- [Journal](./journal.jsonl)\n`
 
+    const candidatesDir = path.join(runDir, "candidates")
+    if (fs.existsSync(candidatesDir)) {
+      const workers = fs.readdirSync(candidatesDir)
+      proofText += `\n## Candidate Comparison\n\n`
+      proofText += `| Worker | Lint | Type | Test | Winner |\n`
+      proofText += `| :--- | :--- | :--- | :--- | :--- |\n`
+      
+      for (const workerId of workers) {
+        try {
+          const metrics = JSON.parse(fs.readFileSync(path.join(candidatesDir, workerId, "metrics.json"), "utf-8")) as Metrics
+          const isWinner = state.winner_worker_id === workerId ? "⭐" : ""
+          proofText += `| ${workerId} | ${metrics.lint_errors} | ${metrics.type_errors} | ${metrics.test_failures} | ${isWinner} |\n`
+        } catch {}
+      }
+      proofText += `\n`
+    }
+
     const notesDir = path.join(runDir, "notes")
     if (fs.existsSync(notesDir)) {
       const lessons = fs.readdirSync(path.join(this.root, ".opencode", "knowledge", "patterns"))
@@ -1490,6 +1535,8 @@ export class InfinityRuntime {
       case "assigned":
       case "in_progress":
         return "dev"
+      case "ready_for_performance":
+        return "performance"
       case "ready_for_reporter":
         return "havoc"
       case "gating":

@@ -173,7 +173,7 @@ test("stageDev: injects memory into adapter inspect context", async () => {
   fs.writeFileSync(path.join(runDir, "plan.json"), JSON.stringify({
     run_id: runId,
     task: mockTask,
-    workers: []
+    workers: [{ worker_id: "dev-1", scope: mockTask.scope }]
   }))
   fs.writeFileSync(path.join(runDir, "state.json"), JSON.stringify({
     run_id: runId,
