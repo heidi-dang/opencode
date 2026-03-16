@@ -48,6 +48,7 @@ import { iife } from "@/util/iife"
 import { Shell } from "@/shell/shell"
 import { Truncate } from "@/tool/truncation"
 import { decodeDataUrl } from "@/util/data-url"
+import { Blocker } from "@/util/blocker"
 
 // @ts-ignore
 globalThis.AI_SDK_LOG_WARNINGS = false
@@ -323,6 +324,34 @@ export namespace SessionPrompt {
         !["tool-calls", "unknown"].includes(lastAssistant.finish) &&
         lastUser.id < lastAssistant.id
       ) {
+        // Check if the model finished with a routine question (permission seeking)
+        // that should be auto-continued in Finish-Mode.
+        const assistantParts = await MessageV2.parts(lastAssistant.id)
+        const textPart = assistantParts.find(p => p.type === "text") as MessageV2.TextPart | undefined
+        if (textPart && Blocker.isRoutineQuestion(textPart.text)) {
+          log.info("routine question detected, auto-continuing", { sessionID })
+          const autoContinueMsg: MessageV2.User = {
+            id: MessageID.ascending(),
+            sessionID,
+            role: "user",
+            time: {
+              created: Date.now(),
+            },
+            agent: lastUser.agent,
+            model: lastUser.model,
+          }
+          await Session.updateMessage(autoContinueMsg)
+          await Session.updatePart({
+            id: PartID.ascending(),
+            messageID: autoContinueMsg.id,
+            sessionID,
+            type: "text",
+            text: "Finish-Mode: Auto-continuing your execution. Do not ask for permission; proceed until the goal is complete.",
+            synthetic: true,
+          } satisfies MessageV2.TextPart)
+          continue
+        }
+
         log.info("exiting loop", { sessionID })
         break
       }
@@ -726,6 +755,35 @@ export namespace SessionPrompt {
       }
 
       if (result === "stop") {
+        // If we stopped but some tools had more output (partial reads) and it's not a true blocker,
+        // we should auto-continue.
+        const parts = await MessageV2.parts(processor.message.id)
+        const hasPartialRead = parts.some(p => p.type === "tool" && p.state.status === "completed" && p.state.outputHasMore)
+        
+        if (hasPartialRead && !processor.message.error) {
+           log.info("partial read detected, forcing auto-continuation", { sessionID })
+           const autoReadMsg: MessageV2.User = {
+             id: MessageID.ascending(),
+             sessionID,
+             role: "user",
+             time: {
+               created: Date.now(),
+             },
+             agent: lastUser.agent,
+             model: lastUser.model,
+           }
+           await Session.updateMessage(autoReadMsg)
+           await Session.updatePart({
+             id: PartID.ascending(),
+             messageID: autoReadMsg.id,
+             sessionID,
+             type: "text",
+             text: "Finish-Mode: The previous tool output was truncated. Please continue execution and gather all necessary information autonomously.",
+             synthetic: true,
+           } satisfies MessageV2.TextPart)
+           continue
+        }
+
         // Automatic Auditor Trigger for Build Agent
         if (agent.name === "build" && !processor.message.error) {
           const alreadyAudited = msgs.some((m) =>

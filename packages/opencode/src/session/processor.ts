@@ -17,6 +17,7 @@ import { Question } from "@/question"
 import { PartID } from "./schema"
 import type { SessionID, MessageID } from "./schema"
 import { Truncate } from "@/tool/truncation"
+import { Blocker } from "@/util/blocker"
 
 export namespace SessionProcessor {
   const DOOM_LOOP_THRESHOLD = 3
@@ -229,10 +230,19 @@ export namespace SessionProcessor {
                       },
                     })
 
-                    if (
+                    // Use Blocker classifier to determine if this is a terminal stop
+                    const blocker = Blocker.classify(value.error)
+                    if (blocker) {
+                      blocked = true
+                      log.info("true blocker detected", { type: blocker.type, reason: blocker.reason })
+                    } else if (
                       value.error instanceof PermissionNext.RejectedError ||
                       value.error instanceof Question.RejectedError
                     ) {
+                      // Non-blocker rejection (e.g. routine "ask" prompt)
+                      // In Finish-mode, we try to auto-continue if possible, but processor
+                      // still needs to pause if the tool didn't run.
+                      // However, if it's NOT a blocker, we let the loop decide if it can resume.
                       blocked = shouldBreak
                     }
                     delete toolcalls[value.toolCallId]
