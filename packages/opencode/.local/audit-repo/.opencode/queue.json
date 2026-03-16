@@ -1,0 +1,44 @@
+[
+  {
+    "id": "task-2026-03-16-001",
+    "title": "Fix logic bug in calculateTotal",
+    "source": "internal_audit",
+    "priority": 1,
+    "category": "stability",
+    "scope": [
+      "src/bug.ts"
+    ],
+    "acceptance": [
+      "calculateTotal returns sum even if prices include 0"
+    ],
+    "status": "passed"
+  },
+  {
+    "id": "task-2026-03-16-002",
+    "title": "Add divide-by-zero check in divide",
+    "source": "internal_audit",
+    "priority": 1,
+    "category": "stability",
+    "scope": [
+      "src/robustness.ts"
+    ],
+    "acceptance": [
+      "divide throws or returns 0 on division by zero"
+    ],
+    "status": "passed"
+  },
+  {
+    "id": "task-2026-03-16-003",
+    "title": "Optimize findMax algorithm",
+    "source": "internal_audit",
+    "priority": 1,
+    "category": "performance",
+    "scope": [
+      "src/perf.ts"
+    ],
+    "acceptance": [
+      "findMax uses O(n) linear scan instead of sort"
+    ],
+    "status": "passed"
+  }
+]

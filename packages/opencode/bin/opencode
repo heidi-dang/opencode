@@ -26,6 +26,26 @@ if (envPath) {
 const scriptPath = fileURLToPath(import.meta.url)
 const scriptDir = path.dirname(scriptPath)
 
+function runSource() {
+  const src = path.join(scriptDir, "..", "src", "index.ts")
+  if (!fs.existsSync(src)) return false
+
+  const pkg = path.resolve(scriptDir, "..")
+  const result = childProcess.spawnSync("bun", ["run", "--conditions=browser", src, "--", ...process.argv.slice(2)], {
+    stdio: "inherit",
+    cwd: pkg,
+  })
+  if (result.error) {
+    console.error(result.error.message)
+    process.exit(1)
+  }
+  process.exit(typeof result.status === "number" ? result.status : 0)
+}
+
+// In a local source checkout, prefer running the TypeScript entrypoint directly.
+// This avoids stale or compiler-broken platform binaries while leaving packaged installs untouched.
+runSource()
+
 //
 const cached = path.join(scriptDir, ".opencode")
 if (fs.existsSync(cached)) {
@@ -185,22 +205,6 @@ function findBinary(startDir) {
 
 const resolved = findBinary(scriptDir)
 if (!resolved) {
-  // Fallback: if we're in a local dev checkout, use bun run directly
-  const src = path.join(scriptDir, "..", "src", "index.ts")
-  if (fs.existsSync(src)) {
-    const pkg = path.resolve(scriptDir, "..")
-    const result = childProcess.spawnSync(
-      "bun",
-      ["run", "--conditions=browser", src, "--", ...process.argv.slice(2)],
-      { stdio: "inherit", cwd: pkg },
-    )
-    if (result.error) {
-      console.error(result.error.message)
-      process.exit(1)
-    }
-    process.exit(typeof result.status === "number" ? result.status : 0)
-  }
-
   console.error(
     "It seems that your package manager failed to install the right version of the opencode CLI for your platform. You can try manually installing " +
       names.map((n) => `\"${n}\"`).join(" or ") +

@@ -1,0 +1,27 @@
+{
+  "run_id": "run-2026-03-16-634",
+  "task_id": "task-2026-03-16-001",
+  "task": {
+    "id": "task-2026-03-16-001",
+    "title": "Fix logic bug in calculateTotal",
+    "source": "internal_audit",
+    "priority": 1,
+    "category": "stability",
+    "scope": [
+      "src/bug.ts"
+    ],
+    "acceptance": [
+      "calculateTotal returns sum even if prices include 0"
+    ],
+    "status": "in_progress"
+  },
+  "workers": [
+    {
+      "worker_id": "dev-1",
+      "scope": [
+        "src/bug.ts"
+      ]
+    }
+  ],
+  "created_at": "2026-03-16T01:13:36.634Z"
+}

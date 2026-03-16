@@ -1,0 +1,27 @@
+{
+  "run_id": "run-2026-03-16-913",
+  "task_id": "task-2026-03-16-003",
+  "task": {
+    "id": "task-2026-03-16-003",
+    "title": "Optimize findMax algorithm",
+    "source": "internal_audit",
+    "priority": 1,
+    "category": "performance",
+    "scope": [
+      "src/perf.ts"
+    ],
+    "acceptance": [
+      "findMax uses O(n) linear scan instead of sort"
+    ],
+    "status": "in_progress"
+  },
+  "workers": [
+    {
+      "worker_id": "dev-1",
+      "scope": [
+        "src/perf.ts"
+      ]
+    }
+  ],
+  "created_at": "2026-03-16T01:13:46.914Z"
+}
