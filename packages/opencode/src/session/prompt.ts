@@ -953,17 +953,6 @@ export namespace SessionPrompt {
         }
         break
       }
-
-      if (result === "compact") {
-        await SessionCompaction.create({
-          sessionID,
-          agent: lastUser.agent,
-          model: lastUser.model,
-          auto: true,
-          overflow: !processor.message.finish,
-        })
-      }
-      continue
     }
     SessionStatus.set(sessionID, { type: "idle" })
     SessionCompaction.prune({ sessionID })
