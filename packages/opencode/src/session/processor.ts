@@ -18,6 +18,7 @@ import { PartID } from "./schema"
 import type { SessionID, MessageID } from "./schema"
 import { Truncate } from "@/tool/truncation"
 import { Blocker } from "@/util/blocker"
+import { Flag } from "@/flag/flag"
 
 export namespace SessionProcessor {
   const DOOM_LOOP_THRESHOLD = 3
@@ -53,11 +54,23 @@ export namespace SessionProcessor {
           try {
             let currentText: MessageV2.TextPart | undefined
             let reasoningMap: Record<string, MessageV2.ReasoningPart> = {}
+            const trace = Flag.OPENCODE_DEBUG_STREAM
             SessionStatus.set(input.sessionID, { type: "connecting" })
             const stream = await LLM.stream(streamInput)
 
             for await (const value of stream.fullStream) {
               input.abort.throwIfAborted()
+              if (trace) {
+                log.info("stream chunk", {
+                  sessionID: input.sessionID,
+                  type: value.type,
+                  id: "id" in value ? value.id : undefined,
+                  tool: "toolName" in value ? value.toolName : undefined,
+                  callID: "toolCallId" in value ? value.toolCallId : undefined,
+                  chars: "text" in value && typeof value.text === "string" ? value.text.length : undefined,
+                  reason: "finishReason" in value ? value.finishReason : undefined,
+                })
+              }
               switch (value.type) {
                 case "start":
                   SessionStatus.set(input.sessionID, { type: "busy" })
@@ -380,6 +393,10 @@ export namespace SessionProcessor {
             const error = MessageV2.fromError(e, { providerID: input.model.providerID })
             if (MessageV2.ContextOverflowError.isInstance(error)) {
               needsCompaction = true
+              Bus.publish(Session.Event.Error, {
+                sessionID: input.sessionID,
+                error,
+              })
             } else {
               const retry = SessionRetry.retryable(error)
               if (retry !== undefined) {

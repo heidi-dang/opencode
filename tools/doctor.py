@@ -3,6 +3,7 @@ import os
 import sys
 import re
 from pathlib import Path
+from check_sse_origin_recovery import run_check as run_sse_origin_recovery_check
 
 def check_ui_resolution():
     print("🔍 [Doctor] Checking UI Source Resolution Pipeline (Refined Spec)...")
@@ -120,3 +121,8 @@ def check_startup_context_isolation():
 if __name__ == "__main__":
     check_ui_resolution()
     check_startup_context_isolation()
+    print("🔍 [Doctor] Checking SSE + Origin + Session Recovery...")
+    if not run_sse_origin_recovery_check(verbose=True):
+        print("\n❌ SSE/Origin/Recovery doctor check failed")
+        sys.exit(1)
+    print("✅ SSE/Origin/Recovery doctor check passed")

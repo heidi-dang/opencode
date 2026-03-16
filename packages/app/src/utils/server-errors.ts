@@ -28,7 +28,38 @@ function tr(translator: Translator | undefined, key: string, text: string, vars?
 export function formatServerError(error: unknown, translate?: Translator, fallback?: string) {
   if (isConfigInvalidErrorLike(error)) return parseReadableConfigInvalidError(error, translate)
   if (isProviderModelNotFoundErrorLike(error)) return parseReadableProviderModelNotFoundError(error, translate)
-  if (error instanceof Error && error.message) return error.message
+
+  if (typeof error === "object" && error !== null) {
+    const obj = error as Record<string, unknown>
+    const name = typeof obj.name === "string" ? obj.name : undefined
+    const data = typeof obj.data === "object" && obj.data !== null ? (obj.data as Record<string, unknown>) : undefined
+    const msg = typeof data?.message === "string" ? data.message.trim() : ""
+
+    if (name === "ContextOverflowError") {
+      if (msg && msg !== name) return msg
+      return tr(
+        translate,
+        "error.chain.contextOverflow",
+        "Input exceeds the model context window. Start a new session or reduce prompt/context.",
+      )
+    }
+
+    if (msg) return msg
+  }
+
+  if (error instanceof Error && error.message) {
+    const msg = error.message.trim()
+    const dup = msg.match(/^([A-Za-z][\w]*)\s*:\s*\1$/)
+    if (dup?.[1] === "ContextOverflowError") {
+      return tr(
+        translate,
+        "error.chain.contextOverflow",
+        "Input exceeds the model context window. Start a new session or reduce prompt/context.",
+      )
+    }
+    return msg
+  }
+
   if (typeof error === "string" && error) return error
   if (fallback) return fallback
   return tr(translate, "error.chain.unknown", "Unknown error")

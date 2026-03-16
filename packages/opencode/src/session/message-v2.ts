@@ -970,6 +970,14 @@ export namespace MessageV2 {
           },
           { cause: e },
         ).toObject()
+      case MessageV2.ContextOverflowError.isInstance(e):
+        return new MessageV2.ContextOverflowError(
+          {
+            message: e.data.message,
+            responseBody: e.data.responseBody,
+          },
+          { cause: e },
+        ).toObject()
       case e instanceof Error:
         return new NamedError.Unknown({ message: e.toString() }, { cause: e }).toObject()
       default:

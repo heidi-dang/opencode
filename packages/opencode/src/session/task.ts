@@ -1,9 +1,6 @@
 import { z } from "zod";
-import { generateObject, type ModelMessage } from "ai";
 import { Log } from "@/util/log";
-import { Provider } from "@/provider/provider";
 import { ProviderID, ModelID } from "@/provider/schema";
-import { SystemPrompt } from "./system";
 
 export const TaskObjectSchema = z.object({
   goal: z.string().describe("The primary objective of the task"),
@@ -19,32 +16,23 @@ export type TaskObject = z.infer<typeof TaskObjectSchema>;
 
 const log = Log.create({ service: "task.compiler" });
 
+function fallback(request: string): TaskObject {
+  const goal = request.trim() || "Complete the user request"
+  return {
+    goal,
+    constraints: ["Do not make destructive changes without explicit user confirmation"],
+    success_criteria: ["Return a concrete result that directly addresses the request"],
+    required_evidence: ["Include commands, file references, or outputs that verify the result"],
+    allowed_tools: ["Use available workspace tools as needed"],
+    blocker_rules: ["If required info is missing, ask one clear clarifying question"],
+    preferred_output_format: "concise actionable summary",
+  }
+}
+
 export namespace TaskCompiler {
   export async function compile(request: string, customModel?: { providerID: ProviderID; modelID: ModelID }): Promise<TaskObject> {
-    log.info("compiling task", { request: request.slice(0, 100) });
- 
-    const targetModel = customModel ?? await Provider.defaultModel();
-    const model = await Provider.getModel(targetModel.providerID, targetModel.modelID);
-    const language = await Provider.getLanguage(model);
-
-    const system = [
-      `You are a Task Compiler. Your job is to transform a raw user request into a structured Task Object.
-      Be precise, outcome-driven, and identify specific success criteria.
-      If the user is vague, normalize the request into its most likely intended execution form.
-      Output MUST strictly conform to the provided schema. Do not try to call tools or perform actions.
-      `
-    ];
-
-    const result = await generateObject({
-      model: language,
-      schema: TaskObjectSchema,
-      messages: [
-        ...system.map((s): ModelMessage => ({ role: "system", content: s })),
-        { role: "user", content: request }
-      ],
-      temperature: 0.1,
-    });
-
-    return result.object;
+    const model = customModel ? `${customModel.providerID}/${customModel.modelID}` : "default"
+    log.info("compile task", { model, request: request.slice(0, 100) })
+    return fallback(request)
   }
 }

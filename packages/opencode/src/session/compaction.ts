@@ -128,15 +128,6 @@ export namespace SessionCompaction {
         messages = input.messages
       }
 
-      // Aggressive trimming: If we are still in overflow, slice out the middle
-      // Keep oldest 10% and newest 30% of turns to ensure compaction model can fit the prompt.
-      const TRIMMING_THRESHOLD = 50
-      if (messages.length > TRIMMING_THRESHOLD) {
-        const headCount = Math.floor(messages.length * 0.1)
-        const tailCount = Math.floor(messages.length * 0.3)
-        log.info("aggressive trimming", { original: messages.length, headCount, tailCount })
-        messages = [...messages.slice(0, headCount), ...messages.slice(-tailCount)]
-      }
     }
 
     const agent = await Agent.get("compaction")
@@ -181,33 +172,20 @@ export namespace SessionCompaction {
       { sessionID: input.sessionID },
       { context: [], prompt: undefined },
     )
-    const defaultPrompt = `Provide a detailed prompt for continuing our conversation above.
-Focus on information that would be helpful for continuing the conversation, including what we did, what we're doing, which files we're working on, and what we're going to do next.
-The summary that you construct will be used so that another agent can read it and continue the work.
+    const defaultPrompt = `Summarize the prior conversation for internal continuation.
 
-When constructing the summary, try to stick to this template:
----
-## Goal
+  Rules:
+  - Output only factual summary content from prior messages.
+  - Do not answer user questions.
+  - Do not roleplay or narrate your own thinking process.
+  - Keep it concise and non-repetitive.
 
-[What goal(s) is the user trying to accomplish?]
-
-## Instructions
-
-- [What important instructions did the user give you that are relevant]
-- [If there is a plan or spec, include information about it so next agent can continue using it]
-
-## Discoveries
-
-[What notable things were learned during this conversation that would be useful for the next agent to know when continuing the work]
-
-## Accomplished
-
-[What work has been completed, what work is still in progress, and what work is left?]
-
-## Relevant files / directories
-
-[Construct a structured list of relevant files that have been read, edited, or created that pertain to the task at hand. If all the files in a directory are relevant, include the path to the directory.]
----`
+  Format:
+  ## Goal
+  ## Instructions
+  ## Discoveries
+  ## Accomplished
+  ## Relevant files / directories`
 
     const promptText = compacting.prompt ?? [defaultPrompt, ...compacting.context].join("\n\n")
     const result = await processor.process({

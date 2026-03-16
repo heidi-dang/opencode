@@ -206,8 +206,21 @@ export namespace LLM {
     const estimatedTokens = Token.estimateMessages(messages)
     const contextLimit = input.model.limit.context
     const maxOutput = maxOutputTokens ?? 4096
-    const effectiveBudget = input.model.limit.input || (contextLimit > 0 ? contextLimit - maxOutput : Infinity)
+    const reserve = contextLimit > 0 ? Math.min(maxOutput, Math.max(1024, Math.floor(contextLimit * 0.25))) : maxOutput
+    const effectiveBudget = input.model.limit.input || (contextLimit > 0 ? contextLimit - reserve : Infinity)
 
+    const hard = Number.isFinite(effectiveBudget) ? Math.floor(effectiveBudget * 1.25) : Infinity
+    if (estimatedTokens > hard) {
+      log.error("context overflow estimate before send", {
+        estimatedTokens,
+        effectiveBudget,
+        hard,
+        contextLimit,
+        inputLimit: input.model.limit.input,
+        maxOutput,
+        reserve,
+      })
+    }
     if (estimatedTokens > effectiveBudget) {
       log.error("context overflow before send", { estimatedTokens, effectiveBudget, contextLimit })
       throw new MessageV2.ContextOverflowError({
@@ -292,7 +305,6 @@ export namespace LLM {
       },
     })
   }
-
 
   async function resolveTools(input: Pick<StreamInput, "tools" | "agent" | "user">) {
     const disabled = PermissionNext.disabled(Object.keys(input.tools), input.agent.permission)

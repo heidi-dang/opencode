@@ -100,6 +100,24 @@ describe("formatServerError", () => {
     )
   })
 
+  test("returns nested data.message for generic named errors", () => {
+    expect(formatServerError({ name: "ServerTimeoutError", data: { message: "Timed out in 30s" } }, language.t)).toBe(
+      "Timed out in 30s",
+    )
+  })
+
+  test("normalizes duplicate context overflow object errors", () => {
+    expect(formatServerError({ name: "ContextOverflowError", data: { message: "ContextOverflowError" } }, language.t)).toBe(
+      "Input exceeds the model context window. Start a new session or reduce prompt/context.",
+    )
+  })
+
+  test("normalizes duplicate context overflow Error strings", () => {
+    expect(formatServerError(new Error("ContextOverflowError: ContextOverflowError"), language.t)).toBe(
+      "Input exceeds the model context window. Start a new session or reduce prompt/context.",
+    )
+  })
+
   test("formats provider model errors using provider/model", () => {
     const error = {
       name: "ProviderModelNotFoundError",

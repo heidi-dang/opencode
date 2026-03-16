@@ -295,7 +295,6 @@ export namespace SessionPrompt {
     // Note: On session resumption, state is reset but outputFormat is preserved
     // on the user message and will be retrieved from lastUser below
     let structuredOutput: unknown | undefined
-
     let step = 0
     const session = await Session.get(sessionID)
     while (true) {
@@ -357,7 +356,7 @@ export namespace SessionPrompt {
         // Check if the model finished with a routine question (permission seeking)
         // that should be auto-continued in Finish-Mode.
         const assistantParts = await MessageV2.parts(lastAssistant.id)
-        const textPart = assistantParts.find(p => p.type === "text") as MessageV2.TextPart | undefined
+        const textPart = assistantParts.find((p) => p.type === "text") as MessageV2.TextPart | undefined
         if (textPart && Blocker.isRoutineQuestion(textPart.text)) {
           log.info("routine question detected, auto-continuing", { sessionID })
           const autoContinueMsg: MessageV2.User = {
@@ -817,7 +816,9 @@ export namespace SessionPrompt {
         // If we stopped but some tools had more output (partial reads) and it's not a true blocker,
         // we should auto-continue.
         const parts = await MessageV2.parts(processor.message.id)
-        const hasPartialRead = parts.some((p) => p.type === "tool" && p.state.status === "completed" && p.state.outputHasMore)
+        const hasPartialRead = parts.some(
+          (p) => p.type === "tool" && p.state.status === "completed" && p.state.outputHasMore,
+        )
 
         if (hasPartialRead && !processor.message.error) {
           log.info("partial read detected, forcing auto-continuation", { sessionID })
@@ -914,26 +915,26 @@ export namespace SessionPrompt {
         if (agent.name === "heidi" && !processor.message.error) {
           const alreadyReviewed = msgs.some((m) => m.parts.some((p) => p.type === "subtask" && p.agent === "reviewer"))
           if (!alreadyReviewed) {
-              const wrotePlan = parts.some(
-                (p) =>
-                  p.type === "tool" &&
-                  p.tool === "write_to_file" &&
-                  p.state.status === "completed" &&
-                  JSON.stringify(p.state.input).includes("implementation_plan.md"),
-              )
-              if (wrotePlan) {
-                await Session.updatePart({
-                  id: PartID.ascending(),
-                  messageID: processor.message.id,
-                  sessionID,
-                  type: "subtask",
-                  agent: "reviewer",
-                  description: "Review the proposed implementation plan for architectural integrity and potential bugs.",
-                  prompt:
-                    "Please review the implementation_plan.md file and provide feedback on its correctness, security, and performance. Assign a score from 0-100.",
-                } satisfies MessageV2.SubtaskPart)
-                continue
-              }
+            const wrotePlan = parts.some(
+              (p) =>
+                p.type === "tool" &&
+                p.tool === "write_to_file" &&
+                p.state.status === "completed" &&
+                JSON.stringify(p.state.input).includes("implementation_plan.md"),
+            )
+            if (wrotePlan) {
+              await Session.updatePart({
+                id: PartID.ascending(),
+                messageID: processor.message.id,
+                sessionID,
+                type: "subtask",
+                agent: "reviewer",
+                description: "Review the proposed implementation plan for architectural integrity and potential bugs.",
+                prompt:
+                  "Please review the implementation_plan.md file and provide feedback on its correctness, security, and performance. Assign a score from 0-100.",
+              } satisfies MessageV2.SubtaskPart)
+              continue
+            }
           }
         }
 
@@ -953,6 +954,7 @@ export namespace SessionPrompt {
         }
         break
       }
+      continue
     }
     SessionStatus.set(sessionID, { type: "idle" })
     SessionCompaction.prune({ sessionID })
