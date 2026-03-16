@@ -448,6 +448,7 @@ def get_all_checks(verbose: bool = False) -> List[DoctorCheck]:
         P6RecoveryEngineCheck(verbose),
         P7PersistentRunMemoryCheck(verbose),
         P8FailureLearningStoreCheck(verbose),
+        P9BenchmarkGateCheck(verbose),
         MasterSpecCheck(verbose),
     ]
 
@@ -607,6 +608,24 @@ class P8FailureLearningStoreCheck(DoctorCheck):
             return run_check(self.verbose)
         except Exception as e:
             self.errors.append(f"Error running P8 failure store check: {e}")
+            return False
+
+class P9BenchmarkGateCheck(DoctorCheck):
+    """Check for Intelligence Phase 9 (Benchmark Gate) implementation."""
+    
+    name = "p9-benchmark-gate"
+    description = "Check for performance metrics and regression control"
+    
+    def run(self) -> bool:
+        try:
+            root = get_project_root()
+            if str(root) not in sys.path:
+                sys.path.append(str(root))
+            
+            from tools.check_p9_benchmark_gate import run_check
+            return run_check(self.verbose)
+        except Exception as e:
+            self.errors.append(f"Error running P9 benchmark gate check: {e}")
             return False
 
 class MasterSpecCheck(DoctorCheck):
