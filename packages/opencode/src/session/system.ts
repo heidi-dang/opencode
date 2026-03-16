@@ -22,6 +22,7 @@ import { ToolCompetence } from "../agent/intelligence/competence"
 import { EvidenceVerifier } from "../agent/intelligence/verifier"
 import { RecoveryEngine } from "../agent/intelligence/recovery"
 import { RunMemory } from "../agent/intelligence/run-memory"
+import { FailureStore } from "../agent/intelligence/failure-store"
 
 export namespace SystemPrompt {
   export function instructions() {
@@ -49,6 +50,10 @@ export namespace SystemPrompt {
 
   export function persistence() {
     return RunMemory.getPolicy()
+  }
+
+  export function learning() {
+    return FailureStore.getPolicy()
   }
 
   export function task(obj: any) {

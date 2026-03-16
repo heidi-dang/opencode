@@ -447,6 +447,7 @@ def get_all_checks(verbose: bool = False) -> List[DoctorCheck]:
         P5VerifierCheck(verbose),
         P6RecoveryEngineCheck(verbose),
         P7PersistentRunMemoryCheck(verbose),
+        P8FailureLearningStoreCheck(verbose),
         MasterSpecCheck(verbose),
     ]
 
@@ -588,6 +589,24 @@ class P7PersistentRunMemoryCheck(DoctorCheck):
             return run_check(self.verbose)
         except Exception as e:
             self.errors.append(f"Error running P7 run memory check: {e}")
+            return False
+
+class P8FailureLearningStoreCheck(DoctorCheck):
+    """Check for Intelligence Phase 8 (Failure Learning Store) implementation."""
+    
+    name = "p8-failure-learning-store"
+    description = "Check for Failure journal and heuristics learning"
+    
+    def run(self) -> bool:
+        try:
+            root = get_project_root()
+            if str(root) not in sys.path:
+                sys.path.append(str(root))
+            
+            from tools.check_p8_failure_learning_store import run_check
+            return run_check(self.verbose)
+        except Exception as e:
+            self.errors.append(f"Error running P8 failure store check: {e}")
             return False
 
 class MasterSpecCheck(DoctorCheck):
