@@ -49,7 +49,6 @@ export function recordRequestStart(m: DashboardMetrics) {
   return {
     finish(status: number) {
       m.activeRequests = Math.max(0, m.activeRequests - 1)
-
       const dur = performance.now() - started
       m.latencyMs.push(dur)
       if (dur > m.maxLatencyMs) m.maxLatencyMs = dur
@@ -61,7 +60,6 @@ export function recordRequestStart(m: DashboardMetrics) {
     fail() {
       m.activeRequests = Math.max(0, m.activeRequests - 1)
       m.errorCount += 1
-
       const dur = performance.now() - started
       m.latencyMs.push(dur)
       if (dur > m.maxLatencyMs) m.maxLatencyMs = dur
@@ -88,13 +86,14 @@ function fmtBytes(n: number): string {
   return `${(n / 1024 / 1024 / 1024).toFixed(2)} GB`
 }
 
-function fmtSec(n: number): string {
-  if (n < 60) return `${Math.floor(n)}s`
-  const m = Math.floor(n / 60)
-  const s = Math.floor(n % 60)
-  if (m < 60) return `${m}m ${s}s`
-  const h = Math.floor(m / 60)
-  return `${h}h ${m % 60}m`
+function fmtUptime(ms: number): string {
+  const sec = Math.floor(ms / 1000)
+  if (sec < 60) return `${sec}s`
+  const min = Math.floor(sec / 60)
+  const remSec = sec % 60
+  if (min < 60) return `${min}m ${remSec}s`
+  const hr = Math.floor(min / 60)
+  return `${hr}h ${min % 60}m`
 }
 
 function avg(xs: number[]): number {
@@ -112,37 +111,39 @@ function p95(xs: number[]): number {
 function getNetworkIPs(): string[] {
   const out: string[] = []
   const nets = os.networkInterfaces()
-
   for (const list of Object.values(nets)) {
     for (const item of list ?? []) {
       if (item.family === "IPv4" && !item.internal) out.push(item.address)
     }
   }
-
   return out
 }
 
-function healthSummary(m: DashboardMetrics) {
+function style(name: string, fallback = ""): string {
+  return (UI.Style as Record<string, string>)[name] ?? fallback
+}
+
+function healthState(m: DashboardMetrics) {
   const mem = process.memoryUsage()
   const cpus = Math.max(1, os.cpus().length)
   const [l1] = os.loadavg()
 
-  const warnings: string[] = []
-  if (m.lastHealthOK === false) warnings.push("health probe failed")
-  if (l1 > cpus) warnings.push(`CPU load ${l1.toFixed(2)} > ${cpus} cores`)
-  if (mem.rss > 1024 * 1024 * 1024) warnings.push(`RSS high: ${fmtBytes(mem.rss)}`)
-  if (p95(m.latencyMs) > 1500) warnings.push(`p95 latency high: ${p95(m.latencyMs).toFixed(0)} ms`)
-  if (m.activeRequests > 100) warnings.push(`active requests high: ${m.activeRequests}`)
+  const warns: string[] = []
+  if (m.lastHealthOK === false) warns.push(`health probe failed: ${m.lastHealthText}`)
+  if (l1 > cpus) warns.push(`cpu load high: ${l1.toFixed(2)} > ${cpus} cores`)
+  if (mem.rss > 1024 * 1024 * 1024) warns.push(`rss high: ${fmtBytes(mem.rss)}`)
+  if (p95(m.latencyMs) > 1500) warns.push(`p95 latency high: ${p95(m.latencyMs).toFixed(0)} ms`)
+  if (m.activeRequests > 100) warns.push(`active requests high: ${m.activeRequests}`)
 
   return {
-    state: warnings.length === 0 ? "HEALTHY" : "DEGRADED",
-    warnings,
+    state: warns.length === 0 ? "HEALTHY" : "DEGRADED",
+    warns,
   }
 }
 
 async function probeHealth(baseUrl: string, path: string, m: DashboardMetrics) {
   try {
-    const res = await fetch(`${baseUrl}${path}`, { method: "GET" })
+    const res = await fetch(`${baseUrl}${path}`)
     m.lastHealthOK = res.ok
     m.lastHealthText = `${res.status} ${res.statusText}`
   } catch (err) {
@@ -152,31 +153,45 @@ async function probeHealth(baseUrl: string, path: string, m: DashboardMetrics) {
 }
 
 function line(label: string, value: string) {
-  return `  ${label.padEnd(18)} ${value}`
+  return [
+    style("TEXT_INFO_BOLD"),
+    `  ${label.padEnd(18)} `,
+    style("TEXT_NORMAL"),
+    value,
+  ]
 }
 
 function render(
   server: { port: number },
   opts: Required<DashboardOpts>,
-  m: DashboardMetrics,
-): string {
+  m: DashboardMetrics
+): string[][] {
   const host = opts.hostname === "0.0.0.0" ? "localhost" : opts.hostname
   const base = `http://${host}:${server.port}`
   const mem = process.memoryUsage()
   const [l1, l5, l15] = os.loadavg()
-  const up = (Date.now() - m.startedAt) / 1000
-  const health = healthSummary(m)
+  const up = Date.now() - m.startedAt
+  const hs = healthState(m)
   const ips = opts.hostname === "0.0.0.0" ? getNetworkIPs() : []
-  const statusDot = health.state === "HEALTHY" ? "●" : "▲"
 
-  const rows: string[] = []
-  rows.push("")
-  rows.push(`  ${statusDot} ${opts.title}`)
-  rows.push(line("Status", `${health.state}${m.lastHealthOK === null ? "" : `  (${m.lastHealthText})`}`))
+  const okStyle = style("TEXT_SUCCESS_BOLD", style("TEXT_INFO_BOLD"))
+  const warnStyle = style("TEXT_WARNING_BOLD", style("TEXT_INFO_BOLD"))
+  const headStyle = hs.state === "HEALTHY" ? okStyle : warnStyle
+
+  const rows: string[][] = []
+  rows.push([style("TEXT_INFO_BOLD"), UI.logo("  ")])
+  rows.push([headStyle, `  ● ${opts.title}`])
+  rows.push([
+    headStyle,
+    "  Status             ",
+    style("TEXT_NORMAL"),
+    `${hs.state}${m.lastHealthOK === null ? "" : ` (${m.lastHealthText})`}`,
+  ])
+
   rows.push(line("Bind", `${opts.hostname}:${server.port}`))
   rows.push(line("Health", `${base}${opts.healthPath}`))
   rows.push(line("PID", String(process.pid)))
-  rows.push(line("Uptime", fmtSec(up)))
+  rows.push(line("Uptime", fmtUptime(up)))
   rows.push(line("CPU load", `${l1.toFixed(2)} / ${l5.toFixed(2)} / ${l15.toFixed(2)}`))
   rows.push(line("RSS", fmtBytes(mem.rss)))
   rows.push(line("Heap", `${fmtBytes(mem.heapUsed)} / ${fmtBytes(mem.heapTotal)}`))
@@ -187,21 +202,27 @@ function render(
   rows.push(line("Avg / p95 / Max", `${avg(m.latencyMs).toFixed(0)} ms / ${p95(m.latencyMs).toFixed(0)} ms / ${m.maxLatencyMs.toFixed(0)} ms`))
   rows.push(line("Active SSE", String(m.activeStreams)))
   rows.push(line("Reconnects", String(m.reconnectCount)))
-  rows.push(line("Runtime", typeof Bun !== "undefined" ? `Bun ${Bun.version}` : "Node " + process.version))
+  rows.push(line("Runtime", typeof Bun !== "undefined" ? `Bun ${Bun.version}` : "unknown"))
   rows.push(line("Env", process.env.NODE_ENV || "development"))
-  rows.push("")
 
   rows.push(line("Local access", `http://localhost:${server.port}`))
-  for (const ip of ips) rows.push(line("Network access", `http://${ip}:${server.port}`))
-
-  if (health.warnings.length) {
-    rows.push("")
-    rows.push("  Performance notes")
-    for (const w of health.warnings) rows.push(`   - ${w}`)
+  for (const ip of ips) {
+    rows.push(line("Network access", `http://${ip}:${server.port}`))
   }
 
-  rows.push("")
-  return rows.join("\n")
+  if (hs.warns.length > 0) {
+    rows.push([warnStyle, "  Performance notes"])
+    for (const w of hs.warns) {
+      rows.push([warnStyle, "   - ", style("TEXT_NORMAL"), w])
+    }
+  }
+
+  return rows
+}
+
+function draw(rows: string[][]) {
+  if (process.stdout.isTTY) process.stdout.write("\x1b[2J\x1b[H")
+  for (const row of rows) UI.println(...row)
 }
 
 export function attachServerDashboard(
@@ -213,39 +234,31 @@ export function attachServerDashboard(
     hostname: opts.hostname,
     port: opts.port ?? server.port,
     healthPath: opts.healthPath ?? "/health",
-    refreshMs: opts.refreshMs ?? 1500,
     title: opts.title ?? "OpenCode Server Dashboard",
+    refreshMs: opts.refreshMs ?? 1500,
   }
 
-  const tty = Boolean(process.stdout.isTTY)
   const host = cfg.hostname === "0.0.0.0" ? "localhost" : cfg.hostname
   const base = `http://${host}:${server.port}`
   let stopped = false
 
   async function tick() {
     await probeHealth(base, cfg.healthPath, metrics)
-    const out = render(server, cfg, metrics)
-
-    if (tty) {
-      process.stdout.write("\x1b[2J\x1b[H")
-      process.stdout.write(out)
-    } else {
-      console.log(out)
-    }
+    draw(render(server, cfg, metrics))
   }
 
   void tick()
-  const id = setInterval(() => {
+  const timer = setInterval(() => {
     if (!stopped) void tick()
   }, cfg.refreshMs)
 
   return {
+    async refresh() {
+      await tick()
+    },
     stop() {
       stopped = true
-      clearInterval(id)
-    },
-    refresh() {
-      return tick()
+      clearInterval(timer)
     },
   }
 }
