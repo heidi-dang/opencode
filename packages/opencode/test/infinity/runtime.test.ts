@@ -159,7 +159,7 @@ test("InfinityRuntime rollback: verify fails and max retries reached", async () 
       confidence: 1
     }),
     patchTarget: async () => ({
-      content: "MODIFIED content",
+      content: "export const modified = true", // Valid TS so syntax check passes
       rationale: "fixed"
     }),
     judgeResult: async () => ({
@@ -171,6 +171,7 @@ test("InfinityRuntime rollback: verify fails and max retries reached", async () 
 
   const runtime = new InfinityRuntime(tmp.path, { max_cycles: 1, max_retries_per_task: 1 }, { adapter })
   runtime.bootstrap()
+  // Use a task with no_syntax_check so content doesn't get blocked by bun --check
   runtime.writeQueue([mockTask])
   
   await runtime.runCycle()

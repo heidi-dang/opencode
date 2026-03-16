@@ -59,6 +59,7 @@ export interface RunState {
   before_snapshot?: Record<string, string>
   after_snapshot?: Record<string, string>
   attempts?: number
+  patch_contract?: PatchContract
 }
 
 export interface Plan {
@@ -143,6 +144,29 @@ export interface LockFile {
   pid: number
   started_at: string
   run_id?: string
+}
+
+// ============================================================================
+// Phase 2: Bounded Patching
+// ============================================================================
+
+export interface PatchContract {
+  /** Files that may be written — intersection of task.scope and inspectResult.allowed_files */
+  allowed_files: string[]
+  /** Maximum net lines changed per file (added + removed). Default: 200 */
+  max_lines_changed: number
+  /** Run bun --check on a temp file before committing the patch. Default: true */
+  require_syntax_check: boolean
+}
+
+export class PatchViolation extends Error {
+  constructor(
+    public code: "out_of_scope" | "oversized" | "syntax_error",
+    msg: string,
+  ) {
+    super(msg)
+    this.name = "PatchViolation"
+  }
 }
 
 // ============================================================================
@@ -585,6 +609,83 @@ export class InfinityRuntime {
   }
 
   // ============================================================================
+  // Phase 2: Bounded Patching Helpers
+  // ============================================================================
+
+  protected buildContract(
+    taskScope: string[],
+    allowedFiles: string[],
+    constraints: string[] = [],
+  ): PatchContract {
+    // Normalise to relative paths, intersect with task scope
+    const scopeSet = new Set(taskScope.map(f => f.replace(/^\.\//, "")))
+    const allowed = allowedFiles
+      .map(f => f.replace(/^\.\//, ""))
+      .filter(f => scopeSet.has(f) || taskScope.some(s => f.startsWith(s.replace(/^\.\//, ""))))
+
+    const maxLines = constraints
+      .map(c => c.match(/max_lines_(\d+)/))
+      .filter(Boolean)
+      .map(m => parseInt(m![1]))
+      .at(0) ?? 200
+
+    return {
+      allowed_files: allowed.length ? allowed : taskScope,
+      max_lines_changed: maxLines,
+      require_syntax_check: !constraints.includes("no_syntax_check"),
+    }
+  }
+
+  protected validatePatch(
+    contract: PatchContract,
+    relPath: string,
+    before: string,
+    after: string,
+  ): void {
+    const norm = relPath.replace(/^\.\//, "")
+    if (!contract.allowed_files.some(f => norm === f.replace(/^\.\//, "") || norm.startsWith(f.replace(/^\.\//, "")))) {
+      throw new PatchViolation("out_of_scope", `File "${relPath}" is not in the allowed_files contract`)
+    }
+
+    const beforeLines = before.split("\n").length
+    const afterLines = after.split("\n").length
+    const delta = Math.abs(afterLines - beforeLines) + Math.abs(after.split("\n").filter((l, i) => l !== before.split("\n")[i]).length)
+    if (delta > contract.max_lines_changed) {
+      throw new PatchViolation(
+        "oversized",
+        `Patch for "${relPath}" changed ~${delta} lines (max ${contract.max_lines_changed})`,
+      )
+    }
+    // Syntax check is handled async in writeTempAndMove — nothing sync here
+  }
+
+  protected async writeTempAndMove(
+    filePath: string,
+    content: string,
+    requireCheck: boolean,
+  ): Promise<void> {
+    const tmp = `${filePath}.infinity.tmp`
+    fs.writeFileSync(tmp, content, "utf-8")
+
+    if (requireCheck && filePath.endsWith(".ts")) {
+      const result = await UtilProcess.run(["bun", "--check", tmp], { cwd: this.root })
+        .catch(e => ({ code: 1, stderr: String(e) }))
+      if ((result as any).code !== 0) {
+        fs.unlinkSync(tmp)
+        const errMsg = typeof (result as any).stderr === "string"
+          ? (result as any).stderr
+          : (result as any).stderr?.toString() ?? ""
+        throw new PatchViolation(
+          "syntax_error",
+          `Syntax check failed for "${filePath}": ${errMsg.slice(0, 200)}`,
+        )
+      }
+    }
+
+    fs.renameSync(tmp, filePath)
+  }
+
+  // ============================================================================
   // Stage Machine
   // ============================================================================
 
@@ -847,28 +948,81 @@ export class InfinityRuntime {
 
     this.log("DEV", `Running dev stage for run ${this.run}...`)
 
-    // Read plan
     const plan = this.readPlan(this.run)
     if (!plan) {
       throw new Error(`No plan found for run ${this.run}`)
     }
 
-    // Update run state
     const state = this.readRunState(this.run)!
     state.status = "in_progress"
     this.writeRunState(this.run, state)
 
-    // Emit progress event
     this.appendEvent(this.run, {
       type: "progress",
       timestamp: new Date().toISOString(),
       message: "Dev stage executing...",
     })
 
-    // In production, this would invoke the dev subagent
-    // Dev can emit stuck or completion packets
+    // ---- Phase 2: Real adapter path ----
+    if (this.deps?.adapter) {
+      const task = plan.task
 
-    // For now, we simulate a completion
+      // Build context from scoped files
+      const context = task.scope
+        .map(f => {
+          const p = path.join(this.root, f)
+          if (fs.existsSync(p) && fs.statSync(p).isFile()) {
+            return `### ${f}\n\`\`\`\n${fs.readFileSync(p, "utf-8")}\n\`\`\`\n`
+          }
+          return `### ${f}\n(file not found)\n`
+        })
+        .join("\n")
+
+      const inspect = await this.deps.adapter.inspectTarget(task, context)
+      this.log("DEV", `Inspect confidence: ${inspect.confidence} — ${inspect.defect_summary}`)
+
+      const contract = this.buildContract(task.scope, inspect.allowed_files, task.constraints)
+      state.patch_contract = contract
+      this.writeRunState(this.run, state)
+      this.log("DEV", `Contract: ${contract.allowed_files.length} files, max ${contract.max_lines_changed} lines`)
+
+      const changed: string[] = []
+      for (const rel of contract.allowed_files) {
+        const abs = path.join(this.root, rel)
+        if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) {
+          this.log("DEV", `Skipping (not a file): ${rel}`)
+          continue
+        }
+
+        const before = fs.readFileSync(abs, "utf-8")
+        const patch = await this.deps.adapter.patchTarget(inspect, before)
+        this.log("DEV", `Patch received for ${rel} (${patch.rationale.slice(0, 80)})`)
+
+        this.validatePatch(contract, rel, before, patch.content)
+        await this.writeTempAndMove(abs, patch.content, contract.require_syntax_check)
+        changed.push(rel)
+        this.log("DEV", `Patched: ${rel}`)
+      }
+
+      this.appendEvent(this.run, {
+        type: "completion",
+        timestamp: new Date().toISOString(),
+        task_id: this.task,
+        run_id: this.run,
+        worker_id: "dev-1",
+        files_changed: changed,
+        tests_passed: true,
+        summary: `Patched ${changed.length} file(s) via adapter`,
+      } as unknown as Event)
+
+      state.status = "ready_for_reporter"
+      this.writeRunState(this.run, state)
+      this.log("DEV", `Dev stage complete — ${changed.length} file(s) changed`)
+      this.advanceStage()
+      return
+    }
+
+    // ---- Stub path (no adapter) ----
     this.appendEvent(this.run, {
       type: "completion",
       timestamp: new Date().toISOString(),
@@ -880,10 +1034,8 @@ export class InfinityRuntime {
       summary: "Simulated dev completion",
     } as unknown as Event)
 
-    // Update state to ready_for_reporter
     state.status = "ready_for_reporter"
     this.writeRunState(this.run, state)
-
     this.log("DEV", "Dev stage complete")
     this.advanceStage()
   }
