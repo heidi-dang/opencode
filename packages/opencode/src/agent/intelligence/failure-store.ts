@@ -36,7 +36,9 @@ export class FailureStore {
     }
     
     const line = JSON.stringify(entry) + "\n"
-    await Bun.write(this.JOURNAL_PATH, line, { append: true })
+    const file = Bun.file(this.JOURNAL_PATH)
+    const existingContent = await file.exists() ? await file.text() : ""
+    await Bun.write(this.JOURNAL_PATH, existingContent + line)
     this.log.info("failure logged and learned", entry)
   }
 
