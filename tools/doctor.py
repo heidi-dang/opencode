@@ -444,6 +444,9 @@ def get_all_checks(verbose: bool = False) -> List[DoctorCheck]:
         P2ContextEngineCheck(verbose),
         P3SpecialistRouterCheck(verbose),
         P4ToolCompetenceCheck(verbose),
+        P5VerifierCheck(verbose),
+        P6RecoveryEngineCheck(verbose),
+        P7PersistentRunMemoryCheck(verbose),
         MasterSpecCheck(verbose),
     ]
 
@@ -531,6 +534,60 @@ class P4ToolCompetenceCheck(DoctorCheck):
             return run_check(self.verbose)
         except Exception as e:
             self.errors.append(f"Error running P4 tool competence check: {e}")
+            return False
+
+class P5VerifierCheck(DoctorCheck):
+    """Check for Intelligence Phase 5 (Verifier) implementation."""
+    
+    name = "p5-verifier"
+    description = "Check for Evidence-first validation logic"
+    
+    def run(self) -> bool:
+        try:
+            root = get_project_root()
+            if str(root) not in sys.path:
+                sys.path.append(str(root))
+            
+            from tools.check_p5_verifier import run_check
+            return run_check(self.verbose)
+        except Exception as e:
+            self.errors.append(f"Error running P5 verifier check: {e}")
+            return False
+
+class P6RecoveryEngineCheck(DoctorCheck):
+    """Check for Intelligence Phase 6 (Recovery Engine) implementation."""
+    
+    name = "p6-recovery-engine"
+    description = "Check for Failure classification and structured recovery"
+    
+    def run(self) -> bool:
+        try:
+            root = get_project_root()
+            if str(root) not in sys.path:
+                sys.path.append(str(root))
+            
+            from tools.check_p6_recovery_engine import run_check
+            return run_check(self.verbose)
+        except Exception as e:
+            self.errors.append(f"Error running P6 recovery engine check: {e}")
+            return False
+
+class P7PersistentRunMemoryCheck(DoctorCheck):
+    """Check for Intelligence Phase 7 (Persistent Run Memory) implementation."""
+    
+    name = "p7-persistent-run-memory"
+    description = "Check for Crash-safe state persistence and checkpointing"
+    
+    def run(self) -> bool:
+        try:
+            root = get_project_root()
+            if str(root) not in sys.path:
+                sys.path.append(str(root))
+            
+            from tools.check_p7_persistent_run_memory import run_check
+            return run_check(self.verbose)
+        except Exception as e:
+            self.errors.append(f"Error running P7 run memory check: {e}")
             return False
 
 class MasterSpecCheck(DoctorCheck):

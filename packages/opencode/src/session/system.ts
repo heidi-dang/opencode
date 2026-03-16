@@ -19,6 +19,9 @@ import { WorkingSet } from "../agent/intelligence/working-set"
 import { RepoMap } from "../agent/intelligence/repomap"
 import { SpecialistRouter } from "../agent/intelligence/router"
 import { ToolCompetence } from "../agent/intelligence/competence"
+import { EvidenceVerifier } from "../agent/intelligence/verifier"
+import { RecoveryEngine } from "../agent/intelligence/recovery"
+import { RunMemory } from "../agent/intelligence/run-memory"
 
 export namespace SystemPrompt {
   export function instructions() {
@@ -32,6 +35,20 @@ export namespace SystemPrompt {
  
   export function competence() {
     return ToolCompetence.getPolicy()
+  }
+
+  export function verifier(taskObj: any) {
+    const policy = EvidenceVerifier.getPolicy()
+    const hint = taskObj ? EvidenceVerifier.getEvidenceHint(taskObj.required_evidence) : ""
+    return [policy, hint].filter(Boolean).join("\n")
+  }
+
+  export function recovery() {
+    return RecoveryEngine.getPolicy()
+  }
+
+  export function persistence() {
+    return RunMemory.getPolicy()
   }
 
   export function task(obj: any) {

@@ -745,6 +745,9 @@ export namespace SessionPrompt {
         ...(taskObject ? [SystemPrompt.task(taskObject)] : []),
         ...(taskObject ? [SystemPrompt.router(taskObject, patterns)] : []),
         SystemPrompt.competence(),
+        SystemPrompt.verifier(taskObject),
+        SystemPrompt.recovery(),
+        SystemPrompt.persistence(),
       ] as string[]
       if (format.type === "json_schema") {
         system.push(STRUCTURED_OUTPUT_SYSTEM_PROMPT)
