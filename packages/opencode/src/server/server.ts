@@ -49,6 +49,7 @@ import { PermissionRoutes } from "./routes/permission"
 import { GlobalRoutes } from "./routes/global"
 import { MDNS } from "./mdns"
 import { lazy } from "@/util/lazy"
+import { type DashboardMetrics, recordRequestStart, streamOpened } from "../cli/dashboard"
 
 // @ts-ignore This global is needed to prevent ai-sdk from logging warnings to stdout https://github.com/vercel/ai/blob/2dc67e0ef538307f21368db32d5a12345d98831b/packages/ai/src/logger/log-warnings.ts#L85
 globalThis.AI_SDK_LOG_WARNINGS = false
@@ -57,10 +58,27 @@ export namespace Server {
   const log = Log.create({ service: "server" })
 
   export const Default = lazy(() => createApp({}))
+  
+  export let metrics: DashboardMetrics | undefined
 
-  export const createApp = (opts: { cors?: string[] }): Hono => {
+  export const createApp = (opts: { cors?: string[]; metrics?: DashboardMetrics }): Hono => {
     const app = new Hono()
+    if (opts.metrics) {
+      metrics = opts.metrics
+    }
     return app
+      .get("/health", (c) => c.text("OK"))
+      .use(async (c, next) => {
+        if (!metrics) return next()
+        const stat = recordRequestStart(metrics)
+        try {
+          await next()
+          stat.finish(c.res.status)
+        } catch (err) {
+          stat.fail()
+          throw err
+        }
+      })
       .onError((err, c) => {
         log.error("failed", {
           error: err,
@@ -521,7 +539,9 @@ export namespace Server {
           log.info("event connected")
           c.header("X-Accel-Buffering", "no")
           c.header("X-Content-Type-Options", "nosniff")
+          c.header("X-Content-Type-Options", "nosniff")
           return streamSSE(c, async (stream) => {
+            const close = metrics ? streamOpened(metrics) : () => {}
             stream.writeSSE({
               data: JSON.stringify({
                 type: "server.connected",
@@ -551,6 +571,7 @@ export namespace Server {
               stream.onAbort(() => {
                 clearInterval(heartbeat)
                 unsub()
+                close()
                 resolve()
                 log.info("event disconnected")
               })
@@ -620,6 +641,7 @@ export namespace Server {
     mdns?: boolean
     mdnsDomain?: string
     cors?: string[]
+    metrics?: DashboardMetrics
   }) {
     url = new URL(`http://${opts.hostname}:${opts.port}`)
     const app = createApp(opts)

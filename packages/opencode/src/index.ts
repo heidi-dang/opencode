@@ -38,6 +38,7 @@ import path from "path"
 import { Global } from "./global"
 import { JsonMigration } from "./storage/json-migration"
 import { Database } from "./storage/db"
+import { ConfigCommand } from "./cli/cmd/config"
 
 process.on("unhandledRejection", (e) => {
   Log.Default.error("rejection", {
@@ -155,6 +156,7 @@ let cli = yargs(hideBin(process.argv))
   .command(PrCommand)
   .command(SessionCommand)
   .command(DbCommand)
+  .command(ConfigCommand)
   .command(InfinityCommand)
 
 if (Installation.isLocal()) {

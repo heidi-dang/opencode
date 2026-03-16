@@ -3,6 +3,8 @@ import { UI } from "../ui"
 import { cmd } from "./cmd"
 import { withNetworkOptions, resolveNetworkOptions } from "../network"
 import { Flag } from "../../flag/flag"
+import { Sanitize } from "../../config/sanitize"
+import { createDashboardMetrics, attachServerDashboard } from "../dashboard"
 import open from "open"
 import { networkInterfaces } from "os"
 
@@ -30,9 +32,17 @@ function getNetworkIPs() {
 
 export const WebCommand = cmd({
   command: "web",
-  builder: (yargs) => withNetworkOptions(yargs),
+  builder: (yargs) =>
+    withNetworkOptions(yargs).option("sanitize-config", {
+      type: "boolean",
+      describe: "sanitize and optimize configuration before starting the server",
+    }),
   describe: "start opencode server and open web interface",
   handler: async (args) => {
+    if (args.sanitizeConfig) {
+      await Sanitize.run()
+    }
+
     if (!Flag.OPENCODE_SERVER_PASSWORD) {
       UI.println(UI.Style.TEXT_WARNING_BOLD + "!  " + "OPENCODE_SERVER_PASSWORD is not set; server is unsecured.")
     }
@@ -56,45 +66,21 @@ export const WebCommand = cmd({
       }
     }
 
-    const server = Server.listen(opts)
-    UI.empty()
-    UI.println(UI.logo("  "))
-    UI.empty()
-
-    if (opts.hostname === "0.0.0.0") {
-      // Show localhost for local access
-      const localhostUrl = `http://localhost:${server.port}`
-      UI.println(UI.Style.TEXT_INFO_BOLD + "  Local access:      ", UI.Style.TEXT_NORMAL, localhostUrl)
-
-      // Show network IPs for remote access
-      const networkIPs = getNetworkIPs()
-      if (networkIPs.length > 0) {
-        for (const ip of networkIPs) {
-          UI.println(
-            UI.Style.TEXT_INFO_BOLD + "  Network access:    ",
-            UI.Style.TEXT_NORMAL,
-            `http://${ip}:${server.port}`,
-          )
-        }
-      }
-
-      if (opts.mdns) {
-        UI.println(
-          UI.Style.TEXT_INFO_BOLD + "  mDNS:              ",
-          UI.Style.TEXT_NORMAL,
-          `${opts.mdnsDomain}:${server.port}`,
-        )
-      }
-
-      // Open localhost in browser
-      open(localhostUrl.toString()).catch(() => {})
-    } else {
-      const displayUrl = server.url.toString()
-      UI.println(UI.Style.TEXT_INFO_BOLD + "  Web interface:    ", UI.Style.TEXT_NORMAL, displayUrl)
-      open(displayUrl).catch(() => {})
-    }
+    const metrics = createDashboardMetrics()
+    const server = Server.listen({ ...opts, metrics })
+    
+    // Server on Bun.serve returns a server object with a port. 
+    // Types might be tricky, so we cast if needed, but Bun.Server has 'port'.
+    const dash = attachServerDashboard(server as any, {
+      hostname: opts.hostname,
+      port: server.port,
+      healthPath: "/health",
+      refreshMs: 1500,
+      title: "OpenCode Server Dashboard",
+    }, metrics)
 
     await new Promise(() => {})
+    dash.stop()
     await server.stop()
   },
 })
