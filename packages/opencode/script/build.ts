@@ -177,6 +177,22 @@ for (const item of targets) {
   await Bun.build({
     tsconfig: "./tsconfig.json",
     plugins: [
+      {
+        name: "zod-bug-workaround",
+        setup(build) {
+          build.onLoad({ filter: /zod.*\.js$/ }, async (args) => {
+            let contents = await fs.promises.readFile(args.path, "utf8")
+            if (contents.match(/import \* as util from/)) {
+              contents = contents.replace(/import \* as util from/g, 'import * as _zodUtil from');
+              contents += "\nvar util = _zodUtil;\n";
+            }
+            return {
+              contents,
+              loader: "js",
+            }
+          })
+        },
+      },
       solidPlugin,
       {
         name: "resolve-js-to-ts",
@@ -216,6 +232,8 @@ for (const item of targets) {
       OPENCODE_LIBC: item.os === "linux" ? `'${item.abi ?? "glibc"}'` : "",
     },
   })
+
+
 
   await $`rm -rf ./dist/${name}/bin/tui`
   await Bun.file(`dist/${name}/package.json`).write(

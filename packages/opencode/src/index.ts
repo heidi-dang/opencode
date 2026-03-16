@@ -1,7 +1,4 @@
-// Shim for Bun's internal Node.js compatibility layer
-if (typeof globalThis !== "undefined") {
-  ;(globalThis as any).util = require("util")
-}
+
 
 import yargs from "yargs"
 import { hideBin } from "yargs/helpers"
@@ -199,17 +196,7 @@ try {
     })
   }
 
-  if (e instanceof ResolveMessage) {
-    Object.assign(data, {
-      name: e.name,
-      message: e.message,
-      code: e.code,
-      specifier: e.specifier,
-      referrer: e.referrer,
-      position: e.position,
-      importKind: e.importKind,
-    })
-  }
+
   Log.Default.error("fatal", data)
   const formatted = FormatError(e)
   if (formatted) UI.error(formatted)

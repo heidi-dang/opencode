@@ -11,7 +11,7 @@ if (!expectedBunVersion) {
 }
 
 // relax version requirement
-const expectedBunVersionRange = `^${expectedBunVersion}`
+const expectedBunVersionRange = ">=1.3.9"
 
 if (!semver.satisfies(process.versions.bun, expectedBunVersionRange)) {
   throw new Error(`This script requires bun@${expectedBunVersionRange}, but you are using bun@${process.versions.bun}`)
@@ -27,7 +27,12 @@ const CHANNEL = await (async () => {
   if (env.OPENCODE_CHANNEL) return env.OPENCODE_CHANNEL
   if (env.OPENCODE_BUMP) return "latest"
   if (env.OPENCODE_VERSION && !env.OPENCODE_VERSION.startsWith("0.0.0-")) return "latest"
-  return await $`git branch --show-current`.text().then((x) => x.trim())
+  try {
+    const head = await Bun.file(path.resolve(import.meta.dir, "../../../.git/HEAD")).text()
+    return head.trim().split("/").pop() || "dev"
+  } catch {
+    return "dev"
+  }
 })()
 const IS_PREVIEW = CHANNEL !== "latest"
 
