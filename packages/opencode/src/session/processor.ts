@@ -199,13 +199,13 @@ export namespace SessionProcessor {
                   if (match && match.state.status === "running") {
                     // Use bounded capture to prevent unbounded output in message payload
                     const bounded = await Truncate.boundedCapture(value.output.output)
-                    
+
                     await Session.updatePart({
                       ...match,
                       state: {
                         status: "completed",
                         input: value.input ?? match.state.input,
-                        output: bounded.preview,  // Bounded preview for message
+                        output: bounded.preview, // Bounded preview for message
                         metadata: value.output.metadata,
                         title: value.output.title,
                         time: {
@@ -393,10 +393,6 @@ export namespace SessionProcessor {
             const error = MessageV2.fromError(e, { providerID: input.model.providerID })
             if (MessageV2.ContextOverflowError.isInstance(error)) {
               needsCompaction = true
-              Bus.publish(Session.Event.Error, {
-                sessionID: input.sessionID,
-                error,
-              })
             } else {
               const retry = SessionRetry.retryable(error)
               if (retry !== undefined) {
