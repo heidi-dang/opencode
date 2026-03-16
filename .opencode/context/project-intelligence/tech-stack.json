@@ -3,9 +3,20 @@
     "typescript"
   ],
   "conventions": [
-    "tsconfig"
+    "tsconfig",
+    "turborepo"
   ],
   "dirs": [
     "packages"
+  ],
+  "testing": [],
+  "ci": [
+    "github-actions"
+  ],
+  "workspaces": [
+    "packages/*",
+    "packages/console/*",
+    "packages/sdk/js",
+    "packages/slack"
   ]
 }

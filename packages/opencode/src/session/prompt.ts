@@ -49,6 +49,7 @@ import { Shell } from "@/shell/shell"
 import { Truncate } from "@/tool/truncation"
 import { decodeDataUrl } from "@/util/data-url"
 import { Policy } from "./policy"
+import { Blocker } from "@/util/blocker"
 
 // @ts-ignore
 globalThis.AI_SDK_LOG_WARNINGS = false
@@ -324,6 +325,34 @@ export namespace SessionPrompt {
         !["tool-calls", "unknown"].includes(lastAssistant.finish) &&
         lastUser.id < lastAssistant.id
       ) {
+        // Check if the model finished with a routine question (permission seeking)
+        // that should be auto-continued in Finish-Mode.
+        const assistantParts = await MessageV2.parts(lastAssistant.id)
+        const textPart = assistantParts.find(p => p.type === "text") as MessageV2.TextPart | undefined
+        if (textPart && Blocker.isRoutineQuestion(textPart.text)) {
+          log.info("routine question detected, auto-continuing", { sessionID })
+          const autoContinueMsg: MessageV2.User = {
+            id: MessageID.ascending(),
+            sessionID,
+            role: "user",
+            time: {
+              created: Date.now(),
+            },
+            agent: lastUser.agent,
+            model: lastUser.model,
+          }
+          await Session.updateMessage(autoContinueMsg)
+          await Session.updatePart({
+            id: PartID.ascending(),
+            messageID: autoContinueMsg.id,
+            sessionID,
+            type: "text",
+            text: "Finish-Mode: Auto-continuing your execution. Do not ask for permission; proceed until the goal is complete.",
+            synthetic: true,
+          } satisfies MessageV2.TextPart)
+          continue
+        }
+
         log.info("exiting loop", { sessionID })
         break
       }
@@ -735,6 +764,35 @@ export namespace SessionPrompt {
       }
 
       if (result === "stop") {
+        // If we stopped but some tools had more output (partial reads) and it's not a true blocker,
+        // we should auto-continue.
+        const parts = await MessageV2.parts(processor.message.id)
+        const hasPartialRead = parts.some((p) => p.type === "tool" && p.state.status === "completed" && p.state.outputHasMore)
+
+        if (hasPartialRead && !processor.message.error) {
+          log.info("partial read detected, forcing auto-continuation", { sessionID })
+          const autoReadMsg: MessageV2.User = {
+            id: MessageID.ascending(),
+            sessionID,
+            role: "user",
+            time: {
+              created: Date.now(),
+            },
+            agent: lastUser.agent,
+            model: lastUser.model,
+          }
+          await Session.updateMessage(autoReadMsg)
+          await Session.updatePart({
+            id: PartID.ascending(),
+            messageID: autoReadMsg.id,
+            sessionID,
+            type: "text",
+            text: "Finish-Mode: The previous tool output was truncated. Please continue execution and gather all necessary information autonomously.",
+            synthetic: true,
+          } satisfies MessageV2.TextPart)
+          continue
+        }
+
         // Unified Quality Gates (Security, Visual, Logic)
         const gate = Policy.nextGate(agent.name, msgs)
         if (gate && !processor.message.error) {
@@ -801,33 +859,31 @@ export namespace SessionPrompt {
             continue
           }
         }
-        break
-      }
 
-      // Automatic Deep Code Review Trigger
-      if (agent.name === "heidi" && !processor.message.error) {
-        const parts = await MessageV2.parts(processor.message.id)
-        const wrotePlan = parts.some(
-          (p) =>
-            p.type === "tool" &&
-            p.tool === "write_to_file" &&
-            p.state.status === "completed" &&
-            JSON.stringify(p.state.input).includes("implementation_plan.md"),
-        )
-
-        if (wrotePlan) {
+        // Automatic Deep Code Review Trigger
+        if (agent.name === "heidi" && !processor.message.error) {
           const alreadyReviewed = msgs.some((m) => m.parts.some((p) => p.type === "subtask" && p.agent === "reviewer"))
           if (!alreadyReviewed) {
-            await Session.updatePart({
-              id: PartID.ascending(),
-              messageID: processor.message.id,
-              sessionID,
-              type: "subtask",
-              agent: "reviewer",
-              description: "Review the proposed implementation plan for architectural integrity and potential bugs.",
-              prompt:
-                "Please review the implementation_plan.md file and provide feedback on its correctness, security, and performance. Assign a score from 0-100.",
-            } satisfies MessageV2.SubtaskPart)
+              const wrotePlan = parts.some(
+                (p) =>
+                  p.type === "tool" &&
+                  p.tool === "write_to_file" &&
+                  p.state.status === "completed" &&
+                  JSON.stringify(p.state.input).includes("implementation_plan.md"),
+              )
+              if (wrotePlan) {
+                await Session.updatePart({
+                  id: PartID.ascending(),
+                  messageID: processor.message.id,
+                  sessionID,
+                  type: "subtask",
+                  agent: "reviewer",
+                  description: "Review the proposed implementation plan for architectural integrity and potential bugs.",
+                  prompt:
+                    "Please review the implementation_plan.md file and provide feedback on its correctness, security, and performance. Assign a score from 0-100.",
+                } satisfies MessageV2.SubtaskPart)
+                continue
+              }
           }
         }
 
@@ -845,6 +901,7 @@ export namespace SessionPrompt {
           })
           break
         }
+        break
       }
 
       if (result === "compact") {

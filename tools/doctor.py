@@ -437,7 +437,27 @@ def get_all_checks(verbose: bool = False) -> List[DoctorCheck]:
         LiveRunProviderCheck(verbose),
         InfinityLoopCheck(verbose),
         DiffThemeCheck(verbose),
+        AgentAutonomyCheck(verbose),
     ]
+
+class AgentAutonomyCheck(DoctorCheck):
+    """Check for Agent Finish-Mode autonomy implementation."""
+    
+    name = "agent-autonomy"
+    description = "Check for finish-mode contract, blocker classifier, and auto-continue loop"
+    
+    def run(self) -> bool:
+        try:
+            # Ensure tools directory is in path for imports
+            root = get_project_root()
+            if str(root) not in sys.path:
+                sys.path.append(str(root))
+            
+            from tools.check_agent_finish_mode import run_check
+            return run_check(self.verbose)
+        except ImportError as e:
+            self.errors.append(f"tools/check_agent_finish_mode.py not found or could not be imported: {e}")
+            return False
 
 
 def run_doctor(checks: Optional[List[DoctorCheck]] = None, verbose: bool = False) -> bool:
