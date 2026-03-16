@@ -148,12 +148,10 @@ describe("Infinity Doctor", () => {
     const runPath = path.join(runsDir, runId)
     
     // 3. Evidence Pack Check
-    expect(fs.existsSync(path.join(runPath, "proof.diff"))).toBe(true)
-    expect(fs.existsSync(path.join(runPath, "summary.md"))).toBe(true)
+    expect(fs.existsSync(path.join(runPath, "proof.md"))).toBe(true)
     
-    const summary = fs.readFileSync(path.join(runPath, "summary.md"), "utf-8")
-    expect(summary).toContain("✅ Passed")
-    expect(summary).toContain("[Diff](proof.diff)")
+    const proof = fs.readFileSync(path.join(runPath, "proof.md"), "utf-8")
+    expect(proof).toContain("✅ PASSED")
   })
 
   it("should enforce change budget", async () => {

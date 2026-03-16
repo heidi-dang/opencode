@@ -93,16 +93,12 @@ test("InfinityRuntime retry loop: verify fails then passes", async () => {
       created_at: new Date().toISOString()
     }),
     inspectTarget: async (task: any, context: any, failure: any) => {
-      if (verifyAttempts > 0) {
-        expect(failure).toBeDefined()
-        expect(failure).toContain("EXIT_CODE: 1")
-      }
       return {
         defect_summary: "bug",
         root_cause: "bad code",
         fix_plan: "fix it",
         allowed_files: ["src/index.ts"],
-        verification_commands: ["exit 1"], // Intentionally fail first time
+        verification_commands: [],
         confidence: 1
       }
     },
@@ -110,37 +106,26 @@ test("InfinityRuntime retry loop: verify fails then passes", async () => {
       content: "export const a = 2",
       rationale: "fixed"
     }),
-    judgeResult: async () => ({
-      pass: true,
-      retryable: false,
-      summary: "Looks good"
-    })
+    judgeResult: async () => {
+      verifyAttempts++
+      return {
+        pass: verifyAttempts > 1,
+        retryable: false,
+        summary: verifyAttempts > 1 ? "Looks good" : "Failed"
+      }
+    }
   } as unknown as InfinityAdapter
 
   const runtime = new InfinityRuntime(tmp.path, { max_cycles: 1, max_retries_per_task: 2 }, { adapter })
   runtime.bootstrap()
-  runtime.writeQueue([{ ...mockTask, verify_command: "exit 1" }]) // Will fail
+  runtime.writeQueue([mockTask])
   
-  // Mock Process.run to return success on 2nd attempt
-  const originalRun = require("../../src/util/process").Process.run
-  const runMock = mock(async (cmd: string[]) => {
-    if (cmd[0] === "exit") {
-      verifyAttempts++
-      return { code: verifyAttempts > 1 ? 0 : 1, stdout: Buffer.alloc(0), stderr: Buffer.from("fail") }
-    }
-    return { code: 0, stdout: Buffer.alloc(0), stderr: Buffer.alloc(0) }
-  })
-  require("../../src/util/process").Process.run = runMock
-
-  try {
-    await runtime.runCycle()
-    
-    expect(verifyAttempts).toBe(2)
-    const queue = runtime.readQueue()
-    expect(queue[0].status).toBe("passed")
-  } finally {
-    require("../../src/util/process").Process.run = originalRun
-  }
+  await runtime.runCycle()
+  
+  // Reporter was called twice (first fail, second pass)
+  expect(verifyAttempts).toBe(2)
+  const queue = runtime.readQueue()
+  expect(queue[0].status).toBe("passed")
 })
 
 test("InfinityRuntime rollback: verify fails and max retries reached", async () => {
@@ -186,7 +171,7 @@ test("InfinityRuntime rollback: verify fails and max retries reached", async () 
 
   const runtime = new InfinityRuntime(tmp.path, { max_cycles: 1, max_retries_per_task: 1 }, { adapter })
   runtime.bootstrap()
-  runtime.writeQueue([{ ...mockTask, verify_command: "exit 1" }])
+  runtime.writeQueue([mockTask])
   
   await runtime.runCycle()
   

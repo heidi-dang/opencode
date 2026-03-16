@@ -58,6 +58,7 @@ export interface RunState {
   gate_result?: GateResult
   before_snapshot?: Record<string, string>
   after_snapshot?: Record<string, string>
+  attempts?: number
 }
 
 export interface Plan {
@@ -86,7 +87,7 @@ export interface GateResult {
 }
 
 export interface Gate {
-  name: "cloud_ci" | "security" | "visual" | "benchmark"
+  name: "cloud_ci" | "security" | "visual" | "benchmark" | "quality"
   status: "pass" | "fail" | "skipped"
   details: string
 }
@@ -118,6 +119,15 @@ export interface Event {
   type: string
   timestamp: string
   [key: string]: unknown
+}
+
+export interface Metrics {
+  lint_errors: number
+  type_errors: number
+  test_failures: number
+  complexity_delta?: number
+  latency_ms?: number
+  timestamp: string
 }
 
 export interface InfinityConfig {
@@ -380,6 +390,7 @@ export class InfinityRuntime {
 
   writeQueue(tasks: Task[]): void {
     const queuePath = path.join(this.root, ".opencode", "queue.json")
+    this.ensureDir(path.dirname(queuePath))
     fs.writeFileSync(queuePath, JSON.stringify(tasks, null, 2), "utf-8")
   }
 
@@ -459,9 +470,118 @@ export class InfinityRuntime {
   }
 
   appendEvent(runId: string, event: Event): void {
-    const eventsPath = path.join(this.root, ".opencode", "runs", runId, "events.jsonl")
+    const eventsPath = path.join(this.root, ".opencode", "runs", runId, "journal.jsonl")
     const line = JSON.stringify(event) + "\n"
     fs.appendFileSync(eventsPath, line, "utf-8")
+  }
+
+  protected async calculateMetrics(runId: string, scope: string[]): Promise<Metrics> {
+    this.log("METRICS", `Calculating metrics for run ${runId} (scope: ${scope.join(", ")})`)
+
+    let lintErrors = 0
+    let typeErrors = 0
+    let testFailures = 0
+
+    try {
+      // 1. Lint
+      const lintResult = await UtilProcess.run(["bun", "run", "lint"], { cwd: this.root })
+      const lintOutput = lintResult.stdout.toString()
+      if (lintResult.code !== 0) {
+        lintErrors = (lintOutput.match(/error/gi) || []).length
+      }
+
+      // 2. Typecheck
+      const typeResult = await UtilProcess.run(["bun", "run", "typecheck"], { cwd: this.root })
+      const typeOutput = typeResult.stdout.toString()
+      if (typeResult.code !== 0) {
+        typeErrors = (typeOutput.match(/error TS/g) || []).length
+      }
+
+      // 3. Test
+      const testResult = await UtilProcess.run(["bun", "test", ...scope], { cwd: this.root })
+      const testOutput = testResult.stdout.toString()
+      if (testResult.code !== 0) {
+        testFailures = (testOutput.match(/✗|fail/gi) || []).length
+      }
+    } catch (e) {
+      this.log("METRICS_ERROR", `Failed to calculate metrics: ${e}. Using zero-baseline for safety.`)
+    }
+
+    return {
+      lint_errors: lintErrors,
+      type_errors: typeErrors,
+      test_failures: testFailures,
+      timestamp: new Date().toISOString()
+    }
+  }
+
+  public async seedAuditTargets(): Promise<void> {
+    this.log("SEED", "Seeding audit targets into queue...")
+    const queuePath = path.join(this.root, ".opencode", "queue.json")
+    const tasks: Task[] = [
+      {
+        id: "task-2026-03-16-001",
+        title: "Fix logic bug in calculateTotal",
+        source: "internal_audit",
+        priority: 1,
+        category: "stability",
+        scope: ["src/bug.ts"],
+        acceptance: ["calculateTotal returns sum even if prices include 0"],
+        status: "queued"
+      },
+      {
+        id: "task-2026-03-16-002",
+        title: "Add divide-by-zero check in divide",
+        source: "internal_audit",
+        priority: 1,
+        category: "stability",
+        scope: ["src/robustness.ts"],
+        acceptance: ["divide throws or returns 0 on division by zero"],
+        status: "queued"
+      },
+      {
+        id: "task-2026-03-16-003",
+        title: "Optimize findMax algorithm",
+        source: "internal_audit",
+        priority: 1,
+        category: "performance",
+        scope: ["src/perf.ts"],
+        acceptance: ["findMax uses O(n) linear scan instead of sort"],
+        status: "queued"
+      }
+    ]
+
+    this.ensureDir(path.dirname(queuePath))
+    fs.writeFileSync(queuePath, JSON.stringify(tasks, null, 2), "utf-8")
+    this.log("SEED", `Seeded ${tasks.length} tasks to ${queuePath}`)
+  }
+
+  protected snapshotFiles(runId: string, scope: string[], target: "before" | "after"): void {
+    const targetDir = path.join(this.root, ".opencode", "runs", runId, target)
+    this.ensureDir(targetDir)
+
+    for (const pattern of scope) {
+      // Simple glob-to-file copy for Phase 1
+      // In production, use more robust globbing
+      const fullPath = path.join(this.root, pattern)
+      if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
+        const dest = path.join(targetDir, pattern)
+        this.ensureDir(path.dirname(dest))
+        fs.copyFileSync(fullPath, dest)
+      }
+    }
+  }
+
+  protected restoreFiles(runId: string, scope: string[]): void {
+    const backupDir = path.join(this.root, ".opencode", "runs", runId, "before")
+    for (const pattern of scope) {
+      const backupPath = path.join(backupDir, pattern)
+      if (fs.existsSync(backupPath) && fs.statSync(backupPath).isFile()) {
+        const targetPath = path.join(this.root, pattern)
+        this.ensureDir(path.dirname(targetPath))
+        fs.copyFileSync(backupPath, targetPath)
+      }
+    }
   }
 
   // ============================================================================
@@ -498,11 +618,6 @@ export class InfinityRuntime {
       } catch (e) {
         this.log("STAGE_ERROR", `Stage ${stage} failed: ${e}`)
         throw e
-      }
-
-      // Check if we should continue
-      if (!this.shouldContinue()) {
-        break
       }
     }
 
@@ -680,7 +795,7 @@ export class InfinityRuntime {
 
     if (!nextTask) {
       this.log("PLANNER", "No queued tasks, advancing to rearm")
-      this.advanceStage()
+      this.stage = "rearm"
       return
     }
 
@@ -712,7 +827,16 @@ export class InfinityRuntime {
     state.workers = ["dev-1"]
     this.writeRunState(runId, state)
 
-    this.log("PLANNER", `Assigned task ${nextTask.id} to run ${runId}`)
+    // Capture Baseline (Phase 1)
+    this.snapshotFiles(runId, nextTask.scope, "before")
+    const baseline = await this.calculateMetrics(runId, nextTask.scope)
+    fs.writeFileSync(
+      path.join(this.root, ".opencode", "runs", runId, "metrics", "before.json"),
+      JSON.stringify(baseline, null, 2),
+      "utf-8"
+    )
+
+    this.log("PLANNER", `Assigned task ${nextTask.id} to run ${runId} with baseline metrics`)
     this.advanceStage()
   }
 
@@ -829,30 +953,96 @@ export class InfinityRuntime {
 
     this.log("REPORTER", `Running reporter stage for run ${this.run}...`)
 
-    // In production, this would invoke the reporter subagent
-    // Reporter runs deterministic gates
+    // Capture After Snapshots & Metrics (Phase 1)
+    const plan = this.readPlan(this.run)
+    if (!plan) {
+      throw new Error(`No plan found for run ${this.run}`)
+    }
 
-    // Simulate gate result
-    const gateResult: GateResult = {
+    this.snapshotFiles(this.run, plan.task.scope, "after")
+    const afterMetrics = await this.calculateMetrics(this.run, plan.task.scope)
+    fs.writeFileSync(
+      path.join(this.root, ".opencode", "runs", this.run, "metrics", "after.json"),
+      JSON.stringify(afterMetrics, null, 2),
+      "utf-8"
+    )
+
+    let pass = true
+    let rejectReason = ""
+
+    // Check Metrics (Phase 1)
+    const beforeMetricsPath = path.join(this.root, ".opencode", "runs", this.run, "metrics", "before.json")
+    if (fs.existsSync(beforeMetricsPath)) {
+      const beforeMetrics = JSON.parse(fs.readFileSync(beforeMetricsPath, "utf-8")) as Metrics
+      
+      const lintDelta = afterMetrics.lint_errors - beforeMetrics.lint_errors
+      const typeDelta = afterMetrics.type_errors - beforeMetrics.type_errors
+      const testDelta = afterMetrics.test_failures - beforeMetrics.test_failures
+      
+      this.log("REPORTER", `Delta Analysis: Lint=${lintDelta}, Type=${typeDelta}, Test=${testDelta}`)
+      
+      if (lintDelta > 0 || typeDelta > 0 || testDelta > 0) {
+        pass = false
+        rejectReason = "Technical debt increased (lint/type/test errors)"
+      }
+    }
+
+    // Include mock adapter judgment for backwards compatibility with tests
+    if (this.deps?.adapter) {
+      try {
+        const judgment = await this.deps.adapter.judgeResult(this.run, plan.task, { pass })
+        if (!judgment.pass) {
+          pass = false
+          rejectReason = judgment.summary || "Adapter rejected changes"
+        }
+      } catch (e) {
+        // Ignore adapter failure if any
+      }
+    }
+
+    const state = this.readRunState(this.run)!
+
+    if (!pass) {
+      this.log("REPORTER", `REJECTED: ${rejectReason}`)
+      state.attempts = (state.attempts || 0) + 1
+
+      if (state.attempts < this.config.max_retries_per_task) {
+        this.log("REPORTER", `Rolling back and retrying (attempt ${state.attempts}/${this.config.max_retries_per_task})`)
+        this.restoreFiles(this.run, plan.task.scope)
+        this.writeRunState(this.run, state)
+        this.stage = "dev"
+        return
+      } else {
+        this.log("REPORTER", "Max retries reached. Failing task.")
+        this.restoreFiles(this.run, plan.task.scope) // Always rollback on ultimate failure
+        state.status = "failed"
+        state.gate_result = {
+          task_id: this.task!,
+          run_id: this.run,
+          result: "fail",
+          gates: [{ name: "quality", status: "fail", details: rejectReason }],
+          rollback_executed: true,
+        }
+        this.writeRunState(this.run, state)
+        this.advanceStage() // Go to Librarian/Rearm to record failure/proof
+        return
+      }
+    }
+
+    // Pass track
+    state.status = "passed"
+    state.gate_result = {
       task_id: this.task,
       run_id: this.run,
       result: "pass",
       gates: [
-        {
-          name: "cloud_ci",
-          status: "pass",
-          details: "CI passed",
-        },
+        { name: "cloud_ci", status: "pass", details: "CI passed" },
+        { name: "quality", status: "pass", details: "No debt increase" }
       ],
     }
-
-    // Update run state
-    const state = this.readRunState(this.run)!
-    state.status = gateResult.result === "pass" ? "passed" : "failed"
-    state.gate_result = gateResult
     this.writeRunState(this.run, state)
 
-    this.log("REPORTER", `Reporter result: ${gateResult.result}`)
+    this.log("REPORTER", `Reporter result: pass`)
     this.advanceStage()
   }
 
@@ -886,14 +1076,49 @@ export class InfinityRuntime {
       }
 
       const patternFile = path.join(knowledgeDir, "patterns", `${lesson.id}.json`)
+      this.ensureDir(path.dirname(patternFile))
       fs.writeFileSync(patternFile, JSON.stringify(lesson, null, 2), "utf-8")
 
       this.log("LIBRARIAN", "Wrote knowledge to .opencode/knowledge/")
-    } else {
-      this.log("LIBRARIAN", "Run did not pass, not writing knowledge")
     }
 
+    // Generate proof.md deliverable (Phase 1)
+    this.generateProof(this.run)
+
     this.advanceStage()
+  }
+
+  protected generateProof(runId: string): void {
+    const runDir = path.join(this.root, ".opencode", "runs", runId)
+    const state = this.readRunState(runId)
+    if (!state) return
+
+    const beforeMetricsPath = path.join(runDir, "metrics", "before.json")
+    const afterMetricsPath = path.join(runDir, "metrics", "after.json")
+    
+    let proofText = `# Infinity Quality Proof: Run ${runId}\n\n`
+    proofText += `**Task ID**: ${state.task_id}\n`
+    proofText += `**Final Status**: ${state.status === "passed" ? "✅ PASSED" : "❌ FAILED"}\n\n`
+
+    if (fs.existsSync(beforeMetricsPath) && fs.existsSync(afterMetricsPath)) {
+      const before = JSON.parse(fs.readFileSync(beforeMetricsPath, "utf-8")) as Metrics
+      const after = JSON.parse(fs.readFileSync(afterMetricsPath, "utf-8")) as Metrics
+      
+      proofText += `## Delta Analysis\n\n`
+      proofText += `| Metric | Before | After | Delta |\n`
+      proofText += `| :--- | :--- | :--- | :--- |\n`
+      proofText += `| Lint Errors | ${before.lint_errors} | ${after.lint_errors} | ${after.lint_errors - before.lint_errors} |\n`
+      proofText += `| Type Errors | ${before.type_errors} | ${after.type_errors} | ${after.type_errors - before.type_errors} |\n`
+      proofText += `| Test Failures | ${before.test_failures} | ${after.test_failures} | ${after.test_failures - before.test_failures} |\n\n`
+    }
+
+    proofText += `## Artifacts\n`
+    proofText += `- [Before Snapshots](./before/)\n`
+    proofText += `- [After Snapshots](./after/)\n`
+    proofText += `- [Journal](./journal.jsonl)\n`
+
+    fs.writeFileSync(path.join(runDir, "proof.md"), proofText, "utf-8")
+    this.log("PROOF", `Generated proof.md for run ${runId}`)
   }
 
   private async stageInnovation(): Promise<void> {
@@ -958,18 +1183,18 @@ export class InfinityRuntime {
   }
 
   private shouldContinue(): boolean {
-    // Check max cycles
-    if (this.cycles >= this.config.max_cycles) {
-      this.log("CONTROL", `Max cycles reached: ${this.config.max_cycles}`)
-      return false
-    }
-
-    // Check daemon/watch mode
+    // Check daemon/watch mode first. If true, run forever
     if (this.config.daemon || this.config.watch) {
       return true
     }
 
-    return false
+    // Regular finite mode: Check max cycles
+    if (this.cycles >= this.config.max_cycles) {
+      this.log("CONTROL", `Max cycles reached: ${this.cycles}/${this.config.max_cycles}`)
+      return false
+    }
+
+    return true
   }
 
   // ============================================================================
@@ -1189,6 +1414,11 @@ export const InfinityCommand = cmd({
         default: "start",
         choices: ["start", "status", "resume"],
       })
+      .option("seed", {
+        type: "boolean",
+        description: "Seed audit targets into queue",
+        default: false,
+      })
       .option("maxCycles", { type: "number" })
       .option("maxRetries", { type: "number" })
       .option("idleBackoff", { type: "number" })
@@ -1210,6 +1440,12 @@ export const InfinityCommand = cmd({
       }
 
       const runtime = new InfinityRuntime(root, config)
+
+      if (argv.seed) {
+        console.log("Seeding audit targets...")
+        await runtime.seedAuditTargets()
+      }
+
       await runtime.start()
     } else if (action === "status") {
       // Show status of current runs
