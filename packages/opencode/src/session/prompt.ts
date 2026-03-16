@@ -11,6 +11,7 @@ import { Session } from "."
 import { Agent } from "../agent/agent"
 import { Provider } from "../provider/provider"
 import { ModelID, ProviderID } from "../provider/schema"
+import { ContextScout } from "../agent/intelligence/scout"
 import { type Tool as AITool, tool, jsonSchema, type ToolCallOptions, asSchema } from "ai"
 import { SessionCompaction } from "./compaction"
 import { Instance } from "../project/instance"
@@ -734,6 +735,7 @@ export namespace SessionPrompt {
       const tags =
         lastUserWithParts?.parts.filter((p) => p.type === "text").map((p) => (p as MessageV2.TextPart).text) ?? []
       const skills = await SystemPrompt.skills(agent)
+      const patterns = await ContextScout.discover(Instance.worktree)
       const intelligence = await SystemPrompt.intelligence(agent, tags, lastUser.sessionID)
       const system = [
         ...(await SystemPrompt.environment(model)),
@@ -741,6 +743,8 @@ export namespace SessionPrompt {
         ...intelligence,
         ...(await InstructionPrompt.system()),
         ...(taskObject ? [SystemPrompt.task(taskObject)] : []),
+        ...(taskObject ? [SystemPrompt.router(taskObject, patterns)] : []),
+        SystemPrompt.competence(),
       ] as string[]
       if (format.type === "json_schema") {
         system.push(STRUCTURED_OUTPUT_SYSTEM_PROMPT)

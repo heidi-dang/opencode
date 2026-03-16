@@ -442,6 +442,8 @@ def get_all_checks(verbose: bool = False) -> List[DoctorCheck]:
         AgentAutonomyCheck(verbose),
         P1TaskCompilerCheck(verbose),
         P2ContextEngineCheck(verbose),
+        P3SpecialistRouterCheck(verbose),
+        P4ToolCompetenceCheck(verbose),
         MasterSpecCheck(verbose),
     ]
 
@@ -493,6 +495,42 @@ class P2ContextEngineCheck(DoctorCheck):
             return run_check(self.verbose)
         except Exception as e:
             self.errors.append(f"Error running P2 context engine check: {e}")
+            return False
+
+class P3SpecialistRouterCheck(DoctorCheck):
+    """Check for Intelligence Phase 3 (Specialist Router) implementation."""
+    
+    name = "p3-specialist-router"
+    description = "Check for Lane-based routing and tool/context policies"
+    
+    def run(self) -> bool:
+        try:
+            root = get_project_root()
+            if str(root) not in sys.path:
+                sys.path.append(str(root))
+            
+            from tools.check_p3_specialist_router import run_check
+            return run_check(self.verbose)
+        except Exception as e:
+            self.errors.append(f"Error running P3 specialist router check: {e}")
+            return False
+
+class P4ToolCompetenceCheck(DoctorCheck):
+    """Check for Intelligence Phase 4 (Tool Competence) implementation."""
+    
+    name = "p4-tool-competence"
+    description = "Check for ToolCompetence policy and bounded retry logic"
+    
+    def run(self) -> bool:
+        try:
+            root = get_project_root()
+            if str(root) not in sys.path:
+                sys.path.append(str(root))
+            
+            from tools.check_p4_tool_competence import run_check
+            return run_check(self.verbose)
+        except Exception as e:
+            self.errors.append(f"Error running P4 tool competence check: {e}")
             return False
 
 class MasterSpecCheck(DoctorCheck):

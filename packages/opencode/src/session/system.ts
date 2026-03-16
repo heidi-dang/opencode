@@ -16,12 +16,24 @@ import { Skill } from "@/skill"
 import { ContextScout } from "../agent/intelligence/scout"
 import { ContextLoader } from "../agent/intelligence/loader"
 import { WorkingSet } from "../agent/intelligence/working-set"
+import { RepoMap } from "../agent/intelligence/repomap"
+import { SpecialistRouter } from "../agent/intelligence/router"
+import { ToolCompetence } from "../agent/intelligence/competence"
 
 export namespace SystemPrompt {
   export function instructions() {
     return PROMPT_CODEX.trim()
   }
  
+  export function router(taskObj: any, patterns: any) {
+    const policy = SpecialistRouter.route(taskObj, patterns)
+    return [SpecialistRouter.format(policy)].filter(Boolean).join("\n")
+  }
+ 
+  export function competence() {
+    return ToolCompetence.getPolicy()
+  }
+
   export function task(obj: any) {
     if (!obj) return []
     return [
@@ -88,6 +100,7 @@ export namespace SystemPrompt {
 
     const context = await ContextLoader.load(root, tags)
     const workingSet = await WorkingSet.format(root, sessionID)
+    const repoMap = await RepoMap.generate(root)
 
     return [
       `<intelligence>`,
@@ -95,6 +108,7 @@ export namespace SystemPrompt {
       `  Conventions: ${patterns.conventions.join(", ")}`,
       `  Project Structure: ${patterns.dirs.join(", ")}`,
       `</intelligence>`,
+      repoMap,
       workingSet,
       `<context>`,
       ...context.map(item => `  <file name="${item.name}">\n${item.content}\n  </file>`),
