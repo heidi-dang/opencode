@@ -17,6 +17,7 @@ export type DashboardMetrics = {
   status5xx: number
   status4xx: number
   latencyMs: number[]
+  maxLatencyMs: number
   activeStreams: number
   reconnectCount: number
   lastHealthOK: boolean | null
@@ -32,6 +33,7 @@ export function createDashboardMetrics(): DashboardMetrics {
     status5xx: 0,
     status4xx: 0,
     latencyMs: [],
+    maxLatencyMs: 0,
     activeStreams: 0,
     reconnectCount: 0,
     lastHealthOK: null,
@@ -50,6 +52,7 @@ export function recordRequestStart(m: DashboardMetrics) {
 
       const dur = performance.now() - started
       m.latencyMs.push(dur)
+      if (dur > m.maxLatencyMs) m.maxLatencyMs = dur
       if (m.latencyMs.length > 300) m.latencyMs.shift()
 
       if (status >= 500) m.status5xx += 1
@@ -61,6 +64,7 @@ export function recordRequestStart(m: DashboardMetrics) {
 
       const dur = performance.now() - started
       m.latencyMs.push(dur)
+      if (dur > m.maxLatencyMs) m.maxLatencyMs = dur
       if (m.latencyMs.length > 300) m.latencyMs.shift()
     },
   }
@@ -180,7 +184,7 @@ function render(
   rows.push(line("Active req", String(m.activeRequests)))
   rows.push(line("4xx / 5xx", `${m.status4xx} / ${m.status5xx}`))
   rows.push(line("Errors", String(m.errorCount)))
-  rows.push(line("Avg / p95", `${avg(m.latencyMs).toFixed(0)} ms / ${p95(m.latencyMs).toFixed(0)} ms`))
+  rows.push(line("Avg / p95 / Max", `${avg(m.latencyMs).toFixed(0)} ms / ${p95(m.latencyMs).toFixed(0)} ms / ${m.maxLatencyMs.toFixed(0)} ms`))
   rows.push(line("Active SSE", String(m.activeStreams)))
   rows.push(line("Reconnects", String(m.reconnectCount)))
   rows.push(line("Runtime", typeof Bun !== "undefined" ? `Bun ${Bun.version}` : "Node " + process.version))

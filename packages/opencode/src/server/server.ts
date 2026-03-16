@@ -70,6 +70,9 @@ export namespace Server {
       .get("/health", (c) => c.text("OK"))
       .use(async (c, next) => {
         if (!metrics) return next()
+        const path = c.req.path
+        if (path === "/event" || path === "/log") return next()
+
         const stat = recordRequestStart(metrics)
         try {
           await next()
