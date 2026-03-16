@@ -16,12 +16,13 @@ import { ProviderTransform } from "@/provider/transform"
 import { Config } from "@/config/config"
 import { Instance } from "@/project/instance"
 import type { Agent } from "@/agent/agent"
-import type { MessageV2 } from "./message-v2"
+import { MessageV2 } from "./message-v2"
 import { Plugin } from "@/plugin"
 import { SystemPrompt } from "./system"
 import { Flag } from "@/flag/flag"
 import { PermissionNext } from "@/permission/next"
 import { Auth } from "@/auth"
+import { Token } from "@/util/token"
 
 export namespace LLM {
   const log = Log.create({ service: "llm" })
@@ -42,6 +43,29 @@ export namespace LLM {
   }
 
   export type StreamOutput = StreamTextResult<ToolSet, unknown>
+
+  const CHARS_PER_TOKEN = 4
+
+  export function estimate(input: string) {
+    return Math.max(0, Math.round((input || "").length / CHARS_PER_TOKEN))
+  }
+
+  export function estimateMessages(messages: ModelMessage[]) {
+    return messages.reduce((acc, msg) => {
+      if (typeof msg.content === "string") return acc + estimate(msg.content)
+      if (Array.isArray(msg.content)) {
+        return (
+          acc +
+          msg.content.reduce((pAcc, part) => {
+            if (part.type === "text") return pAcc + estimate(part.text)
+            if (part.type === "image") return pAcc + 1000 // Heuristic for images
+            return pAcc
+          }, 0)
+        )
+      }
+      return acc
+    }, 0)
+  }
 
   export async function stream(input: StreamInput) {
     const l = log
@@ -169,6 +193,28 @@ export namespace LLM {
       })
     }
 
+    const messages = [
+      ...system.map(
+        (x): ModelMessage => ({
+          role: "system",
+          content: x,
+        }),
+      ),
+      ...input.messages,
+    ]
+
+    const estimatedTokens = Token.estimateMessages(messages)
+    const contextLimit = input.model.limit.context
+    const maxOutput = maxOutputTokens ?? 4096
+    const effectiveBudget = input.model.limit.input || (contextLimit > 0 ? contextLimit - maxOutput : Infinity)
+
+    if (estimatedTokens > effectiveBudget) {
+      log.error("context overflow before send", { estimatedTokens, effectiveBudget, contextLimit })
+      throw new MessageV2.ContextOverflowError({
+        message: `Prompt is too long: estimated ${estimatedTokens} tokens exceeds effective budget of ${effectiveBudget} (limit: ${contextLimit}).`,
+      })
+    }
+
     return streamText({
       onError(error) {
         l.error("stream error", {
@@ -222,15 +268,7 @@ export namespace LLM {
         ...headers,
       },
       maxRetries: input.retries ?? 0,
-      messages: [
-        ...system.map(
-          (x): ModelMessage => ({
-            role: "system",
-            content: x,
-          }),
-        ),
-        ...input.messages,
-      ],
+      messages,
       model: wrapLanguageModel({
         model: language,
         middleware: [
@@ -254,6 +292,7 @@ export namespace LLM {
       },
     })
   }
+
 
   async function resolveTools(input: Pick<StreamInput, "tools" | "agent" | "user">) {
     const disabled = PermissionNext.disabled(Object.keys(input.tools), input.agent.permission)

@@ -716,8 +716,21 @@ export default function Page() {
           refreshTimer = undefined
           if (params.id !== id) return
           untrack(() => {
-            if (stale) void sync.session.sync(id, { force: true })
-            void sync.session.todo(id, todos ? { force: true } : undefined)
+            const handleSyncError = (err: any) => {
+              if (err?.statusCode === 404 || err?.status === 404) {
+                showToast({
+                  variant: "error",
+                  title: language.t("toast.session.notFound.title"),
+                  description: language.t("toast.session.notFound.description"),
+                })
+                navigate(params.dir ? `/${params.dir}` : "/")
+              }
+            }
+
+            if (stale) void sync.session.sync(id, { force: true }).catch(handleSyncError)
+            else void sync.session.sync(id).catch(handleSyncError)
+
+            void sync.session.todo(id, todos ? { force: true } : undefined).catch(() => {})
           })
         }, 0)
       })
