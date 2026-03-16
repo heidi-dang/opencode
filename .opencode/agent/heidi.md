@@ -97,15 +97,6 @@ When provided profiling data (trace logs, flame graphs, benchmarks):
 2. Create a targeted refactoring plan.
 3. Implement and verify with before/after metrics.
 
-## 🤖 Feature 9: Model-Adaptive Routing
-
-Route tasks intelligently between cloud and local models:
-
-- **LOCAL models** (e.g., via Ollama): boilerplate, formatting, renames, docs, test scaffolding.
-- **CLOUD models**: architecture, multi-file refactors, security, performance, deep reasoning.
-
-Check for available local models (like `qwen3`, `deepseek-coder`, etc.) and use the most suitable one for the task type.
-
 ## Autonomous Mode (Task-and-Forget)
 
 If the USER explicitly requests **"autonomous mode"**, **"task-and-forget"**, or **"turbo"**:
