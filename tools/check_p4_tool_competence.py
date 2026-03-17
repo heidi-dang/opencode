@@ -1,0 +1,73 @@
+import os
+import sys
+from pathlib import Path
+
+def get_project_root() -> Path:
+    return Path(__file__).parent.parent
+
+def run_check(verbose: bool = False) -> bool:
+    root = get_project_root()
+    passed = True
+    errors = []
+
+    def log(msg: str):
+        if verbose:
+            print(f"  {msg}")
+
+    # 1. Check ToolCompetence Module
+    competence_ts = root / "packages/opencode/src/agent/intelligence/competence.ts"
+    if not competence_ts.exists():
+        errors.append(f"ToolCompetence module not found: {competence_ts}")
+        passed = False
+    else:
+        log(f"Found ToolCompetence: {competence_ts}")
+        content = competence_ts.read_text()
+        if "export class ToolCompetence" not in content:
+            errors.append("ToolCompetence class not found in competence.ts")
+            passed = False
+        if "static getPolicy(" not in content:
+            errors.append("ToolCompetence.getPolicy method not found in competence.ts")
+            passed = False
+        
+        required_policies = ["Cheapest Check First", "Bounded Retries", "Failure Pivot"]
+        for policy in required_policies:
+            if policy not in content:
+                errors.append(f"Policy '{policy}' not defined in ToolCompetence")
+                passed = False
+
+    # 2. Check SystemPrompt Integration
+    system_ts = root / "packages/opencode/src/session/system.ts"
+    if not system_ts.exists():
+        errors.append(f"system.ts not found: {system_ts}")
+        passed = False
+    else:
+        log(f"Found system.ts: {system_ts}")
+        content = system_ts.read_text()
+        if "ToolCompetence.getPolicy" not in content:
+            errors.append("ToolCompetence.getPolicy not integrated in system.ts")
+            passed = False
+        if "export function competence(" not in content:
+            errors.append("SystemPrompt.competence function not found in system.ts")
+            passed = False
+
+    # 3. Check Prompt Processor Integration
+    prompt_ts = root / "packages/opencode/src/session/prompt.ts"
+    if not prompt_ts.exists():
+        errors.append(f"prompt.ts not found: {prompt_ts}")
+        passed = False
+    else:
+        log(f"Found prompt.ts: {prompt_ts}")
+        content = prompt_ts.read_text()
+        if "SystemPrompt.competence()" not in content:
+            errors.append("SystemPrompt.competence() not called in prompt.ts")
+            passed = False
+
+    if not passed:
+        for err in errors:
+            print(f"    ✗ {err}")
+    
+    return passed
+
+if __name__ == "__main__":
+    success = run_check(verbose=True)
+    sys.exit(0 if success else 1)

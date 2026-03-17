@@ -55,6 +55,7 @@ export namespace Flag {
   export const OPENCODE_DISABLE_CHANNEL_DB = truthy("OPENCODE_DISABLE_CHANNEL_DB")
   export const OPENCODE_SKIP_MIGRATIONS = truthy("OPENCODE_SKIP_MIGRATIONS")
   export const OPENCODE_STRICT_CONFIG_DEPS = truthy("OPENCODE_STRICT_CONFIG_DEPS")
+  export const OPENCODE_DEBUG_STREAM = truthy("OPENCODE_DEBUG_STREAM")
 
   // Heidi Frontier Flags (Dynamic for testing)
   export declare const HEIDI_ENABLE_FRONTIER: boolean

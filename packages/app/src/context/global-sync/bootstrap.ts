@@ -39,11 +39,25 @@ export async function bootstrapGlobal(input: {
   translate: (key: string, vars?: Record<string, string | number>) => string
   formatMoreCount: (count: number) => string
   setGlobalStore: SetStoreFunction<GlobalStore>
+  version?: string
 }) {
   const health = await input.globalSDK.global
     .health()
     .then((x) => x.data)
     .catch(() => undefined)
+
+  if (health && health.version !== input.version) {
+    console.warn("UI/Backend version mismatch", { ui: input.version, backend: health.version })
+    showToast({
+      variant: "error",
+      title: input.translate("toast.version.mismatch.title"),
+      description: input.translate("toast.version.mismatch.description", {
+        ui: input.version || "unknown",
+        backend: health.version || "unknown",
+      }),
+    })
+  }
+
   if (!health?.healthy) {
     showToast({
       variant: "error",

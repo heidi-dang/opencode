@@ -11,6 +11,7 @@ import { Session } from "."
 import { Agent } from "../agent/agent"
 import { Provider } from "../provider/provider"
 import { ModelID, ProviderID } from "../provider/schema"
+import { ContextScout } from "../agent/intelligence/scout"
 import { type Tool as AITool, tool, jsonSchema, type ToolCallOptions, asSchema } from "ai"
 import { SessionCompaction } from "./compaction"
 import { Instance } from "../project/instance"
@@ -49,6 +50,8 @@ import { Shell } from "@/shell/shell"
 import { Truncate } from "@/tool/truncation"
 import { decodeDataUrl } from "@/util/data-url"
 import { Policy } from "./policy"
+import { Blocker } from "@/util/blocker"
+import { TaskCompiler } from "./task"
 
 // @ts-ignore
 globalThis.AI_SDK_LOG_WARNINGS = false
@@ -292,7 +295,6 @@ export namespace SessionPrompt {
     // Note: On session resumption, state is reset but outputFormat is preserved
     // on the user message and will be retrieved from lastUser below
     let structuredOutput: unknown | undefined
-
     let step = 0
     const session = await Session.get(sessionID)
     while (true) {
@@ -319,11 +321,66 @@ export namespace SessionPrompt {
       }
 
       if (!lastUser) throw new Error("No user message found in stream. This should never happen.")
+
+      // Phase 1 Task Compiler: Structure the request into a Task Object
+      const hasTask = msgs.some((m) => m.parts.some((p) => p.type === "task_object"))
+      let taskObject = msgs.flatMap((m) => m.parts).find((p) => p.type === "task_object")?.task
+
+      if (!hasTask && lastUser && step === 0) {
+        const userText = msgs
+          .filter((m) => m.info.id === lastUser!.id)
+          .flatMap((m) => m.parts)
+          .filter((p) => p.type === "text")
+          .map((p) => (p as MessageV2.TextPart).text)
+          .join("\n")
+
+        if (userText.trim()) {
+          const compiledTask = await TaskCompiler.compile(userText)
+          taskObject = compiledTask
+          await Session.updatePart({
+            id: PartID.ascending(),
+            messageID: lastUser.id,
+            sessionID,
+            type: "task_object",
+            task: compiledTask,
+          } as MessageV2.TaskPart)
+          msgs = await MessageV2.filterCompacted(MessageV2.stream(sessionID))
+        }
+      }
+
       if (
         lastAssistant?.finish &&
         !["tool-calls", "unknown"].includes(lastAssistant.finish) &&
         lastUser.id < lastAssistant.id
       ) {
+        // Check if the model finished with a routine question (permission seeking)
+        // that should be auto-continued in Finish-Mode.
+        const assistantParts = await MessageV2.parts(lastAssistant.id)
+        const textPart = assistantParts.find((p) => p.type === "text") as MessageV2.TextPart | undefined
+        if (textPart && Blocker.isRoutineQuestion(textPart.text)) {
+          log.info("routine question detected, auto-continuing", { sessionID })
+          const autoContinueMsg: MessageV2.User = {
+            id: MessageID.ascending(),
+            sessionID,
+            role: "user",
+            time: {
+              created: Date.now(),
+            },
+            agent: lastUser.agent,
+            model: lastUser.model,
+          }
+          await Session.updateMessage(autoContinueMsg)
+          await Session.updatePart({
+            id: PartID.ascending(),
+            messageID: autoContinueMsg.id,
+            sessionID,
+            type: "text",
+            text: "Finish-Mode: Auto-continuing your execution. Do not ask for permission; proceed until the goal is complete.",
+            synthetic: true,
+          } satisfies MessageV2.TextPart)
+          continue
+        }
+
         log.info("exiting loop", { sessionID })
         break
       }
@@ -481,7 +538,7 @@ export namespace SessionPrompt {
         if (result && part.state.status === "running") {
           // Use bounded capture to prevent unbounded output in message payload
           const bounded = await Truncate.boundedCapture(result.output ?? "")
-          
+
           await Session.updatePart({
             ...part,
             state: {
@@ -489,7 +546,7 @@ export namespace SessionPrompt {
               input: part.state.input,
               title: result.title,
               metadata: result.metadata,
-              output: bounded.preview,  // Bounded preview for message
+              output: bounded.preview, // Bounded preview for message
               attachments,
               time: {
                 ...part.state.time,
@@ -675,16 +732,24 @@ export namespace SessionPrompt {
       const format = lastUser.format ?? { type: "text" }
       const lastUserWithParts = msgs.findLast((m) => m.info.role === "user")
       const tags =
-        lastUserWithParts?.parts
-          .filter((p) => p.type === "text")
-          .map((p) => (p as MessageV2.TextPart).text) ?? []
+        lastUserWithParts?.parts.filter((p) => p.type === "text").map((p) => (p as MessageV2.TextPart).text) ?? []
       const skills = await SystemPrompt.skills(agent)
-      const intelligence = await SystemPrompt.intelligence(agent, tags)
+      const patterns = await ContextScout.discover(Instance.worktree)
+      const intelligence = await SystemPrompt.intelligence(agent, tags, lastUser.sessionID)
       const system = [
         ...(await SystemPrompt.environment(model)),
         ...(skills ? [skills] : []),
         ...intelligence,
         ...(await InstructionPrompt.system()),
+        ...(taskObject ? [SystemPrompt.task(taskObject)] : []),
+        ...(taskObject ? [SystemPrompt.router(taskObject, patterns)] : []),
+        SystemPrompt.competence(),
+        SystemPrompt.verifier(taskObject),
+        SystemPrompt.recovery(),
+        SystemPrompt.persistence(),
+        SystemPrompt.learning(),
+        SystemPrompt.benchmark(),
+        SystemPrompt.quality(),
       ] as string[]
       if (format.type === "json_schema") {
         system.push(STRUCTURED_OUTPUT_SYSTEM_PROMPT)
@@ -721,22 +786,64 @@ export namespace SessionPrompt {
         break
       }
 
-      // Check if model finished (finish reason is not "tool-calls" or "unknown")
-      const modelFinished = processor.message.finish && !["tool-calls", "unknown"].includes(processor.message.finish)
+      if (result === "stop" || result === "compact") {
+        if (result === "compact") {
+          await SessionCompaction.create({
+            sessionID,
+            agent: lastUser.agent,
+            model: lastUser.model,
+            auto: true,
+            overflow: true,
+          })
+          continue
+        }
 
-      if (modelFinished && !processor.message.error) {
-        if (format.type === "json_schema") {
-          // Model stopped without calling StructuredOutput tool
-          processor.message.error = new MessageV2.StructuredOutputError({
-            message: "Model did not produce structured output",
-            retries: 0,
-          }).toObject()
-          await Session.updateMessage(processor.message)
-          break
+        const modelFinished = processor.message.finish && !["tool-calls", "unknown"].includes(processor.message.finish)
+
+        if (modelFinished && !processor.message.error) {
+          if (format.type === "json_schema") {
+            processor.message.error = new MessageV2.StructuredOutputError({
+              message: "Model did not produce structured output",
+              retries: 0,
+            }).toObject()
+            await Session.updateMessage(processor.message)
+            break
+          }
         }
       }
 
       if (result === "stop") {
+        // If we stopped but some tools had more output (partial reads) and it's not a true blocker,
+        // we should auto-continue.
+        const parts = await MessageV2.parts(processor.message.id)
+        const hasPartialRead = parts.some(
+          (p) => p.type === "tool" && p.state.status === "completed" && p.state.outputHasMore,
+        )
+
+        if (hasPartialRead && !processor.message.error) {
+          log.info("partial read detected, forcing auto-continuation", { sessionID })
+          const autoReadMsg: MessageV2.User = {
+            id: MessageID.ascending(),
+            sessionID,
+            role: "user",
+            time: {
+              created: Date.now(),
+            },
+            agent: lastUser.agent,
+            model: lastUser.model,
+          }
+          await Session.updateMessage(autoReadMsg)
+          await Session.updatePart({
+            id: PartID.ascending(),
+            messageID: autoReadMsg.id,
+            sessionID,
+            type: "text",
+            text: "Finish-Mode: The previous tool output was truncated. Please continue execution and gather all necessary information autonomously.",
+            synthetic: true,
+          } satisfies MessageV2.TextPart)
+          continue
+        }
+
         // Unified Quality Gates (Security, Visual, Logic)
         const gate = Policy.nextGate(agent.name, msgs)
         if (gate && !processor.message.error) {
@@ -757,7 +864,9 @@ export namespace SessionPrompt {
         if (!check.pass && !processor.message.error) {
           // Track gate retries to prevent infinite loops
           const gateRetries = msgs.reduce((acc, m) => {
-            return acc + m.parts.filter(p => p.type === "text" && p.text.includes("SESSION FINALIZATION BLOCKED")).length
+            return (
+              acc + m.parts.filter((p) => p.type === "text" && p.text.includes("SESSION FINALIZATION BLOCKED")).length
+            )
           }, 0)
 
           if (gateRetries >= 3) {
@@ -785,9 +894,7 @@ export namespace SessionPrompt {
 
         // Automatic Auditor Trigger for Build Agent
         if (agent.name === "build" && !processor.message.error) {
-          const alreadyAudited = msgs.some((m) =>
-            m.parts.some((p) => p.type === "subtask" && p.agent === "auditor"),
-          )
+          const alreadyAudited = msgs.some((m) => m.parts.some((p) => p.type === "subtask" && p.agent === "auditor"))
           if (!alreadyAudited) {
             await Session.updatePart({
               id: PartID.ascending(),
@@ -795,8 +902,7 @@ export namespace SessionPrompt {
               sessionID,
               type: "subtask",
               agent: "auditor",
-              description:
-                "Perform a final audit of the implementation, running tests and verifying requirements.",
+              description: "Perform a final audit of the implementation, running tests and verifying requirements.",
               prompt:
                 "Please review the changes made by the build agent. Run any necessary tests, verify that all requirements from implementation_plan.md are met, and provide a final score from 0-100.",
             } satisfies MessageV2.SubtaskPart)
@@ -804,36 +910,31 @@ export namespace SessionPrompt {
             continue
           }
         }
-        break
-      }
 
-      // Automatic Deep Code Review Trigger
-      if (agent.name === "heidi" && !processor.message.error) {
-        const parts = await MessageV2.parts(processor.message.id)
-        const wrotePlan = parts.some(
-          (p) =>
-            p.type === "tool" &&
-            p.tool === "write_to_file" &&
-            p.state.status === "completed" &&
-            JSON.stringify(p.state.input).includes("implementation_plan.md"),
-        )
-
-        if (wrotePlan) {
-          const alreadyReviewed = msgs.some((m) =>
-            m.parts.some((p) => p.type === "subtask" && p.agent === "reviewer"),
-          )
+        // Automatic Deep Code Review Trigger
+        if (agent.name === "heidi" && !processor.message.error) {
+          const alreadyReviewed = msgs.some((m) => m.parts.some((p) => p.type === "subtask" && p.agent === "reviewer"))
           if (!alreadyReviewed) {
-            await Session.updatePart({
-              id: PartID.ascending(),
-              messageID: processor.message.id,
-              sessionID,
-              type: "subtask",
-              agent: "reviewer",
-              description:
-                "Review the proposed implementation plan for architectural integrity and potential bugs.",
-              prompt:
-                "Please review the implementation_plan.md file and provide feedback on its correctness, security, and performance. Assign a score from 0-100.",
-            } satisfies MessageV2.SubtaskPart)
+            const wrotePlan = parts.some(
+              (p) =>
+                p.type === "tool" &&
+                p.tool === "write_to_file" &&
+                p.state.status === "completed" &&
+                JSON.stringify(p.state.input).includes("implementation_plan.md"),
+            )
+            if (wrotePlan) {
+              await Session.updatePart({
+                id: PartID.ascending(),
+                messageID: processor.message.id,
+                sessionID,
+                type: "subtask",
+                agent: "reviewer",
+                description: "Review the proposed implementation plan for architectural integrity and potential bugs.",
+                prompt:
+                  "Please review the implementation_plan.md file and provide feedback on its correctness, security, and performance. Assign a score from 0-100.",
+              } satisfies MessageV2.SubtaskPart)
+              continue
+            }
           }
         }
 
@@ -851,19 +952,11 @@ export namespace SessionPrompt {
           })
           break
         }
-      }
-
-      if (result === "compact") {
-        await SessionCompaction.create({
-          sessionID,
-          agent: lastUser.agent,
-          model: lastUser.model,
-          auto: true,
-          overflow: !processor.message.finish,
-        })
+        break
       }
       continue
     }
+    SessionStatus.set(sessionID, { type: "idle" })
     SessionCompaction.prune({ sessionID })
     for await (const item of MessageV2.stream(sessionID)) {
       if (item.info.role === "user") continue
@@ -1845,7 +1938,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
     if (part.state.status === "running") {
       // Use bounded capture to prevent unbounded output in message payload
       const bounded = await Truncate.boundedCapture(output)
-      
+
       part.state = {
         status: "completed",
         time: {
@@ -1858,7 +1951,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
           output,
           description: "",
         },
-        output: bounded.preview,  // Bounded preview for message
+        output: bounded.preview, // Bounded preview for message
         // Bounded output metadata
         outputHasMore: bounded.hasMore,
         outputRef: bounded.ref,

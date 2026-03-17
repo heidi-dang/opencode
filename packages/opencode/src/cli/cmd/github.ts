@@ -978,8 +978,8 @@ export const GithubRunCommand = cmd({
             throw new Error(formatPromptTooLargeError(files))
           }
 
-          const errorMsg = err.data?.message || ""
-          throw new Error(`${err.name}: ${errorMsg}`)
+          const msg = err.data?.message?.trim()
+          throw new Error(!msg || msg === err.name ? err.name : `${err.name}: ${msg}`)
         }
 
         const text = extractResponseText(result.parts)
@@ -1013,8 +1013,8 @@ export const GithubRunCommand = cmd({
             throw new Error(formatPromptTooLargeError(files))
           }
 
-          const errorMsg = err.data?.message || ""
-          throw new Error(`${err.name}: ${errorMsg}`)
+          const msg = err.data?.message?.trim()
+          throw new Error(!msg || msg === err.name ? err.name : `${err.name}: ${msg}`)
         }
 
         const summaryText = extractResponseText(summary.parts)

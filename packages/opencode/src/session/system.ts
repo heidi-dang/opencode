@@ -15,10 +15,75 @@ import { PermissionNext } from "@/permission/next"
 import { Skill } from "@/skill"
 import { ContextScout } from "../agent/intelligence/scout"
 import { ContextLoader } from "../agent/intelligence/loader"
+import { WorkingSet } from "../agent/intelligence/working-set"
+import { RepoMap } from "../agent/intelligence/repomap"
+import { SpecialistRouter } from "../agent/intelligence/router"
+import { ToolCompetence } from "../agent/intelligence/competence"
+import { EvidenceVerifier } from "../agent/intelligence/verifier"
+import { RecoveryEngine } from "../agent/intelligence/recovery"
+import { RunMemory } from "../agent/intelligence/run-memory"
+import { FailureStore } from "../agent/intelligence/failure-store"
+import { BenchmarkGate } from "../agent/intelligence/benchmark"
+import { BestResultEngine } from "../agent/intelligence/best-result"
 
 export namespace SystemPrompt {
   export function instructions() {
     return PROMPT_CODEX.trim()
+  }
+ 
+  export function router(taskObj: any, patterns: any) {
+    const policy = SpecialistRouter.route(taskObj, patterns)
+    return [SpecialistRouter.format(policy)].filter(Boolean).join("\n")
+  }
+ 
+  export function competence() {
+    return ToolCompetence.getPolicy()
+  }
+
+  export function verifier(taskObj: any) {
+    const policy = EvidenceVerifier.getPolicy()
+    const hint = taskObj ? EvidenceVerifier.getEvidenceHint(taskObj.required_evidence) : ""
+    return [policy, hint].filter(Boolean).join("\n")
+  }
+
+  export function recovery() {
+    return RecoveryEngine.getPolicy()
+  }
+
+  export function persistence() {
+    return RunMemory.getPolicy()
+  }
+
+  export function learning() {
+    return FailureStore.getPolicy()
+  }
+
+  export function benchmark() {
+    return BenchmarkGate.getPolicy()
+  }
+
+  export function quality() {
+    return BestResultEngine.getPolicy()
+  }
+
+  export function task(obj: any) {
+    if (!obj) return []
+    return [
+      `<task>`,
+      `  Goal: ${obj.goal}`,
+      `  Constraints:`,
+      ...(obj.constraints ?? []).map((c: string) => `    - ${c}`),
+      `  Success Criteria:`,
+      ...(obj.success_criteria ?? []).map((s: string) => `    - ${s}`),
+      `  Required Evidence:`,
+      ...(obj.required_evidence ?? []).map((e: string) => `    - ${e}`),
+      `  Allowed Tools:`,
+      ...(obj.allowed_tools ?? []).map((t: string) => `    - ${t}`),
+      `  Blocker Rules:`,
+      ...(obj.blocker_rules ?? []).map((r: string) => `    - ${r}`),
+      obj.preferred_output_format ? `  Preferred Output Format: ${obj.preferred_output_format}` : "",
+      `</task>`,
+    ].filter(Boolean).join("\n")
   }
 
   export function provider(model: Provider.Model) {
@@ -58,7 +123,7 @@ export namespace SystemPrompt {
     ]
   }
 
-  export async function intelligence(agent: Agent.Info, tags: string[] = []) {
+  export async function intelligence(agent: Agent.Info, tags: string[] = [], sessionID: string) {
     if (agent.name !== "heidi") return []
 
     const root = Instance.worktree
@@ -66,7 +131,8 @@ export namespace SystemPrompt {
     await ContextScout.persist(root, patterns)
 
     const context = await ContextLoader.load(root, tags)
-    if (context.length === 0) return []
+    const workingSet = await WorkingSet.format(root, sessionID)
+    const repoMap = await RepoMap.generate(root)
 
     return [
       `<intelligence>`,
@@ -74,10 +140,12 @@ export namespace SystemPrompt {
       `  Conventions: ${patterns.conventions.join(", ")}`,
       `  Project Structure: ${patterns.dirs.join(", ")}`,
       `</intelligence>`,
+      repoMap,
+      workingSet,
       `<context>`,
       ...context.map(item => `  <file name="${item.name}">\n${item.content}\n  </file>`),
       `</context>`
-    ].join("\n")
+    ].filter(Boolean).join("\n")
   }
 
   export async function skills(agent: Agent.Info) {

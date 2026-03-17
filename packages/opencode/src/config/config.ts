@@ -970,6 +970,8 @@ export namespace Config {
       mdnsDomain: z.string().optional().describe("Custom domain name for mDNS service (default: opencode.local)"),
       cors: z.array(z.string()).optional().describe("Additional domains to allow for CORS"),
       uiDist: z.string().optional().describe("Path to local UI dist folder"),
+      uiDevUrl: z.string().optional().describe("Full origin URL for local UI development (e.g. http://localhost:5173)"),
+      preferLocalUi: z.boolean().optional().describe("Prefer local UI sources over hosted fallback"),
     })
     .strict()
     .meta({

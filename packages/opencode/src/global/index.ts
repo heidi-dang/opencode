@@ -6,10 +6,18 @@ import { Filesystem } from "../util/filesystem"
 
 const app = "opencode"
 
-const data = path.join(xdgData!, app)
-const cache = path.join(xdgCache!, app)
-const config = path.join(xdgConfig!, app)
-const state = path.join(xdgState!, app)
+const data = process.env.OPENCODE_TEST_HOME 
+  ? path.join(process.env.OPENCODE_TEST_HOME, "share") 
+  : path.join(xdgData!, app)
+const cache = process.env.OPENCODE_TEST_HOME 
+  ? path.join(process.env.OPENCODE_TEST_HOME, "cache") 
+  : path.join(xdgCache!, app)
+const config = process.env.OPENCODE_TEST_HOME 
+  ? path.join(process.env.OPENCODE_TEST_HOME, "config") 
+  : path.join(xdgConfig!, app)
+const state = process.env.OPENCODE_TEST_HOME 
+  ? path.join(process.env.OPENCODE_TEST_HOME, "state") 
+  : path.join(xdgState!, app)
 
 export namespace Global {
   export const Path = {

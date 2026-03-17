@@ -687,6 +687,7 @@ export default function Page() {
   }
 
   const hasScrollGesture = () => Date.now() - ui.scrollGesture < scrollGestureWindowMs
+  let heal = false
 
   createEffect(
     on([() => sdk.directory, () => params.id] as const, ([, id]) => {
@@ -716,8 +717,39 @@ export default function Page() {
           refreshTimer = undefined
           if (params.id !== id) return
           untrack(() => {
-            if (stale) void sync.session.sync(id, { force: true })
-            void sync.session.todo(id, todos ? { force: true } : undefined)
+            const handleSyncError = async (err: any) => {
+              if (err?.statusCode === 404 || err?.status === 404) {
+                if (heal) return
+                heal = true
+                showToast({
+                  variant: "error",
+                  title: language.t("toast.session.notFound.title"),
+                  description: "Recovered from stale session and created a new one.",
+                })
+                const created = await sdk.client.session
+                  .create()
+                  .then((x) => x.data)
+                  .catch(() => undefined)
+                if (created?.id) {
+                  local.session.promote(sdk.directory, created.id)
+                  navigate(`/${base64Encode(sdk.directory)}/session/${created.id}`, { replace: true })
+                } else {
+                  navigate(params.dir ? `/${params.dir}` : "/", { replace: true })
+                }
+                heal = false
+              }
+            }
+
+            if (stale)
+              void sync.session.sync(id, { force: true }).catch((err) => {
+                void handleSyncError(err)
+              })
+            else
+              void sync.session.sync(id).catch((err) => {
+                void handleSyncError(err)
+              })
+
+            void sync.session.todo(id, todos ? { force: true } : undefined).catch(() => {})
           })
         }, 0)
       })

@@ -22,6 +22,7 @@ import {
 } from "solid-js"
 import { createStore, produce, reconcile } from "solid-js/store"
 import { useLanguage } from "@/context/language"
+import { usePlatform } from "@/context/platform"
 import { Persist, persisted } from "@/utils/persist"
 import type { InitError } from "../pages/error"
 import { useGlobalSDK } from "./global-sdk"
@@ -335,6 +336,7 @@ function createGlobalSync() {
       translate: language.t,
       formatMoreCount: (count) => language.t("common.moreCountSuffix", { count }),
       setGlobalStore: setBootStore,
+      version: usePlatform().version,
     })
   }
 

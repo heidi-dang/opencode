@@ -449,12 +449,16 @@ export const dict = {
   "toast.session.unshare.failed.description": "An error occurred while unsharing the session",
 
   "toast.session.listFailed.title": "Failed to load sessions for {{project}}",
+  "toast.session.notFound.title": "Session not found",
+  "toast.session.notFound.description": "The session you are looking for does not exist or has been deleted.",
   "toast.project.reloadFailed.title": "Failed to reload {{project}}",
 
   "toast.update.title": "Update available",
   "toast.update.description": "A new version of OpenCode ({{version}}) is now available to install.",
   "toast.update.action.installRestart": "Install and restart",
   "toast.update.action.notYet": "Not yet",
+  "toast.version.mismatch.title": "Version mismatch",
+  "toast.version.mismatch.description": "The UI ({{ui}}) and backend ({{backend}}) versions do not match. This may cause unexpected behavior.",
 
   "error.page.title": "Something went wrong",
   "error.page.description": "An error occurred while loading the application.",

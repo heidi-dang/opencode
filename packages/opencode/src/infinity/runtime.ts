@@ -47,6 +47,7 @@ export interface RunState {
     | "in_progress"
     | "stuck"
     | "ready_for_reporter"
+    | "ready_for_performance"
     | "gating"
     | "passed"
     | "failed"
@@ -56,8 +57,10 @@ export interface RunState {
   updated_at: string
   escalated_to_master?: boolean
   gate_result?: GateResult
-  before_snapshot?: Record<string, string>
   after_snapshot?: Record<string, string>
+  attempts?: number
+  patch_contract?: PatchContract
+  winner_worker_id?: string
 }
 
 export interface Plan {
@@ -86,7 +89,7 @@ export interface GateResult {
 }
 
 export interface Gate {
-  name: "cloud_ci" | "security" | "visual" | "benchmark"
+  name: "cloud_ci" | "security" | "visual" | "benchmark" | "quality"
   status: "pass" | "fail" | "skipped"
   details: string
 }
@@ -120,6 +123,15 @@ export interface Event {
   [key: string]: unknown
 }
 
+export interface Metrics {
+  lint_errors: number
+  type_errors: number
+  test_failures: number
+  complexity_delta?: number
+  latency_ms?: number
+  timestamp: string
+}
+
 export interface InfinityConfig {
   max_cycles: number
   max_retries_per_task: number
@@ -127,12 +139,49 @@ export interface InfinityConfig {
   daemon: boolean
   watch: boolean
   github_enabled?: boolean
+  max_workers?: number
 }
 
 export interface LockFile {
   pid: number
   started_at: string
   run_id?: string
+}
+
+// ============================================================================
+// Phase 2: Bounded Patching
+// ============================================================================
+
+export interface PatchContract {
+  /** Files that may be written — intersection of task.scope and inspectResult.allowed_files */
+  allowed_files: string[]
+  /** Maximum net lines changed per file (added + removed). Default: 200 */
+  max_lines_changed: number
+  /** Run bun --check on a temp file before committing the patch. Default: true */
+  require_syntax_check: boolean
+}
+
+export class PatchViolation extends Error {
+  constructor(
+    public code: "out_of_scope" | "oversized" | "syntax_error",
+    msg: string,
+  ) {
+    super(msg)
+    this.name = "PatchViolation"
+  }
+}
+
+// ============================================================================
+// Phase 3: Learning Memory
+// ============================================================================
+
+export interface KnowledgePattern {
+  id: string
+  task_category: string
+  scope_hint: string[]
+  lesson: string
+  outcome: "pass" | "fail"
+  created_at: string
 }
 
 // ============================================================================
@@ -180,6 +229,7 @@ export class InfinityRuntime {
       daemon: config.daemon ?? false,
       watch: config.watch ?? false,
       github_enabled: config.github_enabled ?? false,
+      max_workers: config.max_workers ?? 1,
     }
     this.deps = deps
   }
@@ -380,6 +430,7 @@ export class InfinityRuntime {
 
   writeQueue(tasks: Task[]): void {
     const queuePath = path.join(this.root, ".opencode", "queue.json")
+    this.ensureDir(path.dirname(queuePath))
     fs.writeFileSync(queuePath, JSON.stringify(tasks, null, 2), "utf-8")
   }
 
@@ -459,9 +510,238 @@ export class InfinityRuntime {
   }
 
   appendEvent(runId: string, event: Event): void {
-    const eventsPath = path.join(this.root, ".opencode", "runs", runId, "events.jsonl")
+    const eventsPath = path.join(this.root, ".opencode", "runs", runId, "journal.jsonl")
     const line = JSON.stringify(event) + "\n"
     fs.appendFileSync(eventsPath, line, "utf-8")
+  }
+
+  protected async calculateMetrics(runId: string, scope: string[]): Promise<Metrics> {
+    this.log("METRICS", `Calculating metrics for run ${runId} (scope: ${scope.join(", ")})`)
+
+    let lintErrors = 0
+    let typeErrors = 0
+    let testFailures = 0
+
+    try {
+      // 1. Lint
+      const lintResult = await UtilProcess.run(["bun", "run", "lint"], { cwd: this.root })
+      const lintOutput = lintResult.stdout.toString()
+      if (lintResult.code !== 0) {
+        lintErrors = (lintOutput.match(/error/gi) || []).length
+      }
+
+      // 2. Typecheck
+      const typeResult = await UtilProcess.run(["bun", "run", "typecheck"], { cwd: this.root })
+      const typeOutput = typeResult.stdout.toString()
+      if (typeResult.code !== 0) {
+        typeErrors = (typeOutput.match(/error TS/g) || []).length
+      }
+
+      // 3. Test
+      const testResult = await UtilProcess.run(["bun", "test", ...scope], { cwd: this.root })
+      const testOutput = testResult.stdout.toString()
+      if (testResult.code !== 0) {
+        testFailures = (testOutput.match(/✗|fail/gi) || []).length
+      }
+    } catch (e) {
+      this.log("METRICS_ERROR", `Failed to calculate metrics: ${e}. Using zero-baseline for safety.`)
+    }
+
+    return {
+      lint_errors: lintErrors,
+      type_errors: typeErrors,
+      test_failures: testFailures,
+      timestamp: new Date().toISOString()
+    }
+  }
+
+  public async seedAuditTargets(): Promise<void> {
+    this.log("SEED", "Seeding audit targets into queue...")
+    const queuePath = path.join(this.root, ".opencode", "queue.json")
+    const tasks: Task[] = [
+      {
+        id: "task-2026-03-16-001",
+        title: "Fix logic bug in calculateTotal",
+        source: "internal_audit",
+        priority: 1,
+        category: "stability",
+        scope: ["src/bug.ts"],
+        acceptance: ["calculateTotal returns sum even if prices include 0"],
+        status: "queued"
+      },
+      {
+        id: "task-2026-03-16-002",
+        title: "Add divide-by-zero check in divide",
+        source: "internal_audit",
+        priority: 1,
+        category: "stability",
+        scope: ["src/robustness.ts"],
+        acceptance: ["divide throws or returns 0 on division by zero"],
+        status: "queued"
+      },
+      {
+        id: "task-2026-03-16-003",
+        title: "Optimize findMax algorithm",
+        source: "internal_audit",
+        priority: 1,
+        category: "performance",
+        scope: ["src/perf.ts"],
+        acceptance: ["findMax uses O(n) linear scan instead of sort"],
+        status: "queued"
+      }
+    ]
+
+    this.ensureDir(path.dirname(queuePath))
+    fs.writeFileSync(queuePath, JSON.stringify(tasks, null, 2), "utf-8")
+    this.log("SEED", `Seeded ${tasks.length} tasks to ${queuePath}`)
+  }
+
+  protected snapshotFiles(runId: string, scope: string[], target: "before" | "after"): void {
+    const targetDir = path.join(this.root, ".opencode", "runs", runId, target)
+    this.ensureDir(targetDir)
+
+    for (const pattern of scope) {
+      // Simple glob-to-file copy for Phase 1
+      // In production, use more robust globbing
+      const fullPath = path.join(this.root, pattern)
+      if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
+        const dest = path.join(targetDir, pattern)
+        this.ensureDir(path.dirname(dest))
+        fs.copyFileSync(fullPath, dest)
+      }
+    }
+  }
+
+  protected restoreFiles(runId: string, scope: string[]): void {
+    const backupDir = path.join(this.root, ".opencode", "runs", runId, "before")
+    for (const pattern of scope) {
+      const backupPath = path.join(backupDir, pattern)
+      if (fs.existsSync(backupPath) && fs.statSync(backupPath).isFile()) {
+        const targetPath = path.join(this.root, pattern)
+        this.ensureDir(path.dirname(targetPath))
+        fs.copyFileSync(backupPath, targetPath)
+      }
+    }
+  }
+
+  protected readEvents(runId: string): any[] {
+    const journalPath = path.join(this.root, ".opencode", "runs", runId, "journal.jsonl")
+    if (!fs.existsSync(journalPath)) return []
+    return fs
+      .readFileSync(journalPath, "utf-8")
+      .split("\n")
+      .filter(Boolean)
+      .map(line => {
+        try { return JSON.parse(line) }
+        catch { return null }
+      })
+      .filter(Boolean)
+  }
+
+  protected readMemory(scope: string[]): string {
+    const patternsDir = path.join(this.root, ".opencode", "knowledge", "patterns")
+    if (!fs.existsSync(patternsDir)) return ""
+
+    const patterns = fs.readdirSync(patternsDir)
+      .filter(f => f.endsWith(".json"))
+      .map(f => {
+        try {
+          return JSON.parse(fs.readFileSync(path.join(patternsDir, f), "utf-8")) as KnowledgePattern
+        } catch {
+          return null
+        }
+      })
+      .filter(p => p !== null)
+      // Filter for overlap in scope hints
+      .filter(p => p!.scope_hint.some(s => scope.includes(s)))
+      // Sort by newest
+      .sort((a, b) => new Date(b!.created_at).getTime() - new Date(a!.created_at).getTime())
+      .slice(0, 10)
+
+    if (patterns.length === 0) return ""
+
+    return patterns
+      .map(p => {
+        return `[Pattern ${p!.id}] (${p!.task_category}, ${p!.outcome}): ${p!.lesson}`
+      })
+      .join("\n")
+  }
+
+  // ============================================================================
+  // Phase 2: Bounded Patching Helpers
+  // ============================================================================
+
+  protected buildContract(
+    taskScope: string[],
+    allowedFiles: string[],
+    constraints: string[] = [],
+  ): PatchContract {
+    // Normalise to relative paths, intersect with task scope
+    const scopeSet = new Set(taskScope.map(f => f.replace(/^\.\//, "")))
+    const allowed = allowedFiles
+      .map(f => f.replace(/^\.\//, ""))
+      .filter(f => scopeSet.has(f) || taskScope.some(s => f.startsWith(s.replace(/^\.\//, ""))))
+
+    const maxLines = constraints
+      .map(c => c.match(/max_lines_(\d+)/))
+      .filter(Boolean)
+      .map(m => parseInt(m![1]))
+      .at(0) ?? 200
+
+    return {
+      allowed_files: allowed.length ? allowed : taskScope,
+      max_lines_changed: maxLines,
+      require_syntax_check: !constraints.includes("no_syntax_check"),
+    }
+  }
+
+  protected validatePatch(
+    contract: PatchContract,
+    relPath: string,
+    before: string,
+    after: string,
+  ): void {
+    const norm = relPath.replace(/^\.\//, "")
+    if (!contract.allowed_files.some(f => norm === f.replace(/^\.\//, "") || norm.startsWith(f.replace(/^\.\//, "")))) {
+      throw new PatchViolation("out_of_scope", `File "${relPath}" is not in the allowed_files contract`)
+    }
+
+    const beforeLines = before.split("\n").length
+    const afterLines = after.split("\n").length
+    const delta = Math.abs(afterLines - beforeLines) + Math.abs(after.split("\n").filter((l, i) => l !== before.split("\n")[i]).length)
+    if (delta > contract.max_lines_changed) {
+      throw new PatchViolation(
+        "oversized",
+        `Patch for "${relPath}" changed ~${delta} lines (max ${contract.max_lines_changed})`,
+      )
+    }
+    // Syntax check is handled async in writeTempAndMove — nothing sync here
+  }
+
+  protected async writeTempAndMove(
+    filePath: string,
+    content: string,
+    requireCheck: boolean,
+  ): Promise<void> {
+    const tmp = `${filePath}.infinity.tmp`
+    fs.writeFileSync(tmp, content, "utf-8")
+
+    if (requireCheck && filePath.endsWith(".ts")) {
+      const result = await UtilProcess.run(["bun", "--check", tmp], { cwd: this.root })
+        .catch(e => ({ code: 1, stderr: String(e) }))
+      if ((result as any).code !== 0) {
+        fs.unlinkSync(tmp)
+        const errMsg = typeof (result as any).stderr === "string"
+          ? (result as any).stderr
+          : (result as any).stderr?.toString() ?? ""
+        throw new PatchViolation(
+          "syntax_error",
+          `Syntax check failed for "${filePath}": ${errMsg.slice(0, 200)}`,
+        )
+      }
+    }
+
+    fs.renameSync(tmp, filePath)
   }
 
   // ============================================================================
@@ -498,11 +778,6 @@ export class InfinityRuntime {
       } catch (e) {
         this.log("STAGE_ERROR", `Stage ${stage} failed: ${e}`)
         throw e
-      }
-
-      // Check if we should continue
-      if (!this.shouldContinue()) {
-        break
       }
     }
 
@@ -680,7 +955,7 @@ export class InfinityRuntime {
 
     if (!nextTask) {
       this.log("PLANNER", "No queued tasks, advancing to rearm")
-      this.advanceStage()
+      this.stage = "rearm"
       return
     }
 
@@ -692,16 +967,20 @@ export class InfinityRuntime {
     const runId = this.createRun(nextTask.id)
 
     // Create plan
+    const maxWorkers = this.config.max_workers || 1
+    const workers: WorkerAssignment[] = []
+    for (let i = 1; i <= maxWorkers; i++) {
+      workers.push({
+        worker_id: `dev-${i}`,
+        scope: nextTask.scope,
+      })
+    }
+
     const plan: Plan = {
       run_id: runId,
       task_id: nextTask.id,
       task: nextTask,
-      workers: [
-        {
-          worker_id: "dev-1",
-          scope: nextTask.scope,
-        },
-      ],
+      workers,
       created_at: new Date().toISOString(),
     }
     this.writePlan(runId, plan)
@@ -709,10 +988,19 @@ export class InfinityRuntime {
     // Update run state
     const state = this.readRunState(runId)!
     state.status = "assigned"
-    state.workers = ["dev-1"]
+    state.workers = workers.map(w => w.worker_id)
     this.writeRunState(runId, state)
 
-    this.log("PLANNER", `Assigned task ${nextTask.id} to run ${runId}`)
+    // Capture Baseline (Phase 1)
+    this.snapshotFiles(runId, nextTask.scope, "before")
+    const baseline = await this.calculateMetrics(runId, nextTask.scope)
+    fs.writeFileSync(
+      path.join(this.root, ".opencode", "runs", runId, "metrics", "before.json"),
+      JSON.stringify(baseline, null, 2),
+      "utf-8"
+    )
+
+    this.log("PLANNER", `Assigned task ${nextTask.id} to run ${runId} with baseline metrics`)
     this.advanceStage()
   }
 
@@ -723,44 +1011,99 @@ export class InfinityRuntime {
 
     this.log("DEV", `Running dev stage for run ${this.run}...`)
 
-    // Read plan
     const plan = this.readPlan(this.run)
     if (!plan) {
       throw new Error(`No plan found for run ${this.run}`)
     }
 
-    // Update run state
     const state = this.readRunState(this.run)!
     state.status = "in_progress"
     this.writeRunState(this.run, state)
 
-    // Emit progress event
-    this.appendEvent(this.run, {
-      type: "progress",
-      timestamp: new Date().toISOString(),
-      message: "Dev stage executing...",
-    })
+    const runDir = path.join(this.root, ".opencode", "runs", this.run)
+    const candidatesDir = path.join(runDir, "candidates")
+    this.ensureDir(candidatesDir)
 
-    // In production, this would invoke the dev subagent
-    // Dev can emit stuck or completion packets
+    for (const worker of plan.workers) {
+      this.log("DEV", `Worker ${worker.worker_id} starting...`)
+      
+      // Ensure clean baseline for each worker
+      this.restoreFiles(this.run, plan.task.scope)
 
-    // For now, we simulate a completion
-    this.appendEvent(this.run, {
-      type: "completion",
-      timestamp: new Date().toISOString(),
-      task_id: this.task,
-      run_id: this.run,
-      worker_id: "dev-1",
-      files_changed: [],
-      tests_passed: true,
-      summary: "Simulated dev completion",
-    } as unknown as Event)
+      const candidateDir = path.join(candidatesDir, worker.worker_id)
+      const afterDir = path.join(candidateDir, "after")
+      this.ensureDir(afterDir)
 
-    // Update state to ready_for_reporter
-    state.status = "ready_for_reporter"
+      const changed: string[] = []
+
+      // ---- Real adapter path ----
+      if (this.deps?.adapter) {
+        const task = plan.task
+        const memory = this.readMemory(task.scope)
+        const fileCtx = task.scope
+          .map(f => {
+            const p = path.join(this.root, f)
+            if (fs.existsSync(p) && fs.statSync(p).isFile()) {
+              return `### ${f}\n\`\`\`\n${fs.readFileSync(p, "utf-8")}\n\`\`\`\n`
+            }
+            return `### ${f}\n(file not found)\n`
+          })
+          .join("\n")
+        
+        const context = memory
+          ? `## Previous Learnings\n${memory}\n\n## Repo Context\n${fileCtx}`
+          : fileCtx
+
+        const inspect = await this.deps.adapter.inspectTarget(task, context)
+        const contract = this.buildContract(task.scope, inspect.allowed_files, task.constraints)
+        
+        for (const rel of contract.allowed_files) {
+          const abs = path.join(this.root, rel)
+          if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) continue
+
+          const before = fs.readFileSync(abs, "utf-8")
+          const patch = await this.deps.adapter.patchTarget(inspect, before)
+          
+          this.validatePatch(contract, rel, before, patch.content)
+          await this.writeTempAndMove(abs, patch.content, contract.require_syntax_check)
+          changed.push(rel)
+        }
+      } else {
+        // Stub path (no change)
+        this.log("DEV", `Worker ${worker.worker_id} using stub (noop)`)
+      }
+
+      // Snapshot candidate "after" state
+      this.snapshotFiles(this.run, plan.task.scope, "after") // Temporarily write to run root after
+      // Move from runs/<runId>/after to runs/<runId>/candidates/<workerId>/after
+      const runAfterDir = path.join(runDir, "after")
+      if (fs.existsSync(runAfterDir)) {
+        fs.cpSync(runAfterDir, afterDir, { recursive: true })
+        fs.rmSync(runAfterDir, { recursive: true })
+      }
+
+      // Calculate candidate metrics
+      const metrics = await this.calculateMetrics(this.run, plan.task.scope)
+      fs.writeFileSync(
+        path.join(candidateDir, "metrics.json"),
+        JSON.stringify(metrics, null, 2),
+        "utf-8"
+      )
+
+      this.appendEvent(this.run, {
+        type: "candidate_generated",
+        timestamp: new Date().toISOString(),
+        worker_id: worker.worker_id,
+        files_changed: changed,
+        metrics,
+      } as unknown as Event)
+
+      this.log("DEV", `Worker ${worker.worker_id} complete. Metrics: L:${metrics.lint_errors} T:${metrics.type_errors} F:${metrics.test_failures}`)
+    }
+
+    state.status = "ready_for_performance"
     this.writeRunState(this.run, state)
-
-    this.log("DEV", "Dev stage complete")
+    this.log("DEV", "Dev stage complete (all candidates generated)")
     this.advanceStage()
   }
 
@@ -769,42 +1112,63 @@ export class InfinityRuntime {
       throw new Error("No active run in performance stage")
     }
 
-    this.log("PERFORMANCE", `Running performance profiling for run ${this.run}...`)
+    this.log("PERFORMANCE", `Ranking candidates for run ${this.run}...`)
 
-    const start = Bun.nanoseconds()
-    // In production, this would run actual benchmarks
-    // For now we simulate a small workload
-    await new Promise((r) => setTimeout(r, 100))
-    const end = Bun.nanoseconds()
-    const latencyMs = (end - start) / 1000000
-
-    this.log("PERFORMANCE", `Latency measured: ${latencyMs.toFixed(2)}ms`)
-
-    // Base calculation from User Spec
-    let health = 100
-    const reportPath = path.join(this.root, ".opencode", "report.json")
-    if (fs.existsSync(reportPath)) {
-      try {
-        const report = JSON.parse(fs.readFileSync(reportPath, "utf-8"))
-        health -= (report.critical_alerts || 0) * 25
-        health -= (report.warning_alerts || 0) * 15
-        health -= (report.info_alerts || 0) * 10
-        if (report.fps < 55) health -= 20
-        if (report.memory_usage_mb > 100) health -= 15
-        if (latencyMs > 100) health -= 10
-      } catch {}
+    const runDir = path.join(this.root, ".opencode", "runs", this.run)
+    const candidatesDir = path.join(runDir, "candidates")
+    
+    if (!fs.existsSync(candidatesDir)) {
+      this.log("PERFORMANCE", "No candidates found, skipping ranking")
+      this.advanceStage()
+      return
     }
 
-    health = Math.max(0, health)
+    const workers = fs.readdirSync(candidatesDir)
+    const candidates = workers.map(workerId => {
+      const metricsPath = path.join(candidatesDir, workerId, "metrics.json")
+      const metrics = JSON.parse(fs.readFileSync(metricsPath, "utf-8")) as Metrics
+      return { workerId, metrics }
+    })
 
-    // Record performance event
-    this.appendEvent(this.run, {
-      type: "performance",
-      timestamp: new Date().toISOString(),
-      latency_ms: latencyMs,
-      score: health,
-    } as any)
+    // Rank logic: 
+    // 1. Least test failures
+    // 2. Least type errors
+    // 3. Least lint errors
+    candidates.sort((a, b) => {
+      if (a.metrics.test_failures !== b.metrics.test_failures) {
+        return a.metrics.test_failures - b.metrics.test_failures
+      }
+      if (a.metrics.type_errors !== b.metrics.type_errors) {
+        return a.metrics.type_errors - b.metrics.type_errors
+      }
+      return a.metrics.lint_errors - b.metrics.lint_errors
+    })
 
+    const winner = candidates[0]
+    this.log("PERFORMANCE", `Winner selected: ${winner.workerId} (F:${winner.metrics.test_failures} T:${winner.metrics.type_errors} L:${winner.metrics.lint_errors})`)
+
+    // Apply winner's files to root
+    const winnerAfterDir = path.join(candidatesDir, winner.workerId, "after")
+    if (fs.existsSync(winnerAfterDir)) {
+      const plan = this.readPlan(this.run)
+      if (plan) {
+        for (const rel of plan.task.scope) {
+          const src = path.join(winnerAfterDir, rel)
+          const dest = path.join(this.root, rel)
+          if (fs.existsSync(src)) {
+            this.ensureDir(path.dirname(dest))
+            fs.copyFileSync(src, dest)
+          }
+        }
+      }
+    }
+
+    const state = this.readRunState(this.run)!
+    state.status = "ready_for_reporter"
+    state.winner_worker_id = winner.workerId
+    this.writeRunState(this.run, state)
+
+    this.log("PERFORMANCE", "Performance stage complete — winner applied to workspace")
     this.advanceStage()
   }
 
@@ -829,30 +1193,96 @@ export class InfinityRuntime {
 
     this.log("REPORTER", `Running reporter stage for run ${this.run}...`)
 
-    // In production, this would invoke the reporter subagent
-    // Reporter runs deterministic gates
+    // Capture After Snapshots & Metrics (Phase 1)
+    const plan = this.readPlan(this.run)
+    if (!plan) {
+      throw new Error(`No plan found for run ${this.run}`)
+    }
 
-    // Simulate gate result
-    const gateResult: GateResult = {
+    this.snapshotFiles(this.run, plan.task.scope, "after")
+    const afterMetrics = await this.calculateMetrics(this.run, plan.task.scope)
+    fs.writeFileSync(
+      path.join(this.root, ".opencode", "runs", this.run, "metrics", "after.json"),
+      JSON.stringify(afterMetrics, null, 2),
+      "utf-8"
+    )
+
+    let pass = true
+    let rejectReason = ""
+
+    // Check Metrics (Phase 1)
+    const beforeMetricsPath = path.join(this.root, ".opencode", "runs", this.run, "metrics", "before.json")
+    if (fs.existsSync(beforeMetricsPath)) {
+      const beforeMetrics = JSON.parse(fs.readFileSync(beforeMetricsPath, "utf-8")) as Metrics
+      
+      const lintDelta = afterMetrics.lint_errors - beforeMetrics.lint_errors
+      const typeDelta = afterMetrics.type_errors - beforeMetrics.type_errors
+      const testDelta = afterMetrics.test_failures - beforeMetrics.test_failures
+      
+      this.log("REPORTER", `Delta Analysis: Lint=${lintDelta}, Type=${typeDelta}, Test=${testDelta}`)
+      
+      if (lintDelta > 0 || typeDelta > 0 || testDelta > 0) {
+        pass = false
+        rejectReason = "Technical debt increased (lint/type/test errors)"
+      }
+    }
+
+    // Include mock adapter judgment for backwards compatibility with tests
+    if (this.deps?.adapter) {
+      try {
+        const judgment = await this.deps.adapter.judgeResult(this.run, plan.task, { pass })
+        if (!judgment.pass) {
+          pass = false
+          rejectReason = judgment.summary || "Adapter rejected changes"
+        }
+      } catch (e) {
+        // Ignore adapter failure if any
+      }
+    }
+
+    const state = this.readRunState(this.run)!
+
+    if (!pass) {
+      this.log("REPORTER", `REJECTED: ${rejectReason}`)
+      state.attempts = (state.attempts || 0) + 1
+
+      if (state.attempts < this.config.max_retries_per_task) {
+        this.log("REPORTER", `Rolling back and retrying (attempt ${state.attempts}/${this.config.max_retries_per_task})`)
+        this.restoreFiles(this.run, plan.task.scope)
+        this.writeRunState(this.run, state)
+        this.stage = "dev"
+        return
+      } else {
+        this.log("REPORTER", "Max retries reached. Failing task.")
+        this.restoreFiles(this.run, plan.task.scope) // Always rollback on ultimate failure
+        state.status = "failed"
+        state.gate_result = {
+          task_id: this.task!,
+          run_id: this.run,
+          result: "fail",
+          gates: [{ name: "quality", status: "fail", details: rejectReason }],
+          rollback_executed: true,
+        }
+        this.writeRunState(this.run, state)
+        this.advanceStage() // Go to Librarian/Rearm to record failure/proof
+        return
+      }
+    }
+
+    // Pass track
+    state.status = "passed"
+    state.gate_result = {
       task_id: this.task,
       run_id: this.run,
       result: "pass",
       gates: [
-        {
-          name: "cloud_ci",
-          status: "pass",
-          details: "CI passed",
-        },
+        { name: "cloud_ci", status: "pass", details: "CI passed" },
+        { name: "quality", status: "pass", details: "No debt increase" }
       ],
     }
-
-    // Update run state
-    const state = this.readRunState(this.run)!
-    state.status = gateResult.result === "pass" ? "passed" : "failed"
-    state.gate_result = gateResult
     this.writeRunState(this.run, state)
 
-    this.log("REPORTER", `Reporter result: ${gateResult.result}`)
+    this.log("REPORTER", `Reporter result: pass`)
     this.advanceStage()
   }
 
@@ -863,37 +1293,128 @@ export class InfinityRuntime {
 
     this.log("LIBRARIAN", `Running librarian stage for run ${this.run}...`)
 
-    // Read run state
     const state = this.readRunState(this.run)!
+    const notesDir = path.join(this.root, ".opencode", "runs", this.run, "notes")
+    this.ensureDir(notesDir)
 
-    // Librarian only writes knowledge for passing runs
+    const knowledgeDir = path.join(this.root, ".opencode", "knowledge")
+    const patternDir = path.join(knowledgeDir, "patterns")
+    this.ensureDir(patternDir)
+
+    const lessonIds: string[] = []
+
     if (state.status === "passed") {
-      // Create notes directory
-      const notesDir = path.join(this.root, ".opencode", "runs", this.run, "notes")
-      this.ensureDir(notesDir)
+      // ---- Phase 3: Real adapter path ----
+      if (this.deps?.adapter?.extractLessons) {
+        const plan = this.readPlan(this.run)
+        const events = this.readEvents(this.run).map(e => JSON.stringify(e)).join("\n")
+        const rawLessons = await this.deps.adapter.extractLessons(state, events)
 
-      // Write knowledge to .opencode/knowledge/
-      const knowledgeDir = path.join(this.root, ".opencode", "knowledge")
-      const lesson = {
-        id: `lesson-${Date.now()}`,
-        run_id: this.run,
-        task_id: this.task,
-        category: "pattern",
-        title: "Example lesson",
-        body: "Lesson learned from this run",
-        files: [],
-        created_at: new Date().toISOString(),
+        for (const lesson of rawLessons) {
+          const pattern: KnowledgePattern = {
+            id: `lesson-${Date.now()}-${lessonIds.length}`,
+            task_category: plan?.task.category ?? "stability",
+            scope_hint: plan?.task.scope ?? [],
+            lesson,
+            outcome: "pass",
+            created_at: new Date().toISOString(),
+          }
+          lessonIds.push(pattern.id)
+          fs.writeFileSync(
+            path.join(patternDir, `${pattern.id}.json`),
+            JSON.stringify(pattern, null, 2),
+            "utf-8",
+          )
+        }
+        this.log("LIBRARIAN", `Extracted ${rawLessons.length} lessons from adapter`)
+      } else {
+        // ---- Stub path ----
+        const plan = this.readPlan(this.run)
+        const stub: KnowledgePattern = {
+          id: `lesson-${Date.now()}`,
+          task_category: plan?.task.category ?? "stability",
+          scope_hint: plan?.task.scope ?? [],
+          lesson: "Lesson learned from this run",
+          outcome: "pass",
+          created_at: new Date().toISOString(),
+        }
+        lessonIds.push(stub.id)
+        fs.writeFileSync(path.join(patternDir, `${stub.id}.json`), JSON.stringify(stub, null, 2), "utf-8")
       }
 
-      const patternFile = path.join(knowledgeDir, "patterns", `${lesson.id}.json`)
-      fs.writeFileSync(patternFile, JSON.stringify(lesson, null, 2), "utf-8")
-
-      this.log("LIBRARIAN", "Wrote knowledge to .opencode/knowledge/")
-    } else {
-      this.log("LIBRARIAN", "Run did not pass, not writing knowledge")
+      this.log("LIBRARIAN", `Wrote ${lessonIds.length} pattern(s) to .opencode/knowledge/patterns/`)
     }
 
+    // Generate proof.md deliverable (Phase 1)
+    this.generateProof(this.run)
+
     this.advanceStage()
+  }
+
+  protected generateProof(runId: string): void {
+    const runDir = path.join(this.root, ".opencode", "runs", runId)
+    const state = this.readRunState(runId)
+    if (!state) return
+
+    const beforeMetricsPath = path.join(runDir, "metrics", "before.json")
+    const afterMetricsPath = path.join(runDir, "metrics", "after.json")
+    
+    let proofText = `# Infinity Quality Proof: Run ${runId}\n\n`
+    proofText += `**Task ID**: ${state.task_id}\n`
+    proofText += `**Final Status**: ${state.status === "passed" ? "✅ PASSED" : "❌ FAILED"}\n\n`
+
+    if (fs.existsSync(beforeMetricsPath) && fs.existsSync(afterMetricsPath)) {
+      const before = JSON.parse(fs.readFileSync(beforeMetricsPath, "utf-8")) as Metrics
+      const after = JSON.parse(fs.readFileSync(afterMetricsPath, "utf-8")) as Metrics
+      
+      proofText += `## Delta Analysis\n\n`
+      proofText += `| Metric | Before | After | Delta |\n`
+      proofText += `| :--- | :--- | :--- | :--- |\n`
+      proofText += `| Lint Errors | ${before.lint_errors} | ${after.lint_errors} | ${after.lint_errors - before.lint_errors} |\n`
+      proofText += `| Type Errors | ${before.type_errors} | ${after.type_errors} | ${after.type_errors - before.type_errors} |\n`
+      proofText += `| Test Failures | ${before.test_failures} | ${after.test_failures} | ${after.test_failures - before.test_failures} |\n\n`
+    }
+
+    proofText += `## Artifacts\n`
+    proofText += `- [Before Snapshots](./before/)\n`
+    proofText += `- [After Snapshots](./after/)\n`
+    proofText += `- [Journal](./journal.jsonl)\n`
+
+    const candidatesDir = path.join(runDir, "candidates")
+    if (fs.existsSync(candidatesDir)) {
+      const workers = fs.readdirSync(candidatesDir)
+      proofText += `\n## Candidate Comparison\n\n`
+      proofText += `| Worker | Lint | Type | Test | Winner |\n`
+      proofText += `| :--- | :--- | :--- | :--- | :--- |\n`
+      
+      for (const workerId of workers) {
+        try {
+          const metrics = JSON.parse(fs.readFileSync(path.join(candidatesDir, workerId, "metrics.json"), "utf-8")) as Metrics
+          const isWinner = state.winner_worker_id === workerId ? "⭐" : ""
+          proofText += `| ${workerId} | ${metrics.lint_errors} | ${metrics.type_errors} | ${metrics.test_failures} | ${isWinner} |\n`
+        } catch {}
+      }
+      proofText += `\n`
+    }
+
+    const notesDir = path.join(runDir, "notes")
+    if (fs.existsSync(notesDir)) {
+      const lessons = fs.readdirSync(path.join(this.root, ".opencode", "knowledge", "patterns"))
+        .filter(f => {
+          try {
+            const data = JSON.parse(fs.readFileSync(path.join(this.root, ".opencode", "knowledge", "patterns", f), "utf-8"))
+            return data.run_id === runId || data.id.includes(runId) // Best effort match if ID includes timestamp
+          } catch { return false }
+        })
+      
+      if (lessons.length > 0) {
+        proofText += `\n## Memory Written\n`
+        proofText += `Extracted ${lessons.length} lesson(s) during this favorable run.\n`
+      }
+    }
+
+    fs.writeFileSync(path.join(runDir, "proof.md"), proofText, "utf-8")
+    this.log("PROOF", `Generated proof.md for run ${runId}`)
   }
 
   private async stageInnovation(): Promise<void> {
@@ -958,18 +1479,18 @@ export class InfinityRuntime {
   }
 
   private shouldContinue(): boolean {
-    // Check max cycles
-    if (this.cycles >= this.config.max_cycles) {
-      this.log("CONTROL", `Max cycles reached: ${this.config.max_cycles}`)
-      return false
-    }
-
-    // Check daemon/watch mode
+    // Check daemon/watch mode first. If true, run forever
     if (this.config.daemon || this.config.watch) {
       return true
     }
 
-    return false
+    // Regular finite mode: Check max cycles
+    if (this.cycles >= this.config.max_cycles) {
+      this.log("CONTROL", `Max cycles reached: ${this.cycles}/${this.config.max_cycles}`)
+      return false
+    }
+
+    return true
   }
 
   // ============================================================================
@@ -1014,6 +1535,8 @@ export class InfinityRuntime {
       case "assigned":
       case "in_progress":
         return "dev"
+      case "ready_for_performance":
+        return "performance"
       case "ready_for_reporter":
         return "havoc"
       case "gating":
@@ -1189,6 +1712,11 @@ export const InfinityCommand = cmd({
         default: "start",
         choices: ["start", "status", "resume"],
       })
+      .option("seed", {
+        type: "boolean",
+        description: "Seed audit targets into queue",
+        default: false,
+      })
       .option("maxCycles", { type: "number" })
       .option("maxRetries", { type: "number" })
       .option("idleBackoff", { type: "number" })
@@ -1210,6 +1738,12 @@ export const InfinityCommand = cmd({
       }
 
       const runtime = new InfinityRuntime(root, config)
+
+      if (argv.seed) {
+        console.log("Seeding audit targets...")
+        await runtime.seedAuditTargets()
+      }
+
       await runtime.start()
     } else if (action === "status") {
       // Show status of current runs

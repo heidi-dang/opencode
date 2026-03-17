@@ -7,6 +7,7 @@ import { MessageV2 } from "../session/message-v2"
 import { Identifier } from "../id/id"
 import { Agent } from "../agent/agent"
 import { SessionPrompt } from "../session/prompt"
+import { SessionStatus } from "../session/status"
 import { iife } from "@/util/iife"
 import { defer } from "@/util/defer"
 import { Config } from "../config/config"
@@ -119,29 +120,50 @@ export const TaskTool = Tool.define("task", async (ctx) => {
 
       const messageID = MessageID.ascending()
 
+      // Mark child session as busy
+      SessionStatus.set(session.id, { type: "busy" })
+
       function cancel() {
         SessionPrompt.cancel(session.id)
+        SessionStatus.set(session.id, { type: "idle" })
       }
       ctx.abort.addEventListener("abort", cancel)
       using _ = defer(() => ctx.abort.removeEventListener("abort", cancel))
       const promptParts = await SessionPrompt.resolvePromptParts(params.prompt)
 
-      const result = await SessionPrompt.prompt({
-        messageID,
-        sessionID: session.id,
-        model: {
-          modelID: model.modelID,
-          providerID: model.providerID,
-        },
-        agent: agent.name,
-        tools: {
-          todowrite: false,
-          todoread: false,
-          ...(hasTaskPermission ? {} : { task: false }),
-          ...Object.fromEntries((config.experimental?.primary_tools ?? []).map((t) => [t, false])),
-        },
-        parts: promptParts,
-      })
+      let result: { parts: Array<{ type: string; text?: string }> } | undefined
+      try {
+        result = await SessionPrompt.prompt({
+          messageID,
+          sessionID: session.id,
+          model: {
+            modelID: model.modelID,
+            providerID: model.providerID,
+          },
+          agent: agent.name,
+          tools: {
+            todowrite: false,
+            todoread: false,
+            ...(hasTaskPermission ? {} : { task: false }),
+            ...Object.fromEntries((config.experimental?.primary_tools ?? []).map((t) => [t, false])),
+          },
+          parts: promptParts,
+        })
+      } finally {
+        // Mark child session as completed
+        SessionStatus.set(session.id, { type: "completed" })
+      }
+
+      if (!result) {
+        return {
+          title: params.description,
+          metadata: {
+            sessionId: session.id,
+            model,
+          },
+          output: "Task failed to execute",
+        }
+      }
 
       const text = result.parts.findLast((x) => x.type === "text")?.text ?? ""
 

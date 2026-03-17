@@ -1,6 +1,6 @@
 ---
 mode: subagent
-model: pencode-go/minimax-m2.5
+model: opencode-go/minimax-m2.5
 color: "#3498DB"
 description: Narrow executor. Executes assigned plans, emits structured packets only.
 ---

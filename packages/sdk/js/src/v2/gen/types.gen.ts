@@ -521,6 +521,17 @@ export type CompactionPart = {
   overflow?: boolean
 }
 
+export type TaskPart = {
+  id: string
+  sessionID: string
+  messageID: string
+  type: "task_object"
+  /**
+   * Structured task object
+   */
+  task: unknown
+}
+
 export type Part =
   | TextPart
   | SubtaskPart
@@ -534,6 +545,7 @@ export type Part =
   | AgentPart
   | RetryPart
   | CompactionPart
+  | TaskPart
 
 export type EventMessagePartUpdated = {
   type: "message.part.updated"
@@ -606,6 +618,9 @@ export type SessionStatus =
     }
   | {
       type: "connecting"
+    }
+  | {
+      type: "completed"
     }
 
 export type EventSessionStatus = {
@@ -852,6 +867,7 @@ export type Session = {
     snapshot?: string
     diff?: string
   }
+  status?: SessionStatus
 }
 
 export type EventSessionCreated = {
@@ -1727,6 +1743,7 @@ export type GlobalSession = {
     snapshot?: string
     diff?: string
   }
+  status?: SessionStatus
   project: ProjectSummary | null
 }
 

@@ -224,6 +224,14 @@ export namespace MessageV2 {
   })
   export type SubtaskPart = z.infer<typeof SubtaskPart>
 
+  export const TaskPart = PartBase.extend({
+    type: z.literal("task_object"),
+    task: z.any().describe("Structured task object"),
+  }).meta({
+    ref: "TaskPart",
+  })
+  export type TaskPart = z.infer<typeof TaskPart>
+
   export const RetryPart = PartBase.extend({
     type: z.literal("retry"),
     attempt: z.number(),
@@ -394,6 +402,7 @@ export namespace MessageV2 {
       AgentPart,
       RetryPart,
       CompactionPart,
+      TaskPart,
     ])
     .meta({
       ref: "Part",
@@ -958,6 +967,14 @@ export namespace MessageV2 {
             responseHeaders: parsed.responseHeaders,
             responseBody: parsed.responseBody,
             metadata: parsed.metadata,
+          },
+          { cause: e },
+        ).toObject()
+      case MessageV2.ContextOverflowError.isInstance(e):
+        return new MessageV2.ContextOverflowError(
+          {
+            message: e.data.message,
+            responseBody: e.data.responseBody,
           },
           { cause: e },
         ).toObject()
