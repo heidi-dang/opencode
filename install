@@ -18,6 +18,7 @@ Options:
     -v, --version <version> Install a specific version (e.g., 1.0.180)
     -b, --binary <path>     Install from a local binary instead of downloading
         --local-repo        Install from current local repository (for development)
+        --dev-env           Set up repo-local dev environment with pinned toolchain
         --no-modify-path    Don't modify shell config files (.zshrc, .bashrc, etc.)
 
 Examples:
@@ -32,6 +33,7 @@ requested_version=${VERSION:-}
 no_modify_path=false
 binary_path=""
 local_repo=false
+dev_env=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -63,6 +65,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --local-repo)
             local_repo=true
+            shift
+            ;;
+        --dev-env)
+            dev_env=true
             shift
             ;;
         *)
@@ -409,10 +415,77 @@ install_from_local_repo() {
     print_message info "${MUTED}Local install completed successfully!${NC}"
 }
 
+setup_dev_env() {
+    REPO_ROOT=$(cd "$(dirname "$0")" && pwd)
+    
+    print_message info "${MUTED}Setting up development environment...${NC}"
+    
+    # 1. Create .tool-versions with pinned Bun version
+    BUN_VERSION=$(bun --version 2>/dev/null || echo "1.1.0")
+    echo "bun $BUN_VERSION" > "$REPO_ROOT/.tool-versions"
+    print_message info "${MUTED}Created .tool-versions with bun $BUN_VERSION${NC}"
+    
+    # 2. Create work-zones config defining allowed work areas
+    cat > "$REPO_ROOT/.dev-zones" << 'ZONES'
+# Allowed development zones
+# Format: zone_name:allowed_paths
+webui:packages/web*,packages/next*
+tui:packages/opencode-tui*
+core:packages/opencode/src,packages/sdk/src,packages/core*
+backend:packages/server*
+ZONES
+    print_message info "${MUTED}Created .dev-zones configuration${NC}"
+    
+    # 3. Add doctor enforcement hook
+    cat > "$REPO_ROOT/.dev-hooks/pre-check.sh" << 'HOOK'
+#!/usr/bin/env bash
+# Pre-check hook - runs before any dev command
+REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+
+# Check if doctor.py exists and run it
+if [ -f "$REPO_ROOT/tools/doctor.py" ]; then
+    echo "Running doctor checks..."
+    python3 "$REPO_ROOT/tools/doctor.py" --strict || {
+        echo "Doctor checks failed. Fix issues before continuing."
+        exit 1
+    }
+fi
+HOOK
+    chmod +x "$REPO_ROOT/.dev-hooks/pre-check.sh"
+    print_message info "${MUTED}Created dev hook for doctor checks${NC}"
+    
+    # 4. Add scoped dev commands to package.json (create dev:web, dev:tui, dev:core, dev:backend)
+    if [ -f "$REPO_ROOT/package.json" ]; then
+        # Check if scripts section exists
+        if ! grep -q '"scripts"' "$REPO_ROOT/package.json"; then
+            echo ', "scripts": {}' >> "$REPO_ROOT/package.json"
+        fi
+        # Add scoped dev commands using node to avoid JSON manipulation issues
+        node -e "
+const fs = require('fs');
+const pkg = JSON.parse(fs.readFileSync('$REPO_ROOT/package.json', 'utf8'));
+pkg.scripts = pkg.scripts || {};
+pkg.scripts['dev:web'] = 'bun run --cwd packages/web dev';
+pkg.scripts['dev:tui'] = 'bun run packages/opencode-tui/src/index.ts';
+pkg.scripts['dev:core'] = 'bun run --cwd packages/opencode dev';
+pkg.scripts['dev:backend'] = 'bun run --cwd packages/server dev';
+pkg.scripts['dev:all'] = 'bun run dev:web & bun run dev:backend & bun run dev:tui';
+fs.writeFileSync('$REPO_ROOT/package.json', JSON.stringify(pkg, null, 2) + '\n');
+"
+        print_message info "${MUTED}Added scoped dev commands (dev:web, dev:tui, dev:core, dev:backend)${NC}"
+    fi
+    
+    print_message info "${MUTED}Development environment setup complete!${NC}"
+    print_message info "${MUTED}Use: dev:web, dev:tui, dev:core, dev:backend, dev:all${NC}"
+}
+
 if [ -n "$binary_path" ]; then
     install_from_binary
 elif [ "$local_repo" = true ]; then
     install_from_local_repo
+    if [ "$dev_env" = true ]; then
+        setup_dev_env
+    fi
 else
     check_version
     download_and_install
