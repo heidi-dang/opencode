@@ -202,6 +202,12 @@ export namespace MessageV2 {
     type: z.literal("compaction"),
     auto: z.boolean(),
     overflow: z.boolean().optional(),
+    executionState: z
+      .object({
+        completedTools: z.array(z.string()),
+        snapshotHash: z.string().optional(),
+      })
+      .optional(),
   }).meta({
     ref: "CompactionPart",
   })

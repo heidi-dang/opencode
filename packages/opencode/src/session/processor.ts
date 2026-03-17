@@ -38,6 +38,10 @@ export namespace SessionProcessor {
     let blocked = false
     let attempt = 0
     let needsCompaction = false
+    let executionState: { completedTools: string[]; snapshotHash: string | undefined } = {
+      completedTools: [],
+      snapshotHash: undefined,
+    }
 
     const result = {
       get message() {
@@ -427,6 +431,7 @@ export namespace SessionProcessor {
                 files: patch.files,
               })
             }
+            executionState.snapshotHash = patch.hash
             snapshot = undefined
           }
           let abortedTools = 0
