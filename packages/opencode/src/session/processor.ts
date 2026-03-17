@@ -185,13 +185,13 @@ export namespace SessionProcessor {
                   if (match && match.state.status === "running") {
                     // Use bounded capture to prevent unbounded output in message payload
                     const bounded = await Truncate.boundedCapture(value.output.output)
-                    
+
                     await Session.updatePart({
                       ...match,
                       state: {
                         status: "completed",
                         input: value.input ?? match.state.input,
-                        output: bounded.preview,  // Bounded preview for message
+                        output: bounded.preview, // Bounded preview for message
                         metadata: value.output.metadata,
                         title: value.output.title,
                         time: {
@@ -410,9 +410,11 @@ export namespace SessionProcessor {
             }
             snapshot = undefined
           }
+          let abortedTools = 0
           const p = await MessageV2.parts(input.assistantMessage.id)
           for (const part of p) {
             if (part.type === "tool" && part.state.status !== "completed" && part.state.status !== "error") {
+              abortedTools++
               await Session.updatePart({
                 ...part,
                 state: {
@@ -429,7 +431,10 @@ export namespace SessionProcessor {
           }
           input.assistantMessage.time.completed = Date.now()
           await Session.updateMessage(input.assistantMessage)
-          if (needsCompaction) return "compact"
+          if (needsCompaction && abortedTools === 0) return "compact"
+          if (needsCompaction) {
+            log.info("Deferred compaction due to aborted tools", { abortedTools, sessionID: input.sessionID })
+          }
           if (blocked) return "stop"
           if (input.assistantMessage.error) return "stop"
           return "continue"
