@@ -28,7 +28,6 @@ import { TuiThreadCommand } from "./cli/cmd/tui/thread"
 import { AcpCommand } from "./cli/cmd/acp"
 import { EOL } from "os"
 import { WebCommand } from "./cli/cmd/web"
-import { InfinityCommand } from "./infinity/runtime"
 import { PrCommand } from "./cli/cmd/pr"
 import { SessionCommand } from "./cli/cmd/session"
 import { DbCommand } from "./cli/cmd/db"
@@ -153,7 +152,6 @@ let cli = yargs(hideBin(process.argv))
   .command(PrCommand)
   .command(SessionCommand)
   .command(DbCommand)
-  .command(InfinityCommand)
 
 if (Installation.isLocal()) {
   cli = cli.command(WorkspaceServeCommand)

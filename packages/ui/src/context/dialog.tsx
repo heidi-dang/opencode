@@ -97,7 +97,6 @@ function init() {
         setClosing = setClosingSignal
         return (
           <Kobalte
-            modal
             open={!closing()}
             onOpenChange={(open: boolean) => {
               if (open) return

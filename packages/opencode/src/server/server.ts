@@ -57,8 +57,8 @@ export namespace Server {
   const log = Log.create({ service: "server" })
 
   export const Default = lazy(() => createApp({}))
-
-  export const createApp = (opts: { cors?: string[] }): Hono => {
+  
+  export const createApp = (opts: { cors?: string[] }) => {
     const app = new Hono()
     return app
       .onError((err, c) => {
@@ -564,8 +564,9 @@ export namespace Server {
         const csp =
           "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: https:; script-src 'self' 'wasm-unsafe-eval' 'unsafe-inline' 'unsafe-eval' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https: blob:; font-src 'self' data: https:; media-src 'self' data: https: blob:; connect-src 'self' data: https: wss: ws:;"
 
-        if (config.server?.uiDist) {
-          const uiDist = path.resolve(config.server.uiDist)
+        const uiDistRaw = config.server?.uiDist || process.env.OPENCODE_UI_DIST
+        if (uiDistRaw) {
+          const uiDist = path.resolve(uiDistRaw)
           const targetPath = reqPath === "/" ? "index.html" : reqPath.replace(/^\/+/, "")
           const localPath = path.resolve(uiDist, targetPath)
 

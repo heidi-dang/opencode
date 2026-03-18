@@ -297,7 +297,7 @@
       "name": "opencode",
       "version": "1.2.26",
       "bin": {
-        "opencode": "./bin/opencode",
+        "opencode": "./bin/opencode.cjs",
       },
       "dependencies": {
         "@actions/core": "1.11.1",

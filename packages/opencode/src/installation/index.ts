@@ -11,6 +11,7 @@ import { buffer } from "node:stream/consumers"
 declare global {
   const OPENCODE_VERSION: string
   const OPENCODE_CHANNEL: string
+  const OPENCODE_COMMIT: string
 }
 
 export namespace Installation {
@@ -233,6 +234,8 @@ export namespace Installation {
 
   export const VERSION = typeof OPENCODE_VERSION === "string" ? OPENCODE_VERSION : "local"
   export const CHANNEL = typeof OPENCODE_CHANNEL === "string" ? OPENCODE_CHANNEL : "local"
+  export const COMMIT = typeof OPENCODE_COMMIT === "string" ? OPENCODE_COMMIT : "local"
+  export const BUILD = `${VERSION}+${COMMIT}`
   export const USER_AGENT = `opencode/${CHANNEL}/${VERSION}/${Flag.OPENCODE_CLIENT}`
 
   export async function latest(installMethod?: Method) {

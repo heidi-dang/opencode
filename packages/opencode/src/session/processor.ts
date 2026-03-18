@@ -243,49 +243,54 @@ export namespace SessionProcessor {
                   throw value.error
 
                 case "start-step":
-                  snapshot = await Snapshot.track()
-                  await Session.updatePart({
-                    id: PartID.ascending(),
-                    messageID: input.assistantMessage.id,
-                    sessionID: input.sessionID,
-                    snapshot,
-                    type: "step-start",
-                  })
+                  if (input.assistantMessage.agent !== "heidi") {
+                    snapshot = await Snapshot.track()
+                    await Session.updatePart({
+                      id: PartID.ascending(),
+                      messageID: input.assistantMessage.id,
+                      sessionID: input.sessionID,
+                      snapshot,
+                      type: "step-start",
+                    })
+                  }
                   break
 
                 case "finish-step":
-                  const usage = Session.getUsage({
-                    model: input.model,
-                    usage: value.usage,
-                    metadata: value.providerMetadata,
-                  })
-                  input.assistantMessage.finish = value.finishReason
-                  input.assistantMessage.cost += usage.cost
-                  input.assistantMessage.tokens = usage.tokens
-                  await Session.updatePart({
-                    id: PartID.ascending(),
-                    reason: value.finishReason,
-                    snapshot: await Snapshot.track(),
-                    messageID: input.assistantMessage.id,
-                    sessionID: input.assistantMessage.sessionID,
-                    type: "step-finish",
-                    tokens: usage.tokens,
-                    cost: usage.cost,
-                  })
-                  await Session.updateMessage(input.assistantMessage)
-                  if (snapshot) {
-                    const patch = await Snapshot.patch(snapshot)
-                    if (patch.files.length) {
-                      await Session.updatePart({
-                        id: PartID.ascending(),
-                        messageID: input.assistantMessage.id,
-                        sessionID: input.sessionID,
-                        type: "patch",
-                        hash: patch.hash,
-                        files: patch.files,
-                      })
+                  if (input.assistantMessage.agent !== "heidi") {
+                    const usage = Session.getUsage({
+                      model: input.model,
+                      usage: value.usage,
+                      metadata: value.providerMetadata,
+                    })
+                    input.assistantMessage.finish = value.finishReason
+                    input.assistantMessage.cost += usage.cost
+                    input.assistantMessage.tokens = usage.tokens
+                    await Session.updatePart({
+                      id: PartID.ascending(),
+                      reason: value.finishReason,
+                      snapshot: await Snapshot.track(),
+                      messageID: input.assistantMessage.id,
+                      sessionID: input.assistantMessage.sessionID,
+                      type: "step-finish",
+                      tokens: usage.tokens,
+                      cost: usage.cost,
+                    })
+                    await Session.updateMessage(input.assistantMessage)
+                    if (snapshot) {
+                      const hash = await Snapshot.track()
+                      const patch = hash ? await Snapshot.patch(snapshot) : undefined
+                      if (patch && patch.files.length) {
+                        await Session.updatePart({
+                          id: PartID.ascending(),
+                          messageID: input.assistantMessage.id,
+                          sessionID: input.assistantMessage.id.split(':')[0] as SessionID, // or input.sessionID
+                          type: "patch",
+                          hash: patch.hash,
+                          files: patch.files,
+                        })
+                      }
+                      snapshot = undefined
                     }
-                    snapshot = undefined
                   }
                   SessionSummary.summarize({
                     sessionID: input.sessionID,
@@ -293,7 +298,14 @@ export namespace SessionProcessor {
                   })
                   if (
                     !input.assistantMessage.summary &&
-                    (await SessionCompaction.isOverflow({ tokens: usage.tokens, model: input.model }))
+                    (await SessionCompaction.isOverflow({
+                      tokens: Session.getUsage({
+                        model: input.model,
+                        usage: value.usage,
+                        metadata: value.providerMetadata,
+                      }).tokens,
+                      model: input.model,
+                    }))
                   ) {
                     needsCompaction = true
                   }
