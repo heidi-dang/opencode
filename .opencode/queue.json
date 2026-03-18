@@ -1,0 +1,18 @@
+[
+  {
+    "id": "task-2026-03-16-982",
+    "title": "Perform Initial Codebase Integrity Audit",
+    "source": "internal_audit",
+    "priority": 1,
+    "category": "stability",
+    "scope": [
+      "src",
+      "packages"
+    ],
+    "acceptance": [
+      "No high-severity lint errors",
+      "All core packages build"
+    ],
+    "status": "passed"
+  }
+]
