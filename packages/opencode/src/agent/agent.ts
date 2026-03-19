@@ -90,6 +90,29 @@ export namespace Agent {
         mode: "primary",
         native: true,
       },
+      heidi: {
+        name: "heidi",
+        description: "Autonomous orchestrator with 7-Phase architecture: FSM state, Git rollback, multi-agent delegation.",
+        prompt: "You are Heidi, an autonomous software orchestrator.\nUse task_boundary for FSM state. Delegate to @seo/@playwright/@ci_cd/@docs/@mcp_expert via task tool. Make atomic edits with Git rollback.",
+        options: {},
+        permission: PermissionNext.merge(
+          defaults,
+          PermissionNext.fromConfig({
+            question: "allow",
+            plan_enter: "allow",
+            task_boundary: "allow",
+            run_command: "allow",
+            browser_subagent: "allow",
+            knowledge_subagent: "allow",
+            edit: "allow",
+            write: "allow",
+            read: "allow",
+          }),
+          user,
+        ),
+        mode: "primary",
+        native: true,
+      },
       plan: {
         name: "plan",
         description: "Plan mode. Disallows all edit tools.",
@@ -138,15 +161,9 @@ export namespace Agent {
             glob: "allow",
             list: "allow",
             bash: "allow",
-            webfetch: "allow",
-            websearch: "allow",
             codesearch: "allow",
             read: "allow",
-            task_boundary: "allow",
             run_command: "allow",
-            replace_file_content: "allow",
-            browser_subagent: "allow",
-            knowledge_subagent: "allow",
             external_directory: {
               "*": "ask",
               ...Object.fromEntries(whitelistedDirs.map((dir) => [dir, "allow"])),
@@ -154,7 +171,7 @@ export namespace Agent {
           }),
           user,
         ),
-        description: `Fast agent specialized for exploring codebases. Use this when you need to quickly find files by patterns (eg. "src/components/**/*.tsx"), search code for keywords (eg. "API endpoints"), or answer questions about the codebase (eg. "how do API endpoints work?"). When calling this agent, specify the desired thoroughness level: "quick" for basic searches, "medium" for moderate exploration, or "very thorough" for comprehensive analysis across multiple locations and naming conventions.`,
+        description: "Fast codebase explorer. Finds files by pattern, searches code by keyword. Specify thoroughness: quick, medium, or very thorough.",
         prompt: PROMPT_EXPLORE,
         options: {},
         mode: "subagent",
@@ -165,6 +182,7 @@ export namespace Agent {
         mode: "primary",
         native: true,
         hidden: true,
+        variant: "small",
         prompt: PROMPT_COMPACTION,
         permission: PermissionNext.merge(
           defaults,
@@ -181,6 +199,7 @@ export namespace Agent {
         options: {},
         native: true,
         hidden: true,
+        variant: "small",
         temperature: 0.5,
         permission: PermissionNext.merge(
           defaults,
@@ -197,6 +216,7 @@ export namespace Agent {
         options: {},
         native: true,
         hidden: true,
+        variant: "small",
         permission: PermissionNext.merge(
           defaults,
           PermissionNext.fromConfig({
@@ -208,18 +228,8 @@ export namespace Agent {
       },
       seo: {
         name: "seo",
-        description: "Search & AI Optimization Expert specialized in Technical SEO, AEO (Answer Engine Optimization), and GEO (Generative Engine Optimization).",
-        prompt: [
-          "You are a Search & AI Optimization Expert.",
-          "Your goal is to maximize visibility across traditional search engines, answer engines, and generative AI systems.",
-          "Guidelines:",
-          "- Technical Foundation: Always audit crawlability, robots.txt, and sitemaps first.",
-          "- Triple Optimization: Design for traditional Google search (SEO), Featured Snippets/SGE (AEO), and LLM citations (GEO).",
-          "- Structured Data: Implement comprehensive Schema.org markup (FAQ, Article, LocalBusiness, Breadcrumb).",
-          "- Performance: Optimize Core Web Vitals (LCP, CLS, INP) and use modern image formats (.webp).",
-          "- AI Ready: Implement and maintain 'llms.txt' for AI crawler guidance.",
-          "- E-E-A-T: Focus on Expertise, Authoritativeness, and Trust signals in all content.",
-        ].join("\n"),
+        description: "SEO/AEO/GEO expert for search, snippets, and AI citation optimization.",
+        prompt: "SEO Expert. Audit crawlability first. Optimize for Google (SEO), Featured Snippets (AEO), LLM citations (GEO). Use Schema.org markup. Optimize Core Web Vitals. Maintain llms.txt. Apply E-E-A-T.",
         permission: PermissionNext.merge(
           defaults,
           PermissionNext.fromConfig({
@@ -239,6 +249,84 @@ export namespace Agent {
         mode: "subagent",
         native: true,
       },
+      playwright: {
+        name: "playwright",
+        description: "E2E testing expert using Playwright and browser automation.",
+        prompt: "Playwright Expert. Explore site before coding. Use locators (getByRole/getByText), not CSS. Write TypeScript tests with page objects. Debug flaky tests via race conditions and waits.",
+        permission: PermissionNext.merge(
+          defaults,
+          PermissionNext.fromConfig({
+            "*": "deny",
+            bash: "allow",
+            run_command: "allow",
+            edit: "allow",
+            write: "allow",
+            read: "allow",
+            browser: "allow",
+            task_boundary: "allow",
+          }),
+          user,
+        ),
+        options: {},
+        mode: "subagent",
+        native: true,
+      },
+      ci_cd: {
+        name: "ci_cd",
+        description: "CI/CD and GitOps expert for pipeline reliability.",
+        prompt: "CI/CD Expert. Triage failures (build/env/timeout). Optimize caching. Enforce least-privilege. Create rollback plans. Apply OWASP/Zero Trust.",
+        permission: PermissionNext.merge(
+          defaults,
+          PermissionNext.fromConfig({
+            "*": "deny",
+            bash: "allow",
+            run_command: "allow",
+            edit: "allow",
+          }),
+          user,
+        ),
+        options: {},
+        mode: "subagent",
+        native: true,
+      },
+      docs: {
+        name: "docs",
+        description: "Technical writing and documentation expert.",
+        prompt: "Docs Expert. Create ADRs from templates. Audit for A11y compliance. Follow strict heading hierarchy. Apply E-E-A-T principles.",
+        permission: PermissionNext.merge(
+          defaults,
+          PermissionNext.fromConfig({
+            "*": "deny",
+            read: "allow",
+            write: "allow",
+            edit: "allow",
+            a11y: "allow",
+            adr: "allow",
+          }),
+          user,
+        ),
+        options: {},
+        mode: "subagent",
+        native: true,
+      },
+      mcp_expert: {
+        name: "mcp_expert",
+        description: "MCP protocol integration and tool debugging expert.",
+        prompt: "MCP Expert. Use z.object for params. Use Tool.define for native integrations. Debug via session logs and protocol exchange.",
+        permission: PermissionNext.merge(
+          defaults,
+          PermissionNext.fromConfig({
+            "*": "deny",
+            read: "allow",
+            edit: "allow",
+            bash: "allow",
+          }),
+          user,
+        ),
+        options: {},
+        mode: "subagent",
+        native: true,
+      },
     }
 
     for (const [key, value] of Object.entries(cfg.agent ?? {})) {
@@ -250,7 +338,7 @@ export namespace Agent {
       if (!item)
         item = result[key] = {
           name: key,
-          mode: "all",
+          mode: "subagent",
           permission: PermissionNext.merge(defaults, user),
           options: {},
           native: false,

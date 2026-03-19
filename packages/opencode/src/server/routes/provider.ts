@@ -1,3 +1,6 @@
+import fs from "fs/promises"
+import { createReadStream } from "node:fs"
+import { pipeline } from "node:stream/promises"
 import { Hono } from "hono"
 import { describeRoute, validator, resolver } from "hono-openapi"
 import { HTTPException } from "hono/http-exception"
@@ -11,10 +14,13 @@ import { Instance } from "../../project/instance"
 import { Session } from "../../session"
 import { SessionID } from "../../session/schema"
 import { SessionStats, aggregateSessionStats } from "../../session/stats"
+import { BuilderState } from "../../builder/state"
 import { mapValues } from "remeda"
 import { errors } from "../error"
 import { lazy } from "../../util/lazy"
 import { Client, type ClientChannel, type ConnectConfig, type SFTPWrapper } from "ssh2"
+import path from "path"
+import { ulid } from "ulid"
 
 const DeployInput = z.object({
   host: z.string().min(1),
@@ -23,18 +29,76 @@ const DeployInput = z.object({
   password: z.string().min(1),
   path: z.string().min(1),
   publicPort: z.number().int().min(1).max(65535).default(8080),
-  sessionID: SessionID.zod.optional(),
+  environmentID: z.string().optional(),
+  release: z.object({
+    id: z.string(),
+    releaseID: z.string().optional(),
+    sessionID: SessionID.zod.optional(),
+    title: z.string().optional(),
+    shareURL: z.string().optional(),
+    branch: z.string().optional(),
+    commit: z.string().optional(),
+  }),
+  archive: z.object({
+    file: z.string().min(1),
+    name: z.string().min(1),
+    count: z.number().int().nonnegative(),
+    root: z.string().min(1),
+    size: z.number().int().nonnegative(),
+  }),
+  runtime: z.object({
+    pm: z.string(),
+    install: z.string(),
+    build: z.string().optional(),
+    start: z.string().min(1),
+    detected: z.string().optional(),
+    supervisor: z.object({
+      kind: z.literal("pm2"),
+      name: z.string(),
+      file: z.string(),
+      start: z.string(),
+      stop: z.string(),
+      save: z.string(),
+      status: z.string(),
+    }),
+  }),
+  vars: z.record(z.string(), z.string()).default({}),
 })
 
 const DeployResponse = z.object({
-  host: z.string(),
-  port: z.number(),
-  path: z.string(),
-  publicPort: z.number(),
-  url: z.string(),
+  remote: BuilderState.RemoteRelease,
+  promotion: BuilderState.Promotion,
   shareURL: z.string().optional(),
-  sessionID: SessionID.zod.optional(),
   logs: z.array(z.string()),
+  supervisor: BuilderState.Supervisor.optional(),
+})
+
+const RollbackInput = z.object({
+  host: z.string().min(1),
+  port: z.number().int().min(1).max(65535).default(22),
+  user: z.string().min(1),
+  password: z.string().min(1),
+  current: z.object({
+    deployID: z.string().optional(),
+    releaseID: z.string().optional(),
+    promotion: BuilderState.Promotion,
+    supervisor: BuilderState.Supervisor.optional(),
+  }),
+  target: z.object({
+    deployID: z.string().optional(),
+    releaseID: z.string().optional(),
+    revisionID: z.string().optional(),
+    remote: BuilderState.RemoteRelease,
+    supervisor: BuilderState.Supervisor.optional(),
+  }),
+  reason: z.string().optional(),
+})
+
+const RollbackResponse = z.object({
+  remote: BuilderState.RemoteRelease,
+  promotion: BuilderState.Promotion,
+  logs: z.array(z.string()),
+  supervisor: BuilderState.Supervisor.optional(),
 })
 
 const ProviderSummary = z.object({
@@ -117,7 +181,45 @@ function shell(value: string) {
   return `'${value.replace(/'/g, `'"'"'`)}'`
 }
 
-function connect(input: z.infer<typeof DeployInput>) {
+function join(...value: string[]) {
+  return path.posix.join(...value)
+}
+
+function parse(value: string) {
+  const text = value.trim()
+  if (!text) return
+  try {
+    const item = JSON.parse(text)
+    const promotion = BuilderState.Promotion.safeParse(item)
+    if (promotion.success) return promotion.data
+    const current = BuilderState.RemoteRelease.safeParse(item)
+    if (current.success) {
+      return BuilderState.Promotion.parse({
+        layout: {
+          root: path.posix.dirname(path.posix.dirname(current.data.path)),
+          releases: path.posix.dirname(current.data.path),
+          current: join(path.posix.dirname(path.posix.dirname(current.data.path)), "current"),
+          shared: join(path.posix.dirname(path.posix.dirname(current.data.path)), "shared"),
+        },
+        current: current.data,
+      })
+    }
+  } catch {}
+}
+
+function previous(input: { current?: z.infer<typeof BuilderState.Promotion>; link?: string }) {
+  if (input.current?.current) return input.current.current
+  if (!input.link) return
+  return BuilderState.RemoteRelease.parse({
+    id: path.posix.basename(input.link),
+    path: input.link,
+    compose: join(input.link, "docker-compose.yml"),
+    site: join(input.link, "site"),
+    createdAt: Date.now(),
+  })
+}
+
+function connect(input: { host: string; port: number; user: string; password: string }) {
   return new Promise<Client>((resolve, reject) => {
     const conn = new Client()
     conn.on("ready", () => resolve(conn))
@@ -165,67 +267,297 @@ function sftp(conn: Client) {
   })
 }
 
-async function upload(client: SFTPWrapper, path: string, body: string) {
+async function upload(client: SFTPWrapper, path: string, body: string, mode = 0o644) {
   await new Promise<void>((resolve, reject) => {
-    const stream = client.createWriteStream(path, { encoding: "utf8", mode: 0o644 })
+    const stream = client.createWriteStream(path, { encoding: "utf8", mode })
     stream.on("close", () => resolve())
     stream.on("error", reject)
     stream.end(body)
   })
 }
 
-function html(input: {
-  name: string
-  project: string
-  model?: string
-  share?: string
-}) {
-  return `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>${input.name}</title>
-    <style>
-      :root { color-scheme: dark; }
-      body { margin: 0; font-family: ui-sans-serif, system-ui, sans-serif; background: radial-gradient(circle at top left, #11314a, #081018 55%); color: #eaf2f8; }
-      main { max-width: 760px; margin: 0 auto; padding: 64px 24px; }
-      .card { background: rgba(7, 17, 28, 0.72); border: 1px solid rgba(255,255,255,0.12); border-radius: 28px; padding: 28px; backdrop-filter: blur(10px); }
-      .eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: .18em; color: #8ab9dc; }
-      h1 { font-size: 36px; line-height: 1.1; margin: 16px 0 12px; }
-      p { color: #bbd0df; line-height: 1.65; }
-      .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); margin-top: 28px; }
-      .tile { border-radius: 18px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); padding: 16px; }
-      a { color: #fff; }
-    </style>
-  </head>
-  <body>
-    <main>
-      <section class="card">
-        <div class="eyebrow">GitHub Copilot VPS deployment</div>
-        <h1>${input.name}</h1>
-        <p>This remote deployment was generated by the Copilot Builder workflow for ${input.project}.</p>
-        <div class="grid">
-          <div class="tile"><strong>Project</strong><br />${input.project}</div>
-          <div class="tile"><strong>Model</strong><br />${input.model ?? "Not selected"}</div>
-          <div class="tile"><strong>Published session</strong><br />${input.share ? `<a href="${input.share}">${input.share}</a>` : "No published session yet"}</div>
-        </div>
-      </section>
-    </main>
-  </body>
-</html>`
+async function uploadFile(client: SFTPWrapper, path: string, file: string) {
+  await pipeline(createReadStream(file), client.createWriteStream(path, { mode: 0o644 }))
 }
 
-function compose(input: { port: number }) {
-  return `services:
-  web:
-    image: nginx:1.27-alpine
-    restart: unless-stopped
-    ports:
-      - "${input.port}:80"
-    volumes:
-      - ./site:/usr/share/nginx/html:ro
+function proc(value: string) {
+  const text = value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+  return text || "builder-app"
+}
+
+function pm2(input: { name: string; root: string; shell: string; port: number; vars: Record<string, string> }) {
+  return `module.exports = ${JSON.stringify(
+    {
+      apps: [
+        {
+          name: input.name,
+          cwd: input.root,
+          script: "bash",
+          args: ["-lc", input.shell],
+          interpreter: "none",
+          autorestart: true,
+          watch: false,
+          time: true,
+          env: {
+            ...input.vars,
+            PORT: String(input.port),
+            HOST: "0.0.0.0",
+            NODE_ENV: "production",
+            BUN_ENV: "production",
+          },
+        },
+      ],
+    },
+    null,
+    2,
+  )}
 `
+}
+
+async function step(conn: Client, root: string, command: string, logs: string[]) {
+  logs.push(`$ cd ${root} && ${command}`)
+  return exec(conn, `cd ${shell(root)} && ${command}`, logs)
+}
+
+function fail(err: unknown, input: { logs: string[]; promotion?: z.infer<typeof BuilderState.Promotion> }) {
+  const msg = err instanceof Error ? err.message : String(err)
+  return Object.assign(new Error(msg), input)
+}
+
+function app(input: { current?: z.infer<typeof BuilderState.Supervisor>; target?: z.infer<typeof BuilderState.Supervisor> }) {
+  return input.target?.name ?? input.current?.name ?? "builder-app"
+}
+
+function cmd(name: string) {
+  return {
+    start: `npx --yes pm2@latest start .opencode/pm2.config.cjs --only ${name} --update-env`,
+    stop: `npx --yes pm2@latest delete ${name}`,
+    save: "npx --yes pm2@latest save --force",
+    status: `npx --yes pm2@latest describe ${name}`,
+  }
+}
+
+export namespace ProviderRemote {
+  export async function deploy(input: z.input<typeof DeployInput>) {
+    const body = DeployInput.parse(input)
+    const logs = [`Connecting to ${body.host}:${body.port} as ${body.user}`]
+    const conn = await connect(body)
+    const url = `http://${body.host}:${body.publicPort}`
+    let promotion: z.infer<typeof BuilderState.Promotion> | undefined
+
+    try {
+      const root = body.path.replace(/\/+$/, "") || "/"
+      const layout = BuilderState.Layout.parse({
+        root,
+        releases: join(root, "releases"),
+        current: join(root, "current"),
+        shared: join(root, "shared"),
+      })
+      const dir = join(layout.releases, body.release.id)
+      const info = BuilderState.RemoteRelease.parse({
+        id: body.release.id,
+        releaseID: body.release.releaseID,
+        sessionID: body.release.sessionID,
+        title: body.release.title,
+        shareURL: body.release.shareURL,
+        path: dir,
+        archive: join(dir, body.archive.name),
+        host: body.host,
+        url,
+        publicPort: body.publicPort,
+        branch: body.release.branch,
+        commit: body.release.commit,
+        createdAt: Date.now(),
+      })
+      logs.push(`Created ${body.archive.name} from ${body.archive.count} files in ${body.archive.root}`)
+      logs.push(`Archive size: ${body.archive.size} bytes`)
+      logs.push(`Detected runtime package manager: ${body.runtime.pm}`)
+      logs.push(`Detected install command: ${body.runtime.install}`)
+      logs.push(`Detected runtime source: ${body.runtime.detected ?? "unknown"}`)
+      if (body.runtime.build) logs.push(`Detected build command: ${body.runtime.build}`)
+      logs.push(`Detected start command: ${body.runtime.start}`)
+      logs.push(`Supervisor contract: pm2 app=${body.runtime.supervisor.name} file=${body.runtime.supervisor.file}`)
+      if (Object.keys(body.vars).length) {
+        logs.push(`Resolved ${Object.keys(body.vars).length} deploy vars${body.environmentID ? ` from environment ${body.environmentID}` : ""}`)
+      }
+      const item = parse(
+        await exec(
+          conn,
+          `if [ -f ${shell(join(layout.shared, "promotion.json"))} ]; then cat ${shell(join(layout.shared, "promotion.json"))}; elif [ -f ${shell(join(layout.current, "release.json"))} ]; then cat ${shell(join(layout.current, "release.json"))}; fi`,
+          logs,
+        ),
+      )
+      const link = (await exec(conn, `if [ -L ${shell(layout.current)} ]; then readlink ${shell(layout.current)}; fi`, logs)).trim() || undefined
+      const prev = previous({
+        current: item,
+        link,
+      })
+      promotion = BuilderState.Promotion.parse({
+        layout,
+        previous: prev,
+        current: info,
+      })
+      if (prev) logs.push(`Found active release ${prev.id}`)
+      await exec(conn, `mkdir -p ${shell(root)} ${shell(layout.releases)} ${shell(layout.shared)} ${shell(dir)} ${shell(join(dir, ".opencode"))}`, logs)
+      const ftp = await sftp(conn)
+      await uploadFile(ftp, info.archive!, body.archive.file)
+      await upload(
+        ftp,
+        join(dir, body.runtime.supervisor.file),
+        pm2({
+          name: body.runtime.supervisor.name,
+          root: dir,
+          shell: body.runtime.start,
+          port: body.publicPort,
+          vars: body.vars,
+        }),
+        0o600,
+      )
+      await upload(ftp, join(dir, "release.json"), JSON.stringify(info, null, 2))
+      logs.push(`Uploaded release ${body.release.id} to ${dir}`)
+      await exec(conn, `tar -xzf ${shell(info.archive!)} -C ${shell(dir)}`, logs)
+      await exec(conn, `rm -f ${shell(info.archive!)}`, logs)
+      logs.push(`Unpacked project archive into ${dir}`)
+      await step(conn, dir, "test -f package.json", logs)
+      await step(conn, dir, body.runtime.install, logs)
+      if (body.runtime.build) await step(conn, dir, body.runtime.build, logs)
+      await step(conn, dir, `${body.runtime.supervisor.stop} >/dev/null 2>&1 || true`, logs)
+      await exec(
+        conn,
+        `ln -sfn ${shell(dir)} ${shell(join(root, ".next"))} && mv -Tf ${shell(join(root, ".next"))} ${shell(layout.current)}`,
+        logs,
+      )
+      logs.push(prev ? `Promoted ${body.release.id} over ${prev.id}` : `Promoted initial release ${body.release.id}`)
+      if (prev?.compose) {
+        await exec(conn, `docker compose -f ${shell(prev.compose)} down --remove-orphans >/dev/null 2>&1 || true`, logs)
+      }
+      await step(conn, layout.current, body.runtime.supervisor.start, logs)
+      await step(conn, layout.current, body.runtime.supervisor.save, logs)
+      const meta = await step(conn, layout.current, `npx --yes pm2@latest jlist`, logs)
+      const sup = (() => {
+        try {
+          const rows = JSON.parse(meta) as Array<{ name?: string; pid?: number; pm2_env?: { status?: string } }>
+          const item = rows.find((entry) => entry.name === body.runtime.supervisor.name)
+          return BuilderState.Supervisor.parse({
+            name: body.runtime.supervisor.name,
+            pid: item?.pid,
+            status:
+              item?.pm2_env?.status === "online"
+                ? "running"
+                : item?.pm2_env?.status === "stopped"
+                  ? "stopped"
+                  : "starting",
+          })
+        } catch {
+          return BuilderState.Supervisor.parse({
+            name: body.runtime.supervisor.name,
+            status: "starting",
+          })
+        }
+      })()
+      await step(conn, layout.current, body.runtime.supervisor.status, logs)
+      const current = BuilderState.RemoteRelease.parse({
+        ...info,
+        promotedAt: Date.now(),
+      })
+      const next = BuilderState.Promotion.parse({
+        ...promotion,
+        current,
+      })
+      promotion = next
+      await upload(ftp, join(dir, "release.json"), JSON.stringify(current, null, 2))
+      await upload(ftp, join(layout.shared, "promotion.json"), JSON.stringify(next, null, 2))
+      return DeployResponse.parse({
+        remote: current,
+        promotion: next,
+        shareURL: body.release.shareURL,
+        logs,
+        supervisor: sup,
+      })
+    } catch (err) {
+      throw fail(err, { logs, promotion })
+    } finally {
+      conn.end()
+    }
+  }
+
+  export async function rollback(input: z.input<typeof RollbackInput>) {
+    const body = RollbackInput.parse(input)
+    const logs = [`Connecting to ${body.host}:${body.port} as ${body.user}`]
+    const conn = await connect(body)
+    const name = app({ current: body.current.supervisor, target: body.target.supervisor })
+    const pm = cmd(name)
+    let promotion = body.current.promotion
+
+    try {
+      const root = body.current.promotion.layout.root
+      const dir = body.target.remote.path
+      const prev = body.current.promotion.current
+      logs.push(`Rolling back ${prev.id} to ${body.target.remote.id}`)
+      if (body.reason) logs.push(`Reason: ${body.reason}`)
+      await exec(conn, `test -d ${shell(dir)}`, logs)
+      await exec(conn, `mkdir -p ${shell(root)} ${shell(body.current.promotion.layout.shared)}`, logs)
+      await exec(conn, `if [ -L ${shell(body.current.promotion.layout.current)} ] || [ -d ${shell(body.current.promotion.layout.current)} ]; then cd ${shell(body.current.promotion.layout.current)} && ${pm.stop} >/dev/null 2>&1 || true; fi`, logs)
+      await exec(
+        conn,
+        `ln -sfn ${shell(dir)} ${shell(join(root, ".next"))} && mv -Tf ${shell(join(root, ".next"))} ${shell(body.current.promotion.layout.current)}`,
+        logs,
+      )
+      if (prev.compose) {
+        await exec(conn, `docker compose -f ${shell(prev.compose)} down --remove-orphans >/dev/null 2>&1 || true`, logs)
+      }
+      await step(conn, body.current.promotion.layout.current, pm.start, logs)
+      await step(conn, body.current.promotion.layout.current, pm.save, logs)
+      const meta = await step(conn, body.current.promotion.layout.current, `npx --yes pm2@latest jlist`, logs)
+      const sup = (() => {
+        try {
+          const rows = JSON.parse(meta) as Array<{ name?: string; pid?: number; pm2_env?: { status?: string } }>
+          const item = rows.find((entry) => entry.name === name)
+          return BuilderState.Supervisor.parse({
+            name,
+            pid: item?.pid,
+            status:
+              item?.pm2_env?.status === "online"
+                ? "running"
+                : item?.pm2_env?.status === "stopped"
+                  ? "stopped"
+                  : "starting",
+          })
+        } catch {
+          return BuilderState.Supervisor.parse({
+            name,
+            status: "starting",
+          })
+        }
+      })()
+      await step(conn, body.current.promotion.layout.current, pm.status, logs)
+      const current = BuilderState.RemoteRelease.parse({
+        ...body.target.remote,
+        promotedAt: Date.now(),
+      })
+      promotion = BuilderState.Promotion.parse({
+        layout: body.current.promotion.layout,
+        previous: prev,
+        current,
+      })
+      const ftp = await sftp(conn)
+      await upload(ftp, join(current.path, "release.json"), JSON.stringify(current, null, 2))
+      await upload(ftp, join(body.current.promotion.layout.shared, "promotion.json"), JSON.stringify(promotion, null, 2))
+      return RollbackResponse.parse({
+        remote: current,
+        promotion,
+        logs,
+        supervisor: sup,
+      })
+    } catch (err) {
+      throw fail(err, { logs, promotion })
+    } finally {
+      conn.end()
+    }
+  }
 }
 
 async function providers() {
@@ -451,12 +783,12 @@ export const ProviderRoutes = lazy(() =>
     .post(
       "/:providerID/deploy",
       describeRoute({
-        summary: "Deploy builder landing page",
-        description: "Connect to a VPS over SSH and deploy a Docker Compose landing page for the current Copilot builder project.",
+        summary: "Execute remote builder deploy",
+        description: "Run the SSH deploy steps for a builder release whose environment, archive, and runtime were already resolved server-side.",
         operationId: "provider.deploy",
         responses: {
           200: {
-            description: "Deployment result",
+            description: "Remote deployment result",
             content: {
               "application/json": {
                 schema: resolver(DeployResponse),
@@ -473,49 +805,35 @@ export const ProviderRoutes = lazy(() =>
         if (providerID !== ProviderID.githubCopilot) {
           throw new HTTPException(404, { message: `Unsupported provider workflow: ${providerID}` })
         }
-        const body = c.req.valid("json")
-        const base = await latest({ sessionID: body.sessionID })
-        const session = !base ? undefined : base.share?.url ? base : await Session.share(base.id).then(() => Session.get(base.id))
-        const shareURL = session?.share?.url
-        const logs = [`Connecting to ${body.host}:${body.port} as ${body.user}`]
-        const conn = await connect(body)
-
-        try {
-          const root = body.path.replace(/\/$/, "")
-          await exec(conn, `mkdir -p ${shell(root)} ${shell(`${root}/site`)}`, logs)
-          const ftp = await sftp(conn)
-          await upload(
-            ftp,
-            `${root}/docker-compose.yml`,
-            compose({ port: body.publicPort }),
-          )
-          await upload(
-            ftp,
-            `${root}/site/index.html`,
-            html({
-              name: `${Instance.project.name ?? "Copilot Builder"} deployment`,
-              project: Instance.project.worktree,
-              model: (await providers()).default[providerID],
-              share: shareURL,
-            }),
-          )
-          logs.push(`Uploaded deployment files to ${root}`)
-          await exec(conn, `docker compose -f ${shell(`${root}/docker-compose.yml`)} up -d`, logs)
-          await exec(conn, `docker compose -f ${shell(`${root}/docker-compose.yml`)} ps`, logs)
-
-          return c.json({
-            host: body.host,
-            port: body.port,
-            path: root,
-            publicPort: body.publicPort,
-            url: `http://${body.host}:${body.publicPort}`,
-            shareURL,
-            sessionID: session?.id,
-            logs,
-          })
-        } finally {
-          conn.end()
+        return c.json(await ProviderRemote.deploy(c.req.valid("json")))
+      },
+    )
+    .post(
+      "/:providerID/rollback",
+      describeRoute({
+        summary: "Execute remote builder rollback",
+        description: "Run the SSH rollback steps for a builder deploy using previously recorded promotion metadata.",
+        operationId: "provider.rollback",
+        responses: {
+          200: {
+            description: "Remote rollback result",
+            content: {
+              "application/json": {
+                schema: resolver(RollbackResponse),
+              },
+            },
+          },
+          ...errors(400, 404),
+        },
+      }),
+      validator("param", z.object({ providerID: ProviderID.zod })),
+      validator("json", RollbackInput),
+      async (c) => {
+        const providerID = c.req.valid("param").providerID
+        if (providerID !== ProviderID.githubCopilot) {
+          throw new HTTPException(404, { message: `Unsupported provider workflow: ${providerID}` })
         }
+        return c.json(await ProviderRemote.rollback(c.req.valid("json")))
       },
     )
     .get(

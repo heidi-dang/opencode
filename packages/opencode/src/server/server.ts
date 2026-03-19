@@ -33,6 +33,7 @@ import { McpRoutes } from "./routes/mcp"
 import { FileRoutes } from "./routes/file"
 import { ConfigRoutes } from "./routes/config"
 import { ExperimentalRoutes } from "./routes/experimental"
+import { BuilderRoutes } from "./routes/builder"
 import { ProviderRoutes } from "./routes/provider"
 import { InstanceBootstrap } from "../project/bootstrap"
 import { NotFoundError } from "../storage/db"
@@ -242,6 +243,7 @@ export namespace Server {
           }),
         ),
       )
+      .route("/builder", BuilderRoutes())
       .route("/project", ProjectRoutes())
       .route("/pty", PtyRoutes())
       .route("/config", ConfigRoutes())

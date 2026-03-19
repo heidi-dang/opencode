@@ -35,6 +35,12 @@ function deny(profile: Profile, cmd: string) {
   return false
 }
 
+async function pick(sessionID: SessionID, id?: string) {
+  if (id) return id
+  const state = await HeidiState.read(sessionID)
+  return state.resume.checkpoint_id ?? undefined
+}
+
 export namespace HeidiExec {
   export async function checkpoint(sessionID: SessionID, step: string, files: string[]) {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -80,10 +86,12 @@ export namespace HeidiExec {
     return id
   }
 
-  export async function rollback(sessionID: SessionID, id: string) {
+  export async function rollback(sessionID: SessionID, id?: string) {
+    const item = await pick(sessionID, id)
+    if (!item) return
     const worktree = Instance.worktree
     const g = (args: string[]) => git(args, { cwd: worktree })
-    const ref = `refs/heidi/checkpoints/${sessionID}/${id}`
+    const ref = `refs/heidi/checkpoints/${sessionID}/${item}`
 
     // Try Git rollback
     if (Instance.project.vcs === "git") {
@@ -110,7 +118,7 @@ export namespace HeidiExec {
     }
 
     // Fallback to JSON rollback
-    const p = path.join(dir(sessionID), `${id}.json`)
+    const p = path.join(dir(sessionID), `${item}.json`)
     if (await Filesystem.exists(p)) {
       const data = await Filesystem.readJson<{ files: { file: string; exists: boolean; content: string }[] }>(p)
       await Promise.all(

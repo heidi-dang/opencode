@@ -1,0 +1,30 @@
+{
+  "run_id": "tool_d0476cbd6001U5O1yoQEfufp4X",
+  "task_id": "ses_2fb89480affe4aHqYbPDEVWhDf",
+  "fsm_state": "IDLE",
+  "mode": "PLANNING",
+  "objective": {
+    "locked": false,
+    "text": ""
+  },
+  "plan": {
+    "path": "/home/heidi/work/opencode-main/opencode-copilot/.opencode/heidi/ses_2fb89480affe4aHqYbPDEVWhDf/implementation_plan.md",
+    "hash": "",
+    "locked": false,
+    "amendments": []
+  },
+  "checklist": [],
+  "active_files": [],
+  "changed_files": [],
+  "commands": [],
+  "verification_commands": [],
+  "checkpoints": [],
+  "block_reason": null,
+  "last_successful_step": "",
+  "next_transition": "DISCOVERY",
+  "resume": {
+    "next_step": "DISCOVERY",
+    "checkpoint_id": null,
+    "failed_hypotheses": []
+  }
+}

@@ -1,98 +1,256 @@
 import { Button } from "@opencode-ai/ui/button"
 import { useDialog } from "@opencode-ai/ui/context/dialog"
-import { Icon } from "@opencode-ai/ui/icon"
 import { Tabs } from "@opencode-ai/ui/tabs"
 import { TextField } from "@opencode-ai/ui/text-field"
+import { Select } from "@opencode-ai/ui/select"
 import { showToast } from "@opencode-ai/ui/toast"
-import { createMemo, For, Show } from "solid-js"
+import { batch, createEffect, createMemo, For, on, Show, createSignal } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useNavigate, useParams } from "@solidjs/router"
 import { DialogConnectProvider } from "@/components/dialog-connect-provider"
+import { Terminal } from "@/components/terminal"
 import { useLanguage } from "@/context/language"
+import { useSync } from "@/context/sync"
+import { useBuilder } from "@/hooks/use-builder"
 import { useCopilotSummary } from "@/hooks/use-copilot-summary"
-import { decode64 } from "@/utils/base64"
-
-const lanes = [
-  "copilot.page.build.lane.prompt",
-  "copilot.page.build.lane.code",
-  "copilot.page.build.lane.preview",
-  "copilot.page.build.lane.deploy",
-] as const
-
-const publishItems = [
-  "copilot.page.publish.item.private",
-  "copilot.page.publish.item.updates",
-  "copilot.page.publish.item.repo",
-] as const
-
-const deploy = [
-  "copilot.page.deploy.item.compose",
-  "copilot.page.deploy.item.logs",
-  "copilot.page.deploy.item.rollback",
-] as const
 
 const tabs = ["build", "preview", "publish", "deploy"] as const
+
+function text(value: unknown) {
+  return typeof value === "string" ? value : ""
+}
 
 export default function CopilotPage() {
   const dialog = useDialog()
   const language = useLanguage()
   const navigate = useNavigate()
   const params = useParams()
+  const sync = useSync()
   const summary = useCopilotSummary()
-  const dir = createMemo(() => decode64(params.dir) ?? "")
-  const app = createMemo(() => dir().split("/").filter(Boolean).at(-1) ?? "app")
-  const target = createMemo(() => `${app()}.vps.local`)
-  const client = createMemo(() => summary.sdk())
+  const builder = useBuilder()
+  const app = createMemo(() => builder.dir().split("/").filter(Boolean).at(-1) ?? "app")
   const connected = createMemo(() => summary.data()?.connected ?? false)
-  const latest = createMemo(() => summary.data()?.latestSession)
-  const share = createMemo(() => store.shareURL || latest()?.shareURL)
   const total = createMemo(() => {
     const usage = summary.data()?.usage.totalTokens
     if (!usage) return 0
     return usage.input + usage.output + usage.reasoning + usage.cache.read + usage.cache.write
   })
-  const stamp = createMemo(() => {
-    const value = summary.data()?.usage.lastUpdated
-    if (!value) return language.t("copilot.page.summary.empty")
-    return new Date(value).toLocaleString()
+  const sessionID = createMemo(() => builder.data()?.sessionID)
+  const status = createMemo(() => {
+    const id = sessionID()
+    if (!id) return "idle"
+    return sync.data.session_status[id]?.type ?? "idle"
+  })
+  const session = createMemo(() => {
+    const id = sessionID()
+    if (!id) return
+    return sync.session.get(id)
+  })
+  const diff = createMemo(() => {
+    const id = sessionID()
+    if (!id) return []
+    return sync.data.session_diff[id] ?? []
+  })
+  const messages = createMemo(() => {
+    const id = sessionID()
+    if (!id) return []
+    return sync.data.message[id] ?? []
+  })
+  const feed = createMemo(() =>
+    messages()
+      .slice(-8)
+      .map((msg) => ({
+        id: msg.id,
+        role: msg.role,
+        text: (sync.data.part[msg.id] ?? [])
+          .filter((part) => part.type === "text")
+          .map((part) => text("text" in part ? part.text : ""))
+          .join("\n")
+          .trim(),
+        time: new Date(msg.time.created).toLocaleTimeString(),
+      })),
+  )
+  const share = createMemo(() => builder.data()?.releases[0]?.shareURL || session()?.share?.url)
+  const preview = createMemo(() => builder.data()?.preview)
+  const previewPty = createMemo(() => {
+    const info = preview()?.info
+    if (!info) return
+    return {
+      id: info.id,
+      title: info.title,
+      titleNumber: 1,
+    }
   })
   const [store, setStore] = createStore({
-    prompt: language.t("copilot.page.build.prompt.placeholder"),
-    host: target(),
+    prompt: "",
+    modelID: "",
+    agent: "build",
+    previewCommand: "",
+    previewURL: "",
+    annotationFile: "",
+    annotationNote: "",
+    environment: "",
+    deploySecret: "",
+    host: "",
     publicPort: "8080",
-    user: "root",
-    password: "",
-    path: `/srv/${app()}`,
+    user: "",
+    path: "",
+    buildPending: false,
+    previewPending: false,
     publishPending: false,
     deployPending: false,
-    shareURL: "",
     deployURL: "",
     deployLogs: [] as string[],
   })
 
+  createEffect(
+    on(
+      () => builder.data()?.sessionID,
+      (id) => {
+        if (!id) return
+        void sync.session.sync(id, { force: true })
+        void sync.session.diff(id, { force: true })
+      },
+    ),
+  )
+
+  createEffect(() => {
+    const current = summary.data()?.defaultModel
+    const item = builder.data()
+    const nextModel = item?.modelID ?? current ?? ""
+    const nextAgent = item?.agent ?? "build"
+    const nextCommand = item?.preview.shell ?? ""
+    const nextURL = item?.preview.url ?? ""
+    batch(() => {
+      if (!store.modelID && nextModel) setStore("modelID", nextModel)
+      if (store.agent === "build" && nextAgent) setStore("agent", nextAgent)
+      if (!store.previewCommand && nextCommand) setStore("previewCommand", nextCommand)
+      if (!store.previewURL && nextURL) setStore("previewURL", nextURL)
+    })
+  })
+
+  async function ensureSession() {
+    if (!builder.sdk()) return
+    try {
+      await builder.sdk()!.builder.session(
+        {
+          providerID: "github-copilot",
+          modelID: store.modelID || summary.data()?.defaultModel,
+          agent: store.agent,
+        },
+        { throwOnError: true },
+      )
+      await builder.refetch()
+    } catch (error) {
+      showToast({
+        variant: "error",
+        title: "Failed to create builder session",
+        description: error instanceof Error ? error.message : language.t("common.requestFailed"),
+      })
+    }
+  }
+
+  async function buildRun() {
+    if (!builder.sdk() || !store.prompt.trim() || !store.modelID) return
+    setStore("buildPending", true)
+    try {
+      await builder.sdk()!.builder.build(
+        {
+          prompt: store.prompt.trim(),
+          providerID: "github-copilot",
+          modelID: store.modelID,
+          agent: store.agent,
+        },
+        { throwOnError: true },
+      )
+      await builder.refetch()
+      await summary.refetch()
+      showToast({
+        variant: "success",
+        title: "Builder run started",
+        description: "Streaming into the dedicated builder session.",
+      })
+    } catch (error) {
+      showToast({
+        variant: "error",
+        title: "Builder run failed",
+        description: error instanceof Error ? error.message : language.t("common.requestFailed"),
+      })
+    } finally {
+      setStore("buildPending", false)
+    }
+  }
+
+  async function previewStart() {
+    if (!builder.sdk()) return
+    setStore("previewPending", true)
+    try {
+      await builder.sdk()!.builder.preview.start(
+        {
+          command: store.previewCommand || undefined,
+          url: store.previewURL || undefined,
+        },
+        { throwOnError: true },
+      )
+      await builder.refetch()
+    } catch (error) {
+      showToast({
+        variant: "error",
+        title: "Failed to start preview",
+        description: error instanceof Error ? error.message : language.t("common.requestFailed"),
+      })
+    } finally {
+      setStore("previewPending", false)
+    }
+  }
+
+  async function previewStop() {
+    if (!builder.sdk()) return
+    setStore("previewPending", true)
+    try {
+      await builder.sdk()!.builder.preview.stop(undefined, { throwOnError: true })
+      await builder.refetch()
+    } catch (error) {
+      showToast({
+        variant: "error",
+        title: "Failed to stop preview",
+        description: error instanceof Error ? error.message : language.t("common.requestFailed"),
+      })
+    } finally {
+      setStore("previewPending", false)
+    }
+  }
+
   async function publish() {
-    const id = latest()?.id
-    if (!client() || !id) return
+    const id = sessionID()
+    if (!summary.sdk() || !id) return
     setStore("publishPending", true)
     try {
-      const result = await client()!.provider.publish(
+      const result = await summary.sdk()!.provider.publish(
         {
           providerID: "github-copilot",
           sessionID: id,
         },
         { throwOnError: true },
       )
-      setStore("shareURL", result.data!.shareURL)
-      await summary.refetch()
+      await summary.sdk()!.builder.release(
+        {
+          sessionID: id,
+          title: builder.data()?.title ?? `${app()} release`,
+          shareURL: result.data!.shareURL,
+        },
+        { throwOnError: true },
+      )
+      await Promise.all([builder.refetch(), summary.refetch()])
       showToast({
         variant: "success",
-        title: language.t("copilot.page.publish.toast.success"),
+        title: "Release published",
         description: result.data!.shareURL,
       })
     } catch (error) {
       showToast({
         variant: "error",
-        title: language.t("copilot.page.publish.toast.failed"),
+        title: "Release publish failed",
         description: error instanceof Error ? error.message : language.t("common.requestFailed"),
       })
     } finally {
@@ -101,27 +259,22 @@ export default function CopilotPage() {
   }
 
   async function unpublish() {
-    const id = latest()?.id
-    if (!client() || !id) return
+    const id = sessionID()
+    if (!summary.sdk() || !id) return
     setStore("publishPending", true)
     try {
-      await client()!.provider.unpublish(
+      await summary.sdk()!.provider.unpublish(
         {
           providerID: "github-copilot",
           sessionID: id,
         },
         { throwOnError: true },
       )
-      setStore("shareURL", "")
-      await summary.refetch()
-      showToast({
-        variant: "success",
-        title: language.t("copilot.page.publish.toast.unpublished"),
-      })
+      await Promise.all([builder.refetch(), summary.refetch()])
     } catch (error) {
       showToast({
         variant: "error",
-        title: language.t("copilot.page.publish.toast.failed"),
+        title: "Release unpublish failed",
         description: error instanceof Error ? error.message : language.t("common.requestFailed"),
       })
     } finally {
@@ -130,36 +283,42 @@ export default function CopilotPage() {
   }
 
   async function deployRun() {
-    if (!client()) return
+    const id = sessionID()
+    if (!summary.sdk() || !store.environment || !store.deploySecret) return
     setStore("deployPending", true)
     try {
-      const result = await client()!.provider.deploy(
+      const result = await summary.sdk()!.provider.deploy(
         {
           providerID: "github-copilot",
-          host: store.host,
-          port: 22,
-          user: store.user,
-          password: store.password,
-          path: store.path,
-          publicPort: Number(store.publicPort || "8080"),
-          sessionID: latest()?.id,
+          environment: store.environment,
+          secret: store.deploySecret,
+          sessionID: id,
         },
         { throwOnError: true },
       )
       setStore("deployURL", result.data!.url)
       setStore("deployLogs", result.data!.logs)
-      if (result.data!.shareURL) setStore("shareURL", result.data!.shareURL)
-      await summary.refetch()
+      await summary.sdk()!.builder.deploy(
+        {
+          releaseID: builder.data()?.releases[0]?.id,
+          environment: store.environment,
+          url: result.data!.url,
+          status: "ready",
+          logs: result.data!.logs,
+        },
+        { throwOnError: true },
+      )
+      await Promise.all([builder.refetch(), summary.refetch()])
       showToast({
         variant: "success",
-        title: language.t("copilot.page.deploy.toast.success"),
+        title: "Deployment finished",
         description: result.data!.url,
       })
     } catch (error) {
       setStore("deployLogs", [error instanceof Error ? error.message : language.t("common.requestFailed")])
       showToast({
         variant: "error",
-        title: language.t("copilot.page.deploy.toast.failed"),
+        title: "Deployment failed",
         description: error instanceof Error ? error.message : language.t("common.requestFailed"),
       })
     } finally {
@@ -167,55 +326,63 @@ export default function CopilotPage() {
     }
   }
 
+  async function addAnnotation() {
+    if (!builder.sdk() || !store.annotationFile.trim() || !store.annotationNote.trim()) return
+    try {
+      await builder.sdk()!.builder.annotation(
+        {
+          file: store.annotationFile.trim(),
+          note: store.annotationNote.trim(),
+        },
+        { throwOnError: true },
+      )
+      setStore("annotationNote", "")
+      await builder.refetch()
+    } catch (error) {
+      showToast({
+        variant: "error",
+        title: "Failed to save annotation",
+        description: error instanceof Error ? error.message : language.t("common.requestFailed"),
+      })
+    }
+  }
+
   return (
     <main data-page="copilot-builder" class="h-full overflow-y-auto">
       <div class="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-8">
         <section class="overflow-hidden rounded-[28px] border border-border-weak-base bg-[radial-gradient(circle_at_top_left,rgba(86,156,214,0.22),transparent_36%),radial-gradient(circle_at_bottom_right,rgba(135,206,235,0.14),transparent_30%),linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.01))] p-6 sm:p-8">
-          <div class="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
+          <div class="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div class="max-w-3xl">
-              <div class="inline-flex items-center gap-2 rounded-full border border-border-weak-base bg-surface-base px-3 py-1 text-11-medium uppercase tracking-[0.16em] text-text-weak">
-                <Icon name="brain" size="small" />
-                {language.t("copilot.page.badge")}
-              </div>
-              <h1 class="mt-4 max-w-2xl text-28-medium leading-tight text-text-strong sm:text-[34px]">
-                {language.t("copilot.page.title")}
-              </h1>
+              <div class="text-11-medium uppercase tracking-[0.16em] text-text-weak">GitHub Copilot Builder Runtime</div>
+              <h1 class="mt-3 max-w-2xl text-28-medium leading-tight text-text-strong sm:text-[34px]">{builder.data()?.title ?? app()}</h1>
               <p class="mt-3 max-w-2xl text-14-regular leading-6 text-text-base sm:text-15-regular">
-                {language.t("copilot.page.body")}
+                This page now owns a real builder session, preview process, release history, deploy history, and annotation log for this workspace.
               </p>
               <div class="mt-6 flex flex-wrap gap-3">
-                <Button
-                  size="large"
-                  variant="secondary"
-                  onClick={() => dialog.show(() => <DialogConnectProvider provider="github-copilot" />)}
-                >
-                  {connected() ? language.t("settings.copilot.cta.reconnect") : language.t("copilot.page.cta.connect")}
+                <Button size="large" variant="secondary" onClick={() => dialog.show(() => <DialogConnectProvider provider="github-copilot" />)}>
+                  {connected() ? language.t("settings.copilot.cta.reconnect") : "Connect provider"}
                 </Button>
-                <Button size="large" variant="ghost" onClick={() => navigate(`/${params.dir}/session`)}>
-                  {language.t("copilot.page.cta.session")}
+                <Button size="large" variant="ghost" onClick={() => navigate(`/${params.dir}/session/${sessionID() ?? ""}`)} disabled={!sessionID()}>
+                  Open builder session
                 </Button>
               </div>
             </div>
 
-            <div class="grid gap-3 sm:grid-cols-3 lg:min-w-[360px] lg:max-w-[420px]">
+            <div class="grid gap-3 sm:grid-cols-4 lg:min-w-[460px] lg:max-w-[560px]">
               <div class="rounded-2xl border border-border-weak-base bg-surface-base/80 p-4 backdrop-blur">
-                <div class="text-11-medium uppercase tracking-[0.12em] text-text-weak">
-                  {language.t("copilot.page.hero.connection")}
-                </div>
-                <div class="mt-2 text-14-medium text-text-strong">
-                  {connected() ? language.t("settings.copilot.status.connected") : language.t("settings.copilot.status.disconnected")}
-                </div>
+                <div class="text-11-medium uppercase tracking-[0.12em] text-text-weak">Connection</div>
+                <div class="mt-2 text-14-medium text-text-strong">{connected() ? "Connected" : "Disconnected"}</div>
               </div>
               <div class="rounded-2xl border border-border-weak-base bg-surface-base/80 p-4 backdrop-blur">
-                <div class="text-11-medium uppercase tracking-[0.12em] text-text-weak">
-                  {language.t("copilot.page.hero.sessions")}
-                </div>
-                <div class="mt-2 truncate text-14-medium text-text-strong">{summary.data()?.usage.totalSessions.toLocaleString() ?? "0"}</div>
+                <div class="text-11-medium uppercase tracking-[0.12em] text-text-weak">Session</div>
+                <div class="mt-2 truncate text-14-medium text-text-strong">{sessionID() ?? "Not created"}</div>
               </div>
               <div class="rounded-2xl border border-border-weak-base bg-surface-base/80 p-4 backdrop-blur">
-                <div class="text-11-medium uppercase tracking-[0.12em] text-text-weak">
-                  {language.t("copilot.page.hero.tokens")}
-                </div>
+                <div class="text-11-medium uppercase tracking-[0.12em] text-text-weak">Status</div>
+                <div class="mt-2 truncate text-14-medium text-text-strong">{status()}</div>
+              </div>
+              <div class="rounded-2xl border border-border-weak-base bg-surface-base/80 p-4 backdrop-blur">
+                <div class="text-11-medium uppercase tracking-[0.12em] text-text-weak">Tokens</div>
                 <div class="mt-2 truncate text-14-medium text-text-strong">{total().toLocaleString()}</div>
               </div>
             </div>
@@ -226,206 +393,262 @@ export default function CopilotPage() {
           <div class="rounded-3xl border border-border-weak-base bg-surface-base p-5 sm:p-6">
             <div class="flex items-start justify-between gap-4">
               <div>
-                <div class="text-14-medium text-text-strong">{language.t("copilot.page.summary.title")}</div>
-                <div class="mt-1 text-13-regular text-text-weak">{language.t("copilot.page.summary.subtitle")}</div>
+                <div class="text-14-medium text-text-strong">Workspace summary</div>
+                <div class="mt-1 text-13-regular text-text-weak">Provider stats are still live, but builder state now comes from the dedicated builder API.</div>
               </div>
-              <div class="text-12-regular text-text-weak">{stamp()}</div>
+              <div class="text-12-regular text-text-weak">{summary.data()?.project.worktree ?? builder.dir()}</div>
             </div>
             <div class="mt-4 grid gap-3 sm:grid-cols-4">
               <div class="rounded-2xl border border-border-weak-base bg-surface-raised-base p-4">
-                <div class="text-11-medium uppercase tracking-[0.12em] text-text-weak">{language.t("copilot.page.metric.models")}</div>
+                <div class="text-11-medium uppercase tracking-[0.12em] text-text-weak">Models</div>
                 <div class="mt-2 text-18-medium text-text-strong">{summary.data()?.models.length.toLocaleString() ?? "0"}</div>
               </div>
               <div class="rounded-2xl border border-border-weak-base bg-surface-raised-base p-4">
-                <div class="text-11-medium uppercase tracking-[0.12em] text-text-weak">{language.t("copilot.page.metric.messages")}</div>
+                <div class="text-11-medium uppercase tracking-[0.12em] text-text-weak">Messages</div>
                 <div class="mt-2 text-18-medium text-text-strong">{summary.data()?.usage.totalMessages.toLocaleString() ?? "0"}</div>
               </div>
               <div class="rounded-2xl border border-border-weak-base bg-surface-raised-base p-4">
-                <div class="text-11-medium uppercase tracking-[0.12em] text-text-weak">{language.t("copilot.page.metric.tokens")}</div>
-                <div class="mt-2 text-18-medium text-text-strong">{total().toLocaleString()}</div>
+                <div class="text-11-medium uppercase tracking-[0.12em] text-text-weak">Releases</div>
+                <div class="mt-2 text-18-medium text-text-strong">{builder.data()?.releases.length.toLocaleString() ?? "0"}</div>
               </div>
               <div class="rounded-2xl border border-border-weak-base bg-surface-raised-base p-4">
-                <div class="text-11-medium uppercase tracking-[0.12em] text-text-weak">{language.t("copilot.page.metric.cost")}</div>
-                <div class="mt-2 text-18-medium text-text-strong">${(summary.data()?.usage.totalCost ?? 0).toFixed(2)}</div>
+                <div class="text-11-medium uppercase tracking-[0.12em] text-text-weak">Deploys</div>
+                <div class="mt-2 text-18-medium text-text-strong">{builder.data()?.deploys.length.toLocaleString() ?? "0"}</div>
               </div>
             </div>
           </div>
           <div class="rounded-3xl border border-border-weak-base bg-surface-base p-5 sm:p-6">
-            <div class="text-14-medium text-text-strong">{language.t("copilot.page.metric.defaultModel")}</div>
-            <div class="mt-2 text-16-medium text-text-strong break-all">
-              {summary.data()?.defaultModel ?? language.t("copilot.page.summary.empty")}
-            </div>
-            <div class="mt-4 text-12-regular text-text-weak">
-              {summary.data()?.project.worktree ?? app()}
-            </div>
+            <div class="text-14-medium text-text-strong">Active defaults</div>
+            <div class="mt-3 text-13-regular text-text-weak">Model</div>
+            <div class="mt-1 break-all text-16-medium text-text-strong">{store.modelID || summary.data()?.defaultModel || "Not selected"}</div>
+            <div class="mt-4 text-13-regular text-text-weak">Agent</div>
+            <div class="mt-1 break-all text-16-medium text-text-strong">{store.agent}</div>
+            <div class="mt-4 text-13-regular text-text-weak">Preview</div>
+            <div class="mt-1 break-all text-16-medium text-text-strong">{preview()?.url || "Not running"}</div>
           </div>
         </div>
 
         <Tabs defaultValue="build" class="flex flex-col gap-6">
           <Tabs.List class="w-full overflow-x-auto rounded-2xl border border-border-weak-base bg-surface-base p-1">
             <div class="flex min-w-max gap-1">
-              <For each={tabs}>
-                {(item) => <Tabs.Trigger value={item}>{language.t(`copilot.page.tab.${item}` as const)}</Tabs.Trigger>}
-              </For>
+              <For each={tabs}>{(item) => <Tabs.Trigger value={item}>{item}</Tabs.Trigger>}</For>
             </div>
           </Tabs.List>
 
           <Tabs.Content value="build">
-            <div class="grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(320px,0.9fr)]">
+            <div class="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.95fr)]">
               <div class="rounded-3xl border border-border-weak-base bg-surface-base p-5 sm:p-6">
                 <div class="flex items-start justify-between gap-3">
                   <div>
-                    <div class="text-18-medium text-text-strong">{language.t("copilot.page.build.title")}</div>
-                    <div class="mt-1 text-13-regular text-text-weak">{language.t("copilot.page.build.subtitle")}</div>
+                    <div class="text-18-medium text-text-strong">Build runtime</div>
+                    <div class="mt-1 text-13-regular text-text-weak">Prompt the real session engine. Output streams through the normal session and diff channels.</div>
                   </div>
                   <div class="rounded-full border border-border-weak-base bg-surface-raised-base px-3 py-1 text-11-medium uppercase tracking-[0.12em] text-text-weak">
-                    {language.t("copilot.page.build.status")}
+                    {status()}
                   </div>
                 </div>
+
+                <div class="mt-5 grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <div class="mb-2 text-12-medium uppercase tracking-[0.12em] text-text-weak">Model</div>
+                    <Select
+                      options={summary.data()?.models ?? []}
+                      current={(summary.data()?.models ?? []).find((item) => item.id === store.modelID)}
+                      value={(item) => item.id}
+                      label={(item) => item.name}
+                      onSelect={(item) => item && setStore("modelID", item.id)}
+                      variant="secondary"
+                      size="small"
+                    />
+                  </div>
+                  <div>
+                    <div class="mb-2 text-12-medium uppercase tracking-[0.12em] text-text-weak">Agent</div>
+                    <Select
+                      options={builder.agents() ?? []}
+                      current={(builder.agents() ?? []).find((item) => item.name === store.agent)}
+                      value={(item) => item.name}
+                      label={(item) => item.name}
+                      onSelect={(item) => item && setStore("agent", item.name)}
+                      variant="secondary"
+                      size="small"
+                    />
+                  </div>
+                </div>
+
                 <div class="mt-5">
-                  <TextField
-                    label={language.t("copilot.page.build.prompt.label")}
+                  <div class="mb-2 text-12-medium uppercase tracking-[0.12em] text-text-weak">Prompt</div>
+                  <textarea
+                    class="min-h-40 w-full rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3 text-14-regular text-text-strong outline-none transition focus:border-border-strong-base"
                     value={store.prompt}
-                    onChange={(value) => setStore("prompt", value)}
+                    onInput={(event) => setStore("prompt", event.currentTarget.value)}
+                    placeholder="Describe the feature, change, or app you want the builder to make."
                   />
+                </div>
+
+                <div class="mt-4 flex flex-wrap gap-2">
+                  <Button size="large" variant="ghost" onClick={ensureSession}>Ensure session</Button>
+                  <Button size="large" variant="secondary" disabled={!connected() || !store.prompt.trim() || !store.modelID || store.buildPending} onClick={buildRun}>
+                    {store.buildPending ? "Starting build..." : "Run build"}
+                  </Button>
+                  <Button size="large" variant="ghost" disabled={!sessionID()} onClick={() => navigate(`/${params.dir}/session/${sessionID()}`)}>
+                    Open thread
+                  </Button>
                 </div>
               </div>
 
-              <div class="rounded-3xl border border-border-weak-base bg-surface-base p-5 sm:p-6">
-                <div class="text-14-medium text-text-strong">{language.t("copilot.page.build.models")}</div>
-                <div class="mt-2 text-13-regular text-text-weak">{language.t("copilot.page.build.modelsSubtitle")}</div>
-                <Show
-                  when={summary.data()?.models.length}
-                  fallback={
-                    <div class="mt-4 rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3 text-13-regular text-text-weak">
-                      {summary.data() ? language.t("copilot.page.build.modelsEmpty") : language.t("copilot.page.summary.loading")}
-                    </div>
-                  }
-                >
-                  <div class="mt-4 flex flex-col gap-3">
-                    <For each={summary.data()?.models.slice(0, 5) ?? []}>
-                      {(item) => (
-                        <div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3">
-                          <div class="flex items-center justify-between gap-3">
-                            <div class="text-13-medium text-text-strong break-all">{item.name}</div>
-                            <Show when={item.default}>
-                              <div class="rounded-full border border-border-weak-base bg-surface-base px-2.5 py-0.5 text-10-medium uppercase tracking-[0.12em] text-text-weak">
-                                {language.t("copilot.page.metric.default")}
-                              </div>
-                            </Show>
+              <div class="flex flex-col gap-4">
+                <div class="rounded-3xl border border-border-weak-base bg-surface-base p-5 sm:p-6">
+                  <div class="text-14-medium text-text-strong">Recent activity</div>
+                  <div class="mt-3 flex max-h-96 flex-col gap-3 overflow-y-auto">
+                    <Show when={feed().length} fallback={<div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3 text-13-regular text-text-weak">No builder messages yet.</div>}>
+                      <For each={feed()}>
+                        {(item) => (
+                          <div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3">
+                            <div class="flex items-center justify-between gap-3">
+                              <div class="text-12-medium uppercase tracking-[0.12em] text-text-weak">{item.role}</div>
+                              <div class="text-11-regular text-text-weak">{item.time}</div>
+                            </div>
+                            <div class="mt-2 whitespace-pre-wrap break-words text-13-regular text-text-base">{item.text || "Streaming..."}</div>
                           </div>
-                          <div class="mt-1 text-12-regular text-text-weak">
-                            {item.id} • {item.context?.toLocaleString() ?? "-"} ctx
-                          </div>
-                        </div>
-                      )}
-                    </For>
+                        )}
+                      </For>
+                    </Show>
                   </div>
-                </Show>
-                <div class="mt-5 text-14-medium text-text-strong">{language.t("copilot.page.build.lanes")}</div>
-                <div class="mt-4 flex flex-col gap-3">
-                  <For each={lanes}>
-                    {(item, index) => (
-                      <div class="flex items-start gap-3 rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3">
-                        <div class="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-surface-base text-11-medium text-text-strong">
-                          {index() + 1}
-                        </div>
-                        <div class="text-13-regular text-text-base">{language.t(item)}</div>
-                      </div>
-                    )}
-                  </For>
+                </div>
+
+                <div class="rounded-3xl border border-border-weak-base bg-surface-base p-5 sm:p-6">
+                  <div class="text-14-medium text-text-strong">Changed files</div>
+                  <div class="mt-3 flex flex-col gap-3">
+                    <Show when={diff().length} fallback={<div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3 text-13-regular text-text-weak">No file diffs yet.</div>}>
+                      <For each={diff().slice(0, 8)}>
+                        {(item) => (
+                          <div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3">
+                            <div class="text-13-medium text-text-strong break-all">{item.file}</div>
+                            <div class="mt-1 text-12-regular text-text-weak">+{item.additions} / -{item.deletions}</div>
+                          </div>
+                        )}
+                      </For>
+                    </Show>
+                  </div>
                 </div>
               </div>
             </div>
           </Tabs.Content>
 
           <Tabs.Content value="preview">
-            <div class="grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(280px,0.8fr)]">
-              <div class="overflow-hidden rounded-3xl border border-border-weak-base bg-surface-base">
-                <div class="flex items-center justify-between border-b border-border-weak-base px-5 py-4">
-                  <div>
-                    <div class="text-18-medium text-text-strong">{language.t("copilot.page.preview.title")}</div>
-                    <div class="mt-1 text-13-regular text-text-weak">{language.t("copilot.page.preview.subtitle")}</div>
-                  </div>
-                  <div class="text-12-medium text-text-weak">{language.t("copilot.page.preview.live")}</div>
-                </div>
-                <div class="p-5">
-                  <div class="rounded-[24px] border border-dashed border-border-weak-base bg-[linear-gradient(180deg,rgba(255,255,255,0.02),transparent)] p-6">
-                    <div class="rounded-[20px] border border-border-weak-base bg-background-base p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-                      <div class="flex items-center justify-between gap-4">
-                        <div>
-                          <div class="text-12-medium uppercase tracking-[0.14em] text-text-weak">{app()}</div>
-                          <div class="mt-2 text-22-medium text-text-strong">{language.t("copilot.page.preview.mockTitle")}</div>
-                        </div>
-                        <div class="rounded-full bg-surface-raised-base px-3 py-1 text-11-medium text-text-weak">
-                          {language.t("copilot.page.preview.label")}
-                        </div>
-                      </div>
-                      <div class="mt-6 grid gap-3 sm:grid-cols-2">
-                        <div class="rounded-2xl border border-border-weak-base bg-surface-base p-4">
-                          <div class="text-13-medium text-text-strong">{language.t("copilot.page.preview.blockA")}</div>
-                          <div class="mt-1 text-12-regular text-text-weak">{language.t("copilot.page.preview.blockABody")}</div>
-                        </div>
-                        <div class="rounded-2xl border border-border-weak-base bg-surface-base p-4">
-                          <div class="text-13-medium text-text-strong">{language.t("copilot.page.preview.blockB")}</div>
-                          <div class="mt-1 text-12-regular text-text-weak">{language.t("copilot.page.preview.blockBBody")}</div>
-                        </div>
-                      </div>
+            <div class="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.9fr)]">
+              <div class="flex flex-col gap-4">
+                <div class="rounded-3xl border border-border-weak-base bg-surface-base p-5 sm:p-6">
+                  <div class="flex items-start justify-between gap-3">
+                    <div>
+                      <div class="text-18-medium text-text-strong">Live preview</div>
+                      <div class="mt-1 text-13-regular text-text-weak">Start the workspace preview command in a PTY and point the iframe at the served URL.</div>
+                    </div>
+                    <div class="rounded-full border border-border-weak-base bg-surface-raised-base px-3 py-1 text-11-medium uppercase tracking-[0.12em] text-text-weak">
+                      {preview()?.status ?? "idle"}
                     </div>
                   </div>
+
+                  <div class="mt-5 grid gap-4 sm:grid-cols-2">
+                    <TextField label="Preview command" value={store.previewCommand} onChange={(value) => setStore("previewCommand", value)} />
+                    <TextField label="Preview URL" value={store.previewURL} onChange={(value) => setStore("previewURL", value)} />
+                  </div>
+
+                  <div class="mt-4 flex flex-wrap gap-2">
+                    <Button size="large" variant="secondary" disabled={store.previewPending} onClick={preview()?.ptyID ? previewStop : previewStart}>
+                      {store.previewPending ? "Updating preview..." : preview()?.ptyID ? "Stop preview" : "Start preview"}
+                    </Button>
+                    <Button size="large" variant="ghost" disabled={!preview()?.url} onClick={() => preview()?.url && window.open(preview()!.url!, "_blank", "noopener,noreferrer")}>
+                      Open in browser
+                    </Button>
+                  </div>
+                </div>
+
+                <div class="overflow-hidden rounded-3xl border border-border-weak-base bg-surface-base">
+                  <div class="border-b border-border-weak-base px-5 py-4 text-14-medium text-text-strong">Preview frame</div>
+                  <Show
+                    when={preview()?.url}
+                    fallback={<div class="p-8 text-13-regular text-text-weak">Start a preview process to render a live iframe here.</div>}
+                  >
+                    <iframe title="builder-preview" src={preview()?.url} class="h-[560px] w-full bg-white" />
+                  </Show>
                 </div>
               </div>
-              <div class="rounded-3xl border border-border-weak-base bg-surface-base p-5 sm:p-6">
-                <div class="text-14-medium text-text-strong">{language.t("copilot.page.preview.annotations")}</div>
-                <div class="mt-2 text-13-regular text-text-weak">{language.t("copilot.page.preview.annotationsBody")}</div>
+
+              <div class="flex flex-col gap-4">
+                <div class="overflow-hidden rounded-3xl border border-border-weak-base bg-surface-base">
+                  <div class="border-b border-border-weak-base px-5 py-4 text-14-medium text-text-strong">Preview terminal</div>
+                  <div class="h-[360px] min-h-[360px]">
+                    <Show when={previewPty()} fallback={<div class="p-8 text-13-regular text-text-weak">No preview PTY attached yet.</div>}>
+                      {(pty) => <Terminal pty={pty()} class="h-full" autoFocus={false} />}
+                    </Show>
+                  </div>
+                </div>
+
+                <div class="rounded-3xl border border-border-weak-base bg-surface-base p-5 sm:p-6">
+                  <div class="text-14-medium text-text-strong">Annotations</div>
+                  <div class="mt-2 text-13-regular text-text-weak">Capture file-focused notes that you want to feed back into the next build iteration.</div>
+                  <div class="mt-4 grid gap-3">
+                    <TextField label="File" value={store.annotationFile} onChange={(value) => setStore("annotationFile", value)} />
+                    <textarea
+                      class="min-h-28 w-full rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3 text-14-regular text-text-strong outline-none transition focus:border-border-strong-base"
+                      value={store.annotationNote}
+                      onInput={(event) => setStore("annotationNote", event.currentTarget.value)}
+                      placeholder="Describe what to change in that file or region."
+                    />
+                  </div>
+                  <div class="mt-4 flex flex-wrap gap-2">
+                    <Button size="large" variant="secondary" onClick={addAnnotation} disabled={!store.annotationFile.trim() || !store.annotationNote.trim()}>
+                      Save annotation
+                    </Button>
+                  </div>
+                  <div class="mt-4 flex max-h-56 flex-col gap-3 overflow-y-auto">
+                    <Show when={builder.data()?.annotations.length} fallback={<div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3 text-13-regular text-text-weak">No annotations yet.</div>}>
+                      <For each={builder.data()?.annotations ?? []}>
+                        {(item) => (
+                          <div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3">
+                            <div class="text-13-medium text-text-strong break-all">{item.file}</div>
+                            <div class="mt-1 whitespace-pre-wrap break-words text-12-regular text-text-base">{item.note}</div>
+                          </div>
+                        )}
+                      </For>
+                    </Show>
+                  </div>
+                </div>
               </div>
             </div>
           </Tabs.Content>
 
           <Tabs.Content value="publish">
-            <div class="grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(320px,0.9fr)]">
+            <div class="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
               <div class="rounded-3xl border border-border-weak-base bg-surface-base p-5 sm:p-6">
-                <div class="text-18-medium text-text-strong">{language.t("copilot.page.publish.title")}</div>
-                <div class="mt-1 text-13-regular text-text-weak">{language.t("copilot.page.publish.subtitle")}</div>
-                <div class="mt-5 rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3 text-13-medium text-text-strong">
-                  {share() || language.t("copilot.page.publish.empty")}
-                </div>
+                <div class="text-18-medium text-text-strong">Releases</div>
+                <div class="mt-1 text-13-regular text-text-weak">Publishing now records release history against the builder project instead of only exposing a transient session share.</div>
+                <div class="mt-5 rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3 text-13-medium text-text-strong">{share() || "No published release yet."}</div>
                 <div class="mt-4 flex flex-wrap gap-2">
-                  <Button size="large" variant="secondary" disabled={!latest() || store.publishPending} onClick={share() ? unpublish : publish}>
-                    {store.publishPending
-                      ? language.t("copilot.page.publish.pending")
-                      : share()
-                        ? language.t("copilot.page.publish.action.unpublish")
-                        : language.t("copilot.page.publish.action.publish")}
+                  <Button size="large" variant="secondary" disabled={!sessionID() || store.publishPending} onClick={share() ? unpublish : publish}>
+                    {store.publishPending ? "Updating release..." : share() ? "Unpublish" : "Publish release"}
                   </Button>
-                  <Show when={share()}>
-                    <Button size="large" variant="ghost" onClick={() => window.open(share(), "_blank", "noopener,noreferrer")}>{language.t("copilot.page.publish.action.open")}</Button>
-                  </Show>
+                  <Button size="large" variant="ghost" disabled={!share()} onClick={() => share() && window.open(share(), "_blank", "noopener,noreferrer")}>
+                    Open release
+                  </Button>
                 </div>
-                <Show when={latest()}>
-                  <div class="mt-4 text-12-regular text-text-weak">
-                    {language.t("copilot.page.publish.session")}: {latest()!.title}
-                  </div>
-                </Show>
               </div>
+
               <div class="rounded-3xl border border-border-weak-base bg-surface-base p-5 sm:p-6">
-                <div class="text-14-medium text-text-strong">{language.t("copilot.page.publish.list")}</div>
-                <div class="mt-4 flex flex-col gap-3">
-                  <Show when={summary.data()?.usage.topModels.length}>
-                    <div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3">
-                      <div class="text-12-medium uppercase tracking-[0.12em] text-text-weak">{language.t("copilot.page.metric.topModel")}</div>
-                      <div class="mt-2 text-13-medium text-text-strong">
-                        {summary.data()?.usage.topModels[0]?.name ?? language.t("copilot.page.summary.empty")}
-                      </div>
-                    </div>
+                <div class="text-14-medium text-text-strong">Release history</div>
+                <div class="mt-4 flex max-h-[420px] flex-col gap-3 overflow-y-auto">
+                  <Show when={builder.data()?.releases.length} fallback={<div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3 text-13-regular text-text-weak">No releases recorded yet.</div>}>
+                    <For each={builder.data()?.releases ?? []}>
+                      {(item) => (
+                        <div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3">
+                          <div class="text-13-medium text-text-strong">{item.title}</div>
+                          <div class="mt-1 break-all text-12-regular text-text-weak">{item.shareURL || "Private release"}</div>
+                          <div class="mt-2 text-11-regular text-text-weak">{new Date(item.createdAt).toLocaleString()}</div>
+                        </div>
+                      )}
+                    </For>
                   </Show>
-                  <For each={publishItems}>
-                    {(item) => (
-                      <div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3 text-13-regular text-text-base">
-                        {language.t(item)}
-                      </div>
-                    )}
-                  </For>
                 </div>
               </div>
             </div>
@@ -434,54 +657,70 @@ export default function CopilotPage() {
           <Tabs.Content value="deploy">
             <div class="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
               <div class="rounded-3xl border border-border-weak-base bg-surface-base p-5 sm:p-6">
-                <div class="text-18-medium text-text-strong">{language.t("copilot.page.deploy.title")}</div>
-                <div class="mt-1 text-13-regular text-text-weak">{language.t("copilot.page.deploy.subtitle")}</div>
-                <div class="mt-5 grid gap-4 sm:grid-cols-2">
-                  <TextField label={language.t("copilot.page.deploy.host")} value={store.host} onChange={(value) => setStore("host", value)} />
-                  <TextField label={language.t("copilot.page.deploy.publicPort")} value={store.publicPort} onChange={(value) => setStore("publicPort", value)} />
-                  <TextField label={language.t("copilot.page.deploy.user")} value={store.user} onChange={(value) => setStore("user", value)} />
-                  <TextField label={language.t("copilot.page.deploy.password")} type="password" value={store.password} onChange={(value) => setStore("password", value)} />
-                  <TextField label={language.t("copilot.page.deploy.path")} value={store.path} onChange={(value) => setStore("path", value)} />
-                </div>
-                <div class="mt-4 text-12-regular text-text-weak">{language.t("copilot.page.deploy.note")}</div>
+                <div class="text-18-medium text-text-strong">Deploy</div>
+                <div class="mt-1 text-13-regular text-text-weak">The VPS deploy call is still real. This tab now records the result into builder deploy history as well.</div>
+                <Show when={builder.data()?.environments?.length}>
+                  <div class="mt-5">
+                    <div class="mb-2 text-12-medium uppercase tracking-[0.12em] text-text-weak">Environment</div>
+                    <EnvSelect
+                      environments={builder.data()?.environments ?? []}
+                      value={store.environment}
+                      onChange={(id) => setStore("environment", id)}
+                    />
+                  </div>
+                </Show>
+                <Show when={builder.data()?.secrets?.length}>
+                  <div class="mt-5">
+                    <div class="mb-2 text-12-medium uppercase tracking-[0.12em] text-text-weak">Deploy Secret</div>
+                    <Select
+                      options={builder.data()?.secrets ?? []}
+                      current={(builder.data()?.secrets ?? []).find((s) => s.name === store.deploySecret)}
+                      value={(s) => s.name}
+                      label={(s) => s.name}
+                      onSelect={(s) => s && setStore("deploySecret", s.name)}
+                      variant="secondary"
+                      size="small"
+                    />
+                  </div>
+                </Show>
                 <div class="mt-4 flex flex-wrap gap-2">
-                  <Button size="large" variant="secondary" disabled={store.deployPending || !store.host || !store.user || !store.password || !store.path} onClick={deployRun}>
-                    {store.deployPending ? language.t("copilot.page.deploy.pending") : language.t("copilot.page.deploy.action.run")}
+                  <Button
+                    size="large"
+                    variant="secondary"
+                    disabled={store.deployPending || !store.environment || !store.deploySecret}
+                    onClick={deployRun}
+                  >
+                    {store.deployPending ? "Deploying..." : "Run deploy"}
                   </Button>
-                  <Show when={store.deployURL}>
-                    <Button size="large" variant="ghost" onClick={() => window.open(store.deployURL, "_blank", "noopener,noreferrer")}>
-                      {language.t("copilot.page.deploy.action.open")}
-                    </Button>
-                  </Show>
+                  <Button size="large" variant="ghost" disabled={!store.deployURL} onClick={() => store.deployURL && window.open(store.deployURL, "_blank", "noopener,noreferrer")}> 
+                    Open deploy
+                  </Button>
                 </div>
                 <Show when={store.deployURL}>
-                  <div class="mt-4 rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3 text-13-medium text-text-strong">
-                    {store.deployURL}
+                  <div class="mt-4 rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3 text-13-medium text-text-strong">{store.deployURL}</div>
+                </Show>
+                <Show when={store.deployLogs.length}>
+                  <div class="mt-4 rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3">
+                    <div class="text-12-medium uppercase tracking-[0.12em] text-text-weak">Latest deploy logs</div>
+                    <div class="mt-2 max-h-56 overflow-y-auto whitespace-pre-wrap break-words text-12-regular text-text-base">{store.deployLogs.join("\n")}</div>
+                  </div>
+                </Show>
+                <Show when={store.environment}>
+                  <div class="mt-6">
+                    <EnvVarsSecrets
+                      envVars={builder.data()?.environments?.find((e) => e.id === store.environment)?.envVars ?? {}}
+                      secrets={builder.data()?.environments?.find((e) => e.id === store.environment)?.secrets ?? []}
+                    />
                   </div>
                 </Show>
               </div>
               <div class="rounded-3xl border border-border-weak-base bg-surface-base p-5 sm:p-6">
-                <div class="text-14-medium text-text-strong">{language.t("copilot.page.deploy.list")}</div>
-                <div class="mt-4 flex flex-col gap-3">
-                  <div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3 text-13-regular text-text-base">
-                    {language.t("copilot.page.deploy.connected", { status: connected() ? language.t("common.connected") : language.t("common.disconnected") })}
-                  </div>
-                  <Show when={store.deployLogs.length}>
-                    <div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3">
-                      <div class="text-12-medium uppercase tracking-[0.12em] text-text-weak">{language.t("copilot.page.deploy.logs")}</div>
-                      <div class="mt-2 max-h-56 overflow-y-auto whitespace-pre-wrap break-words text-12-regular text-text-base">
-                        {store.deployLogs.join("\n")}
-                      </div>
-                    </div>
-                  </Show>
-                  <For each={deploy}>
-                    {(item) => (
-                      <div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3 text-13-regular text-text-base">
-                        {language.t(item)}
-                      </div>
-                    )}
-                  </For>
-                </div>
+                <div class="text-14-medium text-text-strong">Deploy history</div>
+                <DeployHistory
+                  deploys={builder.data()?.deploys ?? []}
+                  onRollback={rollbackDeploy}
+                  environments={Object.fromEntries((builder.data()?.environments ?? []).map((e) => [e.id, e.name]))}
+                />
               </div>
             </div>
           </Tabs.Content>
@@ -489,4 +728,246 @@ export default function CopilotPage() {
       </div>
     </main>
   )
+}
+
+// --- Store: Remove password, add env/secret selection ---
+const [store, setStore] = createStore({
+  prompt: "",
+  modelID: "",
+  agent: "build",
+  previewCommand: "",
+  previewURL: "",
+  annotationFile: "",
+  annotationNote: "",
+  environment: "",
+  deploySecret: "",
+  host: "",
+  publicPort: "8080",
+  user: "",
+  path: "",
+  buildPending: false,
+  previewPending: false,
+  publishPending: false,
+  deployPending: false,
+  deployURL: "",
+  deployLogs: [] as string[],
+})
+
+// --- New: Builder Environment/Deploy/Secret UI helpers ---
+function EnvSelect(props: {
+  environments: { id: string; name: string; description?: string }[]
+  value: string
+  onChange: (id: string) => void
+}) {
+  return (
+    <Select
+      options={props.environments}
+      current={props.environments.find((e) => e.id === props.value)}
+      value={(e) => e.id}
+      label={(e) => e.name}
+      onSelect={(e) => e && props.onChange(e.id)}
+      variant="secondary"
+      size="small"
+    />
+  )
+}
+
+function DeployHistory(props: {
+  deploys: any[]
+  onRollback: (deployID: string) => void
+  environments: Record<string, string>
+}) {
+  return (
+    <div class="mt-4 flex max-h-[420px] flex-col gap-3 overflow-y-auto">
+      <Show when={props.deploys.length} fallback={<div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3 text-13-regular text-text-weak">No deploys recorded yet.</div>}>
+        <For each={props.deploys}>
+          {(item) => (
+            <div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3">
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <div class="text-13-medium text-text-strong">{item.host || item.environment || "—"}</div>
+                  <div class="text-11-medium uppercase tracking-[0.12em] text-text-weak">{props.environments[item.environment] || item.environment}</div>
+                </div>
+                <Button size="small" variant="ghost" onClick={() => props.onRollback(item.id)} disabled={item.status === "active"}>
+                  Rollback
+                </Button>
+              </div>
+              <div class="mt-1 break-all text-12-regular text-text-weak">{item.url}</div>
+              <div class="mt-1 break-all text-12-regular text-text-weak">{item.path}</div>
+              <div class="mt-2 text-11-regular text-text-weak">{item.releaseTitle || item.releaseID}</div>
+              <div class="mt-2 text-11-regular text-text-weak">{new Date(item.createdAt).toLocaleString()}</div>
+            </div>
+          )}
+        </For>
+      </Show>
+    </div>
+  )
+}
+
+function ReleaseHistory(props: {
+  releases: any[]
+  onRollback: (releaseID: string) => void
+  environments: Record<string, string>
+}) {
+  return (
+    <div class="mt-4 flex max-h-[420px] flex-col gap-3 overflow-y-auto">
+      <Show when={props.releases.length} fallback={<div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3 text-13-regular text-text-weak">No releases recorded yet.</div>}>
+        <For each={props.releases}>
+          {(item) => (
+            <div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3">
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <div class="text-13-medium text-text-strong">{item.title}</div>
+                  <div class="text-11-medium uppercase tracking-[0.12em] text-text-weak">{props.environments[item.environment] || item.environment}</div>
+                </div>
+                <Button size="small" variant="ghost" onClick={() => props.onRollback(item.id)}>
+                  Rollback
+                </Button>
+              </div>
+              <div class="mt-1 break-all text-12-regular text-text-weak">{item.shareURL || "Private release"}</div>
+              <div class="mt-2 text-11-regular text-text-weak">{new Date(item.createdAt).toLocaleString()}</div>
+            </div>
+          )}
+        </For>
+      </Show>
+    </div>
+  )
+}
+
+function EnvVarsSecrets(props: {
+  envVars: Record<string, string>
+  secrets: { name: string; description?: string }[]
+}) {
+  return (
+    <div class="grid gap-4 sm:grid-cols-2">
+      <div>
+        <div class="mb-2 text-12-medium uppercase tracking-[0.12em] text-text-weak">Environment Variables</div>
+        <div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3">
+          <Show when={Object.keys(props.envVars).length} fallback={<div class="text-13-regular text-text-weak">No variables</div>}>
+            <For each={Object.entries(props.envVars)}>
+              {([key, value]) => (
+                <div class="flex items-center gap-2 py-1">
+                  <span class="text-13-medium text-text-strong">{key}</span>
+                  <span class="text-13-regular text-text-weak break-all">{value}</span>
+                </div>
+              )}
+            </For>
+          </Show>
+        </div>
+      </div>
+      <div>
+        <div class="mb-2 text-12-medium uppercase tracking-[0.12em] text-text-weak">Secrets</div>
+        <div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3">
+          <Show when={props.secrets.length} fallback={<div class="text-13-regular text-text-weak">No secrets</div>}>
+            <For each={props.secrets}>
+              {(secret) => (
+                <div class="flex flex-col py-1">
+                  <span class="text-13-medium text-text-strong">{secret.name}</span>
+                  <span class="text-12-regular text-text-weak">{secret.description}</span>
+                </div>
+              )}
+            </For>
+          </Show>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// --- Deploy using environment and secret reference ---
+async function deployRun() {
+  const id = sessionID()
+  if (!summary.sdk() || !store.environment || !store.deploySecret) return
+  setStore("deployPending", true)
+  try {
+    const result = await summary.sdk()!.provider.deploy(
+      {
+        providerID: "github-copilot",
+        environment: store.environment,
+        secret: store.deploySecret,
+        sessionID: id,
+      },
+      { throwOnError: true },
+    )
+    setStore("deployURL", result.data!.url)
+    setStore("deployLogs", result.data!.logs)
+    await summary.sdk()!.builder.deploy(
+      {
+        releaseID: builder.data()?.releases[0]?.id,
+        environment: store.environment,
+        url: result.data!.url,
+        status: "ready",
+        logs: result.data!.logs,
+      },
+      { throwOnError: true },
+    )
+    await Promise.all([builder.refetch(), summary.refetch()])
+    showToast({
+      variant: "success",
+      title: "Deployment finished",
+      description: result.data!.url,
+    })
+  } catch (error) {
+    setStore("deployLogs", [error instanceof Error ? error.message : language.t("common.requestFailed")])
+    showToast({
+      variant: "error",
+      title: "Deployment failed",
+      description: error instanceof Error ? error.message : language.t("common.requestFailed"),
+    })
+  } finally {
+    setStore("deployPending", false)
+  }
+}
+
+// --- Rollback logic for deploys/releases ---
+async function rollbackDeploy(deployID: string) {
+  if (!summary.sdk()) return
+  setStore("deployPending", true)
+  try {
+    await summary.sdk()!.builder.rollback(
+      {
+        deployID,
+      },
+      { throwOnError: true },
+    )
+    await Promise.all([builder.refetch(), summary.refetch()])
+    showToast({
+      variant: "success",
+      title: "Rollback started",
+    })
+  } catch (error) {
+    showToast({
+      variant: "error",
+      title: "Rollback failed",
+      description: error instanceof Error ? error.message : language.t("common.requestFailed"),
+    })
+  } finally {
+    setStore("deployPending", false)
+  }
+}
+
+async function rollbackRelease(releaseID: string) {
+  if (!summary.sdk()) return
+  setStore("publishPending", true)
+  try {
+    await summary.sdk()!.builder.rollback(
+      {
+        releaseID,
+      },
+      { throwOnError: true },
+    )
+    await Promise.all([builder.refetch(), summary.refetch()])
+    showToast({
+      variant: "success",
+      title: "Rollback started",
+    })
+  } catch (error) {
+    showToast({
+      variant: "error",
+      title: "Rollback failed",
+      description: error instanceof Error ? error.message : language.t("common.requestFailed"),
+    })
+  } finally {
+    setStore("publishPending", false)
+  }
 }

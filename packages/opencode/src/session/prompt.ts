@@ -793,7 +793,13 @@ export namespace SessionPrompt {
       { modelID: ModelID.make(input.model.api.id), providerID: input.model.providerID },
       input.agent,
     )) {
-      const schema = ProviderTransform.schema(input.model, z.toJSONSchema(item.parameters))
+      let schema
+      try {
+        schema = ProviderTransform.schema(input.model, z.toJSONSchema(item.parameters))
+      } catch (err) {
+        console.error(`Failed to convert schema for tool: ${item.id}`, err)
+        throw err
+      }
       tools[item.id] = tool({
         id: item.id as any,
         description: item.description,

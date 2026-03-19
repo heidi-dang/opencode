@@ -13,6 +13,38 @@ import type {
   AuthRemoveResponses,
   AuthSetErrors,
   AuthSetResponses,
+  BuilderAnnotationErrors,
+  BuilderAnnotationResponses,
+  BuilderBuildErrors,
+  BuilderBuildResponses,
+  BuilderDeployErrors,
+  BuilderDeployResponses,
+  BuilderEnvironmentCreateErrors,
+  BuilderEnvironmentCreateResponses,
+  BuilderEnvironmentDeleteErrors,
+  BuilderEnvironmentDeleteResponses,
+  BuilderEnvironmentListResponses,
+  BuilderEnvironmentSelectErrors,
+  BuilderEnvironmentSelectResponses,
+  BuilderEnvironmentUpdateErrors,
+  BuilderEnvironmentUpdateResponses,
+  BuilderGetResponses,
+  BuilderPreviewStartErrors,
+  BuilderPreviewStartResponses,
+  BuilderPreviewStopResponses,
+  BuilderReleaseErrors,
+  BuilderReleaseResponses,
+  BuilderRollbackErrors,
+  BuilderRollbackResponses,
+  BuilderSecretCreateErrors,
+  BuilderSecretCreateResponses,
+  BuilderSecretDeleteErrors,
+  BuilderSecretDeleteResponses,
+  BuilderSecretListResponses,
+  BuilderSecretUpdateErrors,
+  BuilderSecretUpdateResponses,
+  BuilderSessionErrors,
+  BuilderSessionResponses,
   CommandListResponses,
   Config as Config3,
   ConfigGetResponses,
@@ -91,6 +123,8 @@ import type {
   ProviderOauthCallbackResponses,
   ProviderPublishErrors,
   ProviderPublishResponses,
+  ProviderRollbackErrors,
+  ProviderRollbackResponses,
   ProviderSummaryErrors,
   ProviderSummaryResponses,
   ProviderUnpublishErrors,
@@ -374,6 +408,849 @@ export class Auth extends HeyApiClient {
         ...params.headers,
       },
     })
+  }
+}
+
+export class Environment extends HeyApiClient {
+  /**
+   * List builder environments
+   *
+   * List deployment environments and the currently selected builder environment.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<BuilderEnvironmentListResponses, unknown, ThrowOnError>({
+      url: "/builder/environment",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Create builder environment
+   *
+   * Create a named deployment environment with secret references for builder deploys.
+   */
+  public create<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      name?: string
+      branch?: string
+      host?: string
+      url?: string
+      vars?: {
+        [key: string]:
+          | {
+              source: "env"
+              name: string
+            }
+          | {
+              source: "file"
+              path: string
+              key?: string
+            }
+          | {
+              source: "external"
+              uri: string
+            }
+          | {
+              source: "env"
+              name: string
+              redacted: string
+              updatedAt: number
+            }
+          | {
+              source: "file"
+              path: string
+              key?: string
+              redacted: string
+              updatedAt: number
+            }
+          | {
+              source: "external"
+              uri: string
+              redacted: string
+              updatedAt: number
+            }
+          | {
+              source: "local"
+              id: string
+              redacted: string
+              updatedAt: number
+            }
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "name" },
+            { in: "body", key: "branch" },
+            { in: "body", key: "host" },
+            { in: "body", key: "url" },
+            { in: "body", key: "vars" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      BuilderEnvironmentCreateResponses,
+      BuilderEnvironmentCreateErrors,
+      ThrowOnError
+    >({
+      url: "/builder/environment",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Delete builder environment
+   *
+   * Delete a builder deployment environment and keep the selected environment pointer valid.
+   */
+  public delete<ThrowOnError extends boolean = false>(
+    parameters: {
+      id: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "id" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<
+      BuilderEnvironmentDeleteResponses,
+      BuilderEnvironmentDeleteErrors,
+      ThrowOnError
+    >({
+      url: "/builder/environment/{id}",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Update builder environment
+   *
+   * Update a named builder deployment environment without storing raw secret values in builder state.
+   */
+  public update<ThrowOnError extends boolean = false>(
+    parameters: {
+      id: string
+      directory?: string
+      workspace?: string
+      name?: string
+      branch?: string
+      host?: string
+      url?: string
+      vars?: {
+        [key: string]:
+          | {
+              source: "env"
+              name: string
+            }
+          | {
+              source: "file"
+              path: string
+              key?: string
+            }
+          | {
+              source: "external"
+              uri: string
+            }
+          | {
+              source: "env"
+              name: string
+              redacted: string
+              updatedAt: number
+            }
+          | {
+              source: "file"
+              path: string
+              key?: string
+              redacted: string
+              updatedAt: number
+            }
+          | {
+              source: "external"
+              uri: string
+              redacted: string
+              updatedAt: number
+            }
+          | {
+              source: "local"
+              id: string
+              redacted: string
+              updatedAt: number
+            }
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "id" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "name" },
+            { in: "body", key: "branch" },
+            { in: "body", key: "host" },
+            { in: "body", key: "url" },
+            { in: "body", key: "vars" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).patch<
+      BuilderEnvironmentUpdateResponses,
+      BuilderEnvironmentUpdateErrors,
+      ThrowOnError
+    >({
+      url: "/builder/environment/{id}",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Select builder environment
+   *
+   * Select the active named deployment environment used by builder deploy flows.
+   */
+  public select<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      id?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "id" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      BuilderEnvironmentSelectResponses,
+      BuilderEnvironmentSelectErrors,
+      ThrowOnError
+    >({
+      url: "/builder/environment/select",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
+export class Secret extends HeyApiClient {
+  /**
+   * List builder secrets
+   *
+   * List locally managed builder secrets as redacted metadata only.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<BuilderSecretListResponses, unknown, ThrowOnError>({
+      url: "/builder/secret",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Create builder secret
+   *
+   * Store a local builder secret and return only its redacted metadata for later environment references.
+   */
+  public create<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      value?: string
+      label?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "value" },
+            { in: "body", key: "label" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<BuilderSecretCreateResponses, BuilderSecretCreateErrors, ThrowOnError>(
+      {
+        url: "/builder/secret",
+        ...options,
+        ...params,
+        headers: {
+          "Content-Type": "application/json",
+          ...options?.headers,
+          ...params.headers,
+        },
+      },
+    )
+  }
+
+  /**
+   * Delete builder secret
+   *
+   * Delete a locally managed builder secret from the secret store.
+   */
+  public delete<ThrowOnError extends boolean = false>(
+    parameters: {
+      id: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "id" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<
+      BuilderSecretDeleteResponses,
+      BuilderSecretDeleteErrors,
+      ThrowOnError
+    >({
+      url: "/builder/secret/{id}",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Update builder secret
+   *
+   * Replace a local builder secret value while continuing to return only redacted metadata.
+   */
+  public update<ThrowOnError extends boolean = false>(
+    parameters: {
+      id: string
+      directory?: string
+      workspace?: string
+      value?: string
+      label?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "id" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "value" },
+            { in: "body", key: "label" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).patch<
+      BuilderSecretUpdateResponses,
+      BuilderSecretUpdateErrors,
+      ThrowOnError
+    >({
+      url: "/builder/secret/{id}",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
+export class Preview extends HeyApiClient {
+  /**
+   * Start builder preview
+   *
+   * Start or reconnect to the builder preview process in a PTY.
+   */
+  public start<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      command?: string
+      url?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "command" },
+            { in: "body", key: "url" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<BuilderPreviewStartResponses, BuilderPreviewStartErrors, ThrowOnError>(
+      {
+        url: "/builder/preview/start",
+        ...options,
+        ...params,
+        headers: {
+          "Content-Type": "application/json",
+          ...options?.headers,
+          ...params.headers,
+        },
+      },
+    )
+  }
+
+  /**
+   * Stop builder preview
+   *
+   * Stop the current builder preview PTY and retain its configuration.
+   */
+  public stop<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<BuilderPreviewStopResponses, unknown, ThrowOnError>({
+      url: "/builder/preview/stop",
+      ...options,
+      ...params,
+    })
+  }
+}
+
+export class Builder extends HeyApiClient {
+  /**
+   * Get builder state
+   *
+   * Get the current builder project, session, preview, release, deploy, and annotation state.
+   */
+  public get<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<BuilderGetResponses, unknown, ThrowOnError>({
+      url: "/builder",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Ensure builder session
+   *
+   * Create or return the dedicated builder session for this project.
+   */
+  public session<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      providerID?: string
+      modelID?: string
+      agent?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "providerID" },
+            { in: "body", key: "modelID" },
+            { in: "body", key: "agent" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<BuilderSessionResponses, BuilderSessionErrors, ThrowOnError>({
+      url: "/builder/session",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Start builder run
+   *
+   * Send a real async prompt into the dedicated builder session.
+   */
+  public build<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      prompt?: string
+      providerID?: string
+      modelID?: string
+      agent?: string
+      variant?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "prompt" },
+            { in: "body", key: "providerID" },
+            { in: "body", key: "modelID" },
+            { in: "body", key: "agent" },
+            { in: "body", key: "variant" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<BuilderBuildResponses, BuilderBuildErrors, ThrowOnError>({
+      url: "/builder/build",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Record builder release
+   *
+   * Record a publishable builder release tied to a real session.
+   */
+  public release<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      sessionID?: string
+      title?: string
+      shareURL?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "sessionID" },
+            { in: "body", key: "title" },
+            { in: "body", key: "shareURL" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<BuilderReleaseResponses, BuilderReleaseErrors, ThrowOnError>({
+      url: "/builder/release",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Deploy builder release
+   *
+   * Resolve the active builder environment server-side, package the selected release, and deploy it over SSH.
+   */
+  public deploy<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      environmentID?: string
+      releaseID?: string
+      sessionID?: string
+      host?: string
+      port?: number
+      user?: string
+      password?: string
+      path?: string
+      publicPort?: number
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "environmentID" },
+            { in: "body", key: "releaseID" },
+            { in: "body", key: "sessionID" },
+            { in: "body", key: "host" },
+            { in: "body", key: "port" },
+            { in: "body", key: "user" },
+            { in: "body", key: "password" },
+            { in: "body", key: "path" },
+            { in: "body", key: "publicPort" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<BuilderDeployResponses, BuilderDeployErrors, ThrowOnError>({
+      url: "/builder/deploy",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Rollback builder deploy
+   *
+   * Rollback the active builder deployment to a previous release or deploy revision using stored deploy metadata.
+   */
+  public rollback<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      environmentID?: string
+      releaseID?: string
+      deployID?: string
+      revisionID?: string
+      host?: string
+      port?: number
+      user?: string
+      password?: string
+      path?: string
+      publicPort?: number
+      reason?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "environmentID" },
+            { in: "body", key: "releaseID" },
+            { in: "body", key: "deployID" },
+            { in: "body", key: "revisionID" },
+            { in: "body", key: "host" },
+            { in: "body", key: "port" },
+            { in: "body", key: "user" },
+            { in: "body", key: "password" },
+            { in: "body", key: "path" },
+            { in: "body", key: "publicPort" },
+            { in: "body", key: "reason" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<BuilderRollbackResponses, BuilderRollbackErrors, ThrowOnError>({
+      url: "/builder/rollback",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Add builder annotation
+   *
+   * Store a builder annotation for later guided edits.
+   */
+  public annotation<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      file?: string
+      note?: string
+      start?: number
+      end?: number
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "file" },
+            { in: "body", key: "note" },
+            { in: "body", key: "start" },
+            { in: "body", key: "end" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<BuilderAnnotationResponses, BuilderAnnotationErrors, ThrowOnError>({
+      url: "/builder/annotation",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  private _environment?: Environment
+  get environment(): Environment {
+    return (this._environment ??= new Environment({ client: this.client }))
+  }
+
+  private _secret?: Secret
+  get secret(): Secret {
+    return (this._secret ??= new Secret({ client: this.client }))
+  }
+
+  private _preview?: Preview
+  get preview(): Preview {
+    return (this._preview ??= new Preview({ client: this.client }))
   }
 }
 
@@ -2861,9 +3738,9 @@ export class Provider extends HeyApiClient {
   }
 
   /**
-   * Deploy builder landing page
+   * Execute remote builder deploy
    *
-   * Connect to a VPS over SSH and deploy a Docker Compose landing page for the current Copilot builder project.
+   * Run the SSH deploy steps for a builder release whose environment, archive, and runtime were already resolved server-side.
    */
   public deploy<ThrowOnError extends boolean = false>(
     parameters: {
@@ -2876,7 +3753,42 @@ export class Provider extends HeyApiClient {
       password?: string
       path?: string
       publicPort?: number
-      sessionID?: string
+      environmentID?: string
+      release?: {
+        id: string
+        releaseID?: string
+        sessionID?: string
+        title?: string
+        shareURL?: string
+        branch?: string
+        commit?: string
+      }
+      archive?: {
+        file: string
+        name: string
+        count: number
+        root: string
+        size: number
+      }
+      runtime?: {
+        pm: string
+        install: string
+        build?: string
+        start: string
+        detected?: string
+        supervisor: {
+          kind: "pm2"
+          name: string
+          file: string
+          start: string
+          stop: string
+          save: string
+          status: string
+        }
+      }
+      vars?: {
+        [key: string]: string
+      }
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -2894,13 +3806,149 @@ export class Provider extends HeyApiClient {
             { in: "body", key: "password" },
             { in: "body", key: "path" },
             { in: "body", key: "publicPort" },
-            { in: "body", key: "sessionID" },
+            { in: "body", key: "environmentID" },
+            { in: "body", key: "release" },
+            { in: "body", key: "archive" },
+            { in: "body", key: "runtime" },
+            { in: "body", key: "vars" },
           ],
         },
       ],
     )
     return (options?.client ?? this.client).post<ProviderDeployResponses, ProviderDeployErrors, ThrowOnError>({
       url: "/provider/{providerID}/deploy",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Execute remote builder rollback
+   *
+   * Run the SSH rollback steps for a builder deploy using previously recorded promotion metadata.
+   */
+  public rollback<ThrowOnError extends boolean = false>(
+    parameters: {
+      providerID: string
+      directory?: string
+      workspace?: string
+      host?: string
+      port?: number
+      user?: string
+      password?: string
+      current?: {
+        deployID?: string
+        releaseID?: string
+        promotion: {
+          layout: {
+            root: string
+            releases: string
+            current: string
+            shared: string
+          }
+          previous?: {
+            id: string
+            releaseID?: string
+            sessionID?: string
+            title?: string
+            shareURL?: string
+            path: string
+            compose?: string
+            site?: string
+            archive?: string
+            host?: string
+            url?: string
+            publicPort?: number
+            branch?: string
+            commit?: string
+            createdAt: number
+            promotedAt?: number
+          }
+          current: {
+            id: string
+            releaseID?: string
+            sessionID?: string
+            title?: string
+            shareURL?: string
+            path: string
+            compose?: string
+            site?: string
+            archive?: string
+            host?: string
+            url?: string
+            publicPort?: number
+            branch?: string
+            commit?: string
+            createdAt: number
+            promotedAt?: number
+          }
+        }
+        supervisor?: {
+          ptyID?: string
+          pid?: number
+          name?: string
+          status?: "idle" | "starting" | "running" | "stopped" | "failed"
+        }
+      }
+      target?: {
+        deployID?: string
+        releaseID?: string
+        revisionID?: string
+        remote: {
+          id: string
+          releaseID?: string
+          sessionID?: string
+          title?: string
+          shareURL?: string
+          path: string
+          compose?: string
+          site?: string
+          archive?: string
+          host?: string
+          url?: string
+          publicPort?: number
+          branch?: string
+          commit?: string
+          createdAt: number
+          promotedAt?: number
+        }
+        supervisor?: {
+          ptyID?: string
+          pid?: number
+          name?: string
+          status?: "idle" | "starting" | "running" | "stopped" | "failed"
+        }
+      }
+      reason?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "providerID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "host" },
+            { in: "body", key: "port" },
+            { in: "body", key: "user" },
+            { in: "body", key: "password" },
+            { in: "body", key: "current" },
+            { in: "body", key: "target" },
+            { in: "body", key: "reason" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<ProviderRollbackResponses, ProviderRollbackErrors, ThrowOnError>({
+      url: "/provider/{providerID}/rollback",
       ...options,
       ...params,
       headers: {
@@ -4216,6 +5264,11 @@ export class OpencodeClient extends HeyApiClient {
   private _auth?: Auth
   get auth(): Auth {
     return (this._auth ??= new Auth({ client: this.client }))
+  }
+
+  private _builder?: Builder
+  get builder(): Builder {
+    return (this._builder ??= new Builder({ client: this.client }))
   }
 
   private _project?: Project

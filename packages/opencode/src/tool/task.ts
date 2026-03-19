@@ -7,6 +7,7 @@ import { MessageV2 } from "../session/message-v2"
 import { Identifier } from "../id/id"
 import { Agent } from "../agent/agent"
 import { SessionPrompt } from "../session/prompt"
+import { Provider } from "../provider/provider"
 import { iife } from "@/util/iife"
 import { defer } from "@/util/defer"
 import { Config } from "../config/config"
@@ -101,13 +102,20 @@ export const TaskTool = Tool.define("task", async (ctx) => {
           ],
         })
       })
-      const msg = await MessageV2.get({ sessionID: ctx.sessionID, messageID: ctx.messageID })
-      if (msg.info.role !== "assistant") throw new Error("Not an assistant message")
-
-      const model = agent.model ?? {
-        modelID: msg.info.modelID,
-        providerID: msg.info.providerID,
-      }
+      const model = await iife(async () => {
+        if (agent.model) return agent.model
+        try {
+          const msg = await MessageV2.get({ sessionID: ctx.sessionID, messageID: ctx.messageID })
+          if (msg.info.role === "assistant") {
+            return {
+              modelID: msg.info.modelID,
+              providerID: msg.info.providerID,
+            }
+          }
+        } catch (e) {}
+        const def = await Provider.defaultModel()
+        return { modelID: def.modelID, providerID: def.providerID }
+      })
 
       ctx.metadata({
         title: params.description,
@@ -122,8 +130,8 @@ export const TaskTool = Tool.define("task", async (ctx) => {
       function cancel() {
         SessionPrompt.cancel(session.id)
       }
-      ctx.abort.addEventListener("abort", cancel)
-      using _ = defer(() => ctx.abort.removeEventListener("abort", cancel))
+      ctx.abort?.addEventListener("abort", cancel)
+      using _ = defer(() => ctx.abort?.removeEventListener("abort", cancel))
       const promptParts = await SessionPrompt.resolvePromptParts(params.prompt)
 
       const result = await SessionPrompt.prompt({
