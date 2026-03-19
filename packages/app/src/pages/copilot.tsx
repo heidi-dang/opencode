@@ -3,6 +3,7 @@ import { useDialog } from "@opencode-ai/ui/context/dialog"
 import { Icon } from "@opencode-ai/ui/icon"
 import { Tabs } from "@opencode-ai/ui/tabs"
 import { TextField } from "@opencode-ai/ui/text-field"
+import { showToast } from "@opencode-ai/ui/toast"
 import { createMemo, For, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useNavigate, useParams } from "@solidjs/router"
@@ -18,7 +19,7 @@ const lanes = [
   "copilot.page.build.lane.deploy",
 ] as const
 
-const publish = [
+const publishItems = [
   "copilot.page.publish.item.private",
   "copilot.page.publish.item.updates",
   "copilot.page.publish.item.repo",
@@ -41,7 +42,10 @@ export default function CopilotPage() {
   const dir = createMemo(() => decode64(params.dir) ?? "")
   const app = createMemo(() => dir().split("/").filter(Boolean).at(-1) ?? "app")
   const target = createMemo(() => `${app()}.vps.local`)
+  const client = createMemo(() => summary.sdk())
   const connected = createMemo(() => summary.data()?.connected ?? false)
+  const latest = createMemo(() => summary.data()?.latestSession)
+  const share = createMemo(() => store.shareURL || latest()?.shareURL)
   const total = createMemo(() => {
     const usage = summary.data()?.usage.totalTokens
     if (!usage) return 0
@@ -55,10 +59,113 @@ export default function CopilotPage() {
   const [store, setStore] = createStore({
     prompt: language.t("copilot.page.build.prompt.placeholder"),
     host: target(),
+    publicPort: "8080",
     user: "root",
     password: "",
     path: `/srv/${app()}`,
+    publishPending: false,
+    deployPending: false,
+    shareURL: "",
+    deployURL: "",
+    deployLogs: [] as string[],
   })
+
+  async function publish() {
+    const id = latest()?.id
+    if (!client() || !id) return
+    setStore("publishPending", true)
+    try {
+      const result = await client()!.provider.publish(
+        {
+          providerID: "github-copilot",
+          sessionID: id,
+        },
+        { throwOnError: true },
+      )
+      setStore("shareURL", result.data!.shareURL)
+      await summary.refetch()
+      showToast({
+        variant: "success",
+        title: language.t("copilot.page.publish.toast.success"),
+        description: result.data!.shareURL,
+      })
+    } catch (error) {
+      showToast({
+        variant: "error",
+        title: language.t("copilot.page.publish.toast.failed"),
+        description: error instanceof Error ? error.message : language.t("common.requestFailed"),
+      })
+    } finally {
+      setStore("publishPending", false)
+    }
+  }
+
+  async function unpublish() {
+    const id = latest()?.id
+    if (!client() || !id) return
+    setStore("publishPending", true)
+    try {
+      await client()!.provider.unpublish(
+        {
+          providerID: "github-copilot",
+          sessionID: id,
+        },
+        { throwOnError: true },
+      )
+      setStore("shareURL", "")
+      await summary.refetch()
+      showToast({
+        variant: "success",
+        title: language.t("copilot.page.publish.toast.unpublished"),
+      })
+    } catch (error) {
+      showToast({
+        variant: "error",
+        title: language.t("copilot.page.publish.toast.failed"),
+        description: error instanceof Error ? error.message : language.t("common.requestFailed"),
+      })
+    } finally {
+      setStore("publishPending", false)
+    }
+  }
+
+  async function deployRun() {
+    if (!client()) return
+    setStore("deployPending", true)
+    try {
+      const result = await client()!.provider.deploy(
+        {
+          providerID: "github-copilot",
+          host: store.host,
+          port: 22,
+          user: store.user,
+          password: store.password,
+          path: store.path,
+          publicPort: Number(store.publicPort || "8080"),
+          sessionID: latest()?.id,
+        },
+        { throwOnError: true },
+      )
+      setStore("deployURL", result.data!.url)
+      setStore("deployLogs", result.data!.logs)
+      if (result.data!.shareURL) setStore("shareURL", result.data!.shareURL)
+      await summary.refetch()
+      showToast({
+        variant: "success",
+        title: language.t("copilot.page.deploy.toast.success"),
+        description: result.data!.url,
+      })
+    } catch (error) {
+      setStore("deployLogs", [error instanceof Error ? error.message : language.t("common.requestFailed")])
+      showToast({
+        variant: "error",
+        title: language.t("copilot.page.deploy.toast.failed"),
+        description: error instanceof Error ? error.message : language.t("common.requestFailed"),
+      })
+    } finally {
+      setStore("deployPending", false)
+    }
+  }
 
   return (
     <main data-page="copilot-builder" class="h-full overflow-y-auto">
@@ -281,8 +388,25 @@ export default function CopilotPage() {
                 <div class="text-18-medium text-text-strong">{language.t("copilot.page.publish.title")}</div>
                 <div class="mt-1 text-13-regular text-text-weak">{language.t("copilot.page.publish.subtitle")}</div>
                 <div class="mt-5 rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3 text-13-medium text-text-strong">
-                  https://{app()}.opencode.run
+                  {share() || language.t("copilot.page.publish.empty")}
                 </div>
+                <div class="mt-4 flex flex-wrap gap-2">
+                  <Button size="large" variant="secondary" disabled={!latest() || store.publishPending} onClick={share() ? unpublish : publish}>
+                    {store.publishPending
+                      ? language.t("copilot.page.publish.pending")
+                      : share()
+                        ? language.t("copilot.page.publish.action.unpublish")
+                        : language.t("copilot.page.publish.action.publish")}
+                  </Button>
+                  <Show when={share()}>
+                    <Button size="large" variant="ghost" onClick={() => window.open(share(), "_blank", "noopener,noreferrer")}>{language.t("copilot.page.publish.action.open")}</Button>
+                  </Show>
+                </div>
+                <Show when={latest()}>
+                  <div class="mt-4 text-12-regular text-text-weak">
+                    {language.t("copilot.page.publish.session")}: {latest()!.title}
+                  </div>
+                </Show>
               </div>
               <div class="rounded-3xl border border-border-weak-base bg-surface-base p-5 sm:p-6">
                 <div class="text-14-medium text-text-strong">{language.t("copilot.page.publish.list")}</div>
@@ -295,7 +419,7 @@ export default function CopilotPage() {
                       </div>
                     </div>
                   </Show>
-                  <For each={publish}>
+                  <For each={publishItems}>
                     {(item) => (
                       <div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3 text-13-regular text-text-base">
                         {language.t(item)}
@@ -314,11 +438,27 @@ export default function CopilotPage() {
                 <div class="mt-1 text-13-regular text-text-weak">{language.t("copilot.page.deploy.subtitle")}</div>
                 <div class="mt-5 grid gap-4 sm:grid-cols-2">
                   <TextField label={language.t("copilot.page.deploy.host")} value={store.host} onChange={(value) => setStore("host", value)} />
+                  <TextField label={language.t("copilot.page.deploy.publicPort")} value={store.publicPort} onChange={(value) => setStore("publicPort", value)} />
                   <TextField label={language.t("copilot.page.deploy.user")} value={store.user} onChange={(value) => setStore("user", value)} />
                   <TextField label={language.t("copilot.page.deploy.password")} type="password" value={store.password} onChange={(value) => setStore("password", value)} />
                   <TextField label={language.t("copilot.page.deploy.path")} value={store.path} onChange={(value) => setStore("path", value)} />
                 </div>
                 <div class="mt-4 text-12-regular text-text-weak">{language.t("copilot.page.deploy.note")}</div>
+                <div class="mt-4 flex flex-wrap gap-2">
+                  <Button size="large" variant="secondary" disabled={store.deployPending || !store.host || !store.user || !store.password || !store.path} onClick={deployRun}>
+                    {store.deployPending ? language.t("copilot.page.deploy.pending") : language.t("copilot.page.deploy.action.run")}
+                  </Button>
+                  <Show when={store.deployURL}>
+                    <Button size="large" variant="ghost" onClick={() => window.open(store.deployURL, "_blank", "noopener,noreferrer")}>
+                      {language.t("copilot.page.deploy.action.open")}
+                    </Button>
+                  </Show>
+                </div>
+                <Show when={store.deployURL}>
+                  <div class="mt-4 rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3 text-13-medium text-text-strong">
+                    {store.deployURL}
+                  </div>
+                </Show>
               </div>
               <div class="rounded-3xl border border-border-weak-base bg-surface-base p-5 sm:p-6">
                 <div class="text-14-medium text-text-strong">{language.t("copilot.page.deploy.list")}</div>
@@ -326,6 +466,14 @@ export default function CopilotPage() {
                   <div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3 text-13-regular text-text-base">
                     {language.t("copilot.page.deploy.connected", { status: connected() ? language.t("common.connected") : language.t("common.disconnected") })}
                   </div>
+                  <Show when={store.deployLogs.length}>
+                    <div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3">
+                      <div class="text-12-medium uppercase tracking-[0.12em] text-text-weak">{language.t("copilot.page.deploy.logs")}</div>
+                      <div class="mt-2 max-h-56 overflow-y-auto whitespace-pre-wrap break-words text-12-regular text-text-base">
+                        {store.deployLogs.join("\n")}
+                      </div>
+                    </div>
+                  </Show>
                   <For each={deploy}>
                     {(item) => (
                       <div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3 text-13-regular text-text-base">

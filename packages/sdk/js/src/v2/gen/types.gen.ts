@@ -4190,6 +4190,12 @@ export type ProviderSummaryResponses = {
       worktree: string
       directory: string
     }
+    latestSession?: {
+      id: string
+      title: string
+      updated: number
+      shareURL?: string
+    }
     usage: {
       totalSessions: number
       totalMessages: number
@@ -4233,6 +4239,124 @@ export type ProviderSummaryResponses = {
 }
 
 export type ProviderSummaryResponse = ProviderSummaryResponses[keyof ProviderSummaryResponses]
+
+export type ProviderUnpublishData = {
+  body?: {
+    sessionID?: string
+  }
+  path: {
+    providerID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/provider/{providerID}/publish"
+}
+
+export type ProviderUnpublishErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type ProviderUnpublishError = ProviderUnpublishErrors[keyof ProviderUnpublishErrors]
+
+export type ProviderUnpublishResponses = {
+  /**
+   * Unpublished session
+   */
+  200: boolean
+}
+
+export type ProviderUnpublishResponse = ProviderUnpublishResponses[keyof ProviderUnpublishResponses]
+
+export type ProviderPublishData = {
+  body?: {
+    sessionID?: string
+  }
+  path: {
+    providerID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/provider/{providerID}/publish"
+}
+
+export type ProviderPublishErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type ProviderPublishError = ProviderPublishErrors[keyof ProviderPublishErrors]
+
+export type ProviderPublishResponses = {
+  /**
+   * Published session
+   */
+  200: {
+    sessionID: string
+    shareURL: string
+  }
+}
+
+export type ProviderPublishResponse = ProviderPublishResponses[keyof ProviderPublishResponses]
+
+export type ProviderDeployData = {
+  body?: {
+    host: string
+    port?: number
+    user: string
+    password: string
+    path: string
+    publicPort?: number
+    sessionID?: string
+  }
+  path: {
+    providerID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/provider/{providerID}/deploy"
+}
+
+export type ProviderDeployErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type ProviderDeployError = ProviderDeployErrors[keyof ProviderDeployErrors]
+
+export type ProviderDeployResponses = {
+  /**
+   * Deployment result
+   */
+  200: {
+    host: string
+    port: number
+    path: string
+    publicPort: number
+    url: string
+    shareURL?: string
+    sessionID?: string
+    logs: Array<string>
+  }
+}
+
+export type ProviderDeployResponse = ProviderDeployResponses[keyof ProviderDeployResponses]
 
 export type ProviderAuthData = {
   body?: never

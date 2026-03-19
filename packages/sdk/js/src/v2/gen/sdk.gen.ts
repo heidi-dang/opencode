@@ -82,13 +82,19 @@ import type {
   ProjectUpdateErrors,
   ProjectUpdateResponses,
   ProviderAuthResponses,
+  ProviderDeployErrors,
+  ProviderDeployResponses,
   ProviderListResponses,
   ProviderOauthAuthorizeErrors,
   ProviderOauthAuthorizeResponses,
   ProviderOauthCallbackErrors,
   ProviderOauthCallbackResponses,
+  ProviderPublishErrors,
+  ProviderPublishResponses,
   ProviderSummaryErrors,
   ProviderSummaryResponses,
+  ProviderUnpublishErrors,
+  ProviderUnpublishResponses,
   PtyConnectErrors,
   PtyConnectResponses,
   PtyCreateErrors,
@@ -2773,6 +2779,135 @@ export class Provider extends HeyApiClient {
       url: "/provider/{providerID}/summary",
       ...options,
       ...params,
+    })
+  }
+
+  /**
+   * Unpublish builder session
+   *
+   * Remove the public share URL from the latest or requested builder session.
+   */
+  public unpublish<ThrowOnError extends boolean = false>(
+    parameters: {
+      providerID: string
+      directory?: string
+      workspace?: string
+      sessionID?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "providerID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "sessionID" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<ProviderUnpublishResponses, ProviderUnpublishErrors, ThrowOnError>({
+      url: "/provider/{providerID}/publish",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Publish builder session
+   *
+   * Share the latest or requested builder session and return its public URL.
+   */
+  public publish<ThrowOnError extends boolean = false>(
+    parameters: {
+      providerID: string
+      directory?: string
+      workspace?: string
+      sessionID?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "providerID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "sessionID" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<ProviderPublishResponses, ProviderPublishErrors, ThrowOnError>({
+      url: "/provider/{providerID}/publish",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Deploy builder landing page
+   *
+   * Connect to a VPS over SSH and deploy a Docker Compose landing page for the current Copilot builder project.
+   */
+  public deploy<ThrowOnError extends boolean = false>(
+    parameters: {
+      providerID: string
+      directory?: string
+      workspace?: string
+      host?: string
+      port?: number
+      user?: string
+      password?: string
+      path?: string
+      publicPort?: number
+      sessionID?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "providerID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "host" },
+            { in: "body", key: "port" },
+            { in: "body", key: "user" },
+            { in: "body", key: "password" },
+            { in: "body", key: "path" },
+            { in: "body", key: "publicPort" },
+            { in: "body", key: "sessionID" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<ProviderDeployResponses, ProviderDeployErrors, ThrowOnError>({
+      url: "/provider/{providerID}/deploy",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
     })
   }
 

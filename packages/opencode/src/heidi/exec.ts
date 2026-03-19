@@ -95,6 +95,8 @@ export namespace HeidiExec {
 
         // Restore files from the hidden ref
         await g(["checkout", ref, "--", "."])
+        // Remove files that were added after the checkpoint
+        await g(["clean", "-fd"])
 
         // Refresh file times
         await Promise.all(

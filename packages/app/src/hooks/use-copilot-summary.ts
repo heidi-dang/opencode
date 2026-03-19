@@ -19,6 +19,7 @@ export function useCopilotSummary() {
 
   return {
     dir,
+    sdk,
     data,
     refetch: actions.refetch,
   }
