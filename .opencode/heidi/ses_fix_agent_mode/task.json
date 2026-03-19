@@ -1,16 +1,16 @@
 {
   "run_id": "fix-agent-mode",
   "task_id": "ses_fix_agent_mode",
-  "fsm_state": "DISCOVERY",
+  "fsm_state": "BLOCKED",
   "mode": "PLANNING",
   "objective": {
-    "locked": false,
+    "locked": true,
     "text": "Fix agent mode override bug and update tests"
   },
   "plan": {
     "path": "/home/heidi/work/opencode-main/.opencode/heidi/ses_fix_agent_mode/implementation_plan.md",
-    "hash": "",
-    "locked": false,
+    "hash": "43471ba849d0805b68932303f4c74f91440815c20e3d7e798f676476543ce821",
+    "locked": true,
     "amendments": []
   },
   "checklist": [],
@@ -19,11 +19,11 @@
   "commands": [],
   "verification_commands": [],
   "checkpoints": [],
-  "block_reason": null,
-  "last_successful_step": "start",
-  "next_transition": "DISCOVERY->PLAN_DRAFT",
+  "block_reason": "fixes complete",
+  "last_successful_step": "block",
+  "next_transition": "BLOCKED",
   "resume": {
-    "next_step": "DISCOVERY",
+    "next_step": "blocked",
     "checkpoint_id": null,
     "failed_hypotheses": []
   }

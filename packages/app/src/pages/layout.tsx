@@ -2266,6 +2266,11 @@ export default function Layout(props: ParentProps) {
       openProjectKeybind={() => command.keybind("project.open")}
       onOpenProject={chooseProject}
       renderProjectOverlay={projectOverlay}
+      copilotLabel={() => language.t("command.copilot.open")}
+      copilotDisabled={() => !params.dir}
+      onOpenCopilot={() => {
+        if (params.dir) navigate(`/${params.dir}/copilot`)
+      }}
       settingsLabel={() => language.t("sidebar.settings")}
       settingsKeybind={() => command.keybind("settings.open")}
       onOpenSettings={openSettings}

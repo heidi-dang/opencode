@@ -1,11 +1,14 @@
 # Heidi Task: ses_fix_agent_mode
 
 > **Run ID**: `fix-agent-mode`
-> **Status**: `DISCOVERY` (PLANNING)
+> **Status**: `BLOCKED` (PLANNING)
 > **Goal**: Fix agent mode override bug and update tests
 
+> [!WARNING]
+> **Blocked**: fixes complete
+
 ### Progress
-- **Last Step**: start
-- **Next Transition**: DISCOVERY->PLAN_DRAFT
+- **Last Step**: block
+- **Next Transition**: BLOCKED
 
 ### Checklist
