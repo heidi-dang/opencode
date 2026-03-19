@@ -67,6 +67,15 @@ export namespace SessionPrompt {
 
   export const PARALLEL_RESEARCH_DESCRIPTION = "Parallel research lane for Heidi"
 
+  export type BeastReport = {
+    summary: string[]
+    files: string[]
+    findings: string[]
+    changes: Array<{ file: string; action: string; reason: string }>
+    risks: string[]
+    questions: string[]
+  }
+
   export function shouldUseParallelAssist(input: {
     agent: string
     parts: Array<Pick<MessageV2.Part, "type"> & { text?: string; synthetic?: boolean }>
@@ -115,6 +124,71 @@ export namespace SessionPrompt {
     ].join("\n\n")
   }
 
+  export function parseBeastReport(text: string): BeastReport | undefined {
+    const lines = text.split("\n")
+    const take = (name: string) => {
+      const i = lines.findIndex((line) => line.trim() === `## ${name}`)
+      if (i === -1) return []
+      const out: string[] = []
+      for (let j = i + 1; j < lines.length; j++) {
+        const line = lines[j].trim()
+        if (line.startsWith("## ")) break
+        if (!line) continue
+        if (line.startsWith("- ")) out.push(line.slice(2).trim())
+      }
+      return out
+    }
+    const raw = take("Recommended Changes")
+    const changes = raw.map((line) => {
+      const file = /file:\s*([^|]+?)(?:\s*\||$)/i.exec(line)?.[1]?.trim() ?? ""
+      const action = /action:\s*([^|]+?)(?:\s*\||$)/i.exec(line)?.[1]?.trim() ?? "review"
+      const reason = /reason:\s*(.+)$/i.exec(line)?.[1]?.trim() ?? line
+      return { file, action, reason }
+    })
+    const summary = take("Summary")
+    const files = take("Files Read")
+    const findings = take("Findings")
+    const risks = take("Risks")
+    const questions = take("Open Questions")
+    const hasData =
+      summary.length || files.length || findings.length || changes.length || risks.length || questions.length
+    if (!hasData) return
+    return { summary, files, findings, changes, risks, questions }
+  }
+
+  export function buildSynthesisReminder(input: { report: BeastReport; text: string }) {
+    const lines = [
+      "<system-reminder>",
+      "A Beast research lane completed. Merge its findings into your implementation plan before editing.",
+      "",
+      "## Beast Summary",
+      ...(input.report.summary.length ? input.report.summary.map((line) => `- ${line}`) : ["- No summary provided"]),
+      "",
+      "## Beast Files Read",
+      ...(input.report.files.length ? input.report.files.map((line) => `- ${line}`) : ["- None listed"]),
+      "",
+      "## Beast Findings",
+      ...(input.report.findings.length ? input.report.findings.map((line) => `- ${line}`) : ["- None listed"]),
+      "",
+      "## Beast Recommended Changes",
+      ...(input.report.changes.length
+        ? input.report.changes.map(
+            (line) => `- file: ${line.file || "unknown"} | action: ${line.action} | reason: ${line.reason}`,
+          )
+        : ["- None listed"]),
+      "",
+      "## Beast Risks",
+      ...(input.report.risks.length ? input.report.risks.map((line) => `- ${line}`) : ["- None listed"]),
+      "",
+      "## Beast Open Questions",
+      ...(input.report.questions.length ? input.report.questions.map((line) => `- ${line}`) : ["- None listed"]),
+      "",
+      "Use this report as input. Heidi remains the final decision-maker for edits and verification.",
+      "</system-reminder>",
+    ]
+    return lines.join("\n")
+  }
+
   async function createParallelResearchPart(input: {
     sessionID: SessionID
     messageID: MessageID
@@ -137,6 +211,11 @@ export namespace SessionPrompt {
         sessionID: input.sessionID,
         type: "subtask" as const,
         agent: "beast_mode",
+        lane: "research",
+        ownership: {
+          mode: "read_only",
+          files: [],
+        },
         description: PARALLEL_RESEARCH_DESCRIPTION,
         prompt: buildParallelResearchPrompt({ text }),
       },
@@ -489,6 +568,8 @@ export namespace SessionPrompt {
           prompt: task.prompt,
           description: task.description,
           subagent_type: task.agent,
+          lane: task.lane,
+          ownership: task.ownership,
           command: task.command,
         }
         await Plugin.trigger(
@@ -508,7 +589,7 @@ export namespace SessionPrompt {
           sessionID: sessionID,
           abort,
           callID: part.callID,
-          extra: { bypassAgentCheck: true },
+          extra: { bypassAgentCheck: true, ownership: task.ownership, lane: task.lane },
           messages: msgs,
           async metadata(input) {
             part = (await Session.updatePart({
@@ -568,6 +649,19 @@ export namespace SessionPrompt {
               },
             },
           } satisfies MessageV2.ToolPart)
+        }
+        if (result && task.agent === "beast_mode") {
+          const report = parseBeastReport(result.output)
+          if (report) {
+            await Session.updatePart({
+              id: PartID.ascending(),
+              messageID: assistantMessage.id,
+              sessionID: assistantMessage.sessionID,
+              type: "text",
+              synthetic: true,
+              text: buildSynthesisReminder({ report, text: result.output }),
+            })
+          }
         }
         if (!result) {
           await Session.updatePart({
@@ -1974,6 +2068,11 @@ NOTE: At any point in time through this workflow you should feel free to ask the
           {
             type: "subtask" as const,
             agent: agent.name,
+            lane: "implementation" as const,
+            ownership: {
+              mode: "shared" as const,
+              files: [],
+            },
             description: command.description ?? "",
             command: input.command,
             model: {

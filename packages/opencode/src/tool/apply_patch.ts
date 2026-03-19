@@ -60,6 +60,13 @@ export const ApplyPatchTool = Tool.define("apply_patch", {
     for (const hunk of hunks) {
       const filePath = path.resolve(Instance.directory, hunk.path)
       await assertExternalDirectory(ctx, filePath)
+      const own = ctx.extra?.ownership as { mode?: string; files?: string[] } | undefined
+      if (own?.mode === "exclusive_edit") {
+        const rel = path.relative(Instance.worktree, filePath).replaceAll("\\", "/")
+        if (!(own.files ?? []).includes(rel)) {
+          throw new Error(`apply_patch denied: file is outside exclusive ownership set (${rel})`)
+        }
+      }
 
       switch (hunk.type) {
         case "add": {

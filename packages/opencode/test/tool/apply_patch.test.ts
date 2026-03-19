@@ -127,6 +127,31 @@ describe("tool.apply_patch freeform", () => {
     })
   })
 
+  test("rejects patch outside exclusive ownership set", async () => {
+    await using fixture = await tmpdir({ git: true })
+    const { ctx } = makeCtx()
+
+    await Instance.provide({
+      directory: fixture.path,
+      fn: async () => {
+        await fs.writeFile(path.join(fixture.path, "modify.txt"), "line1\nline2\n", "utf-8")
+        const patchText = "*** Begin Patch\n*** Update File: modify.txt\n@@\n-line2\n+changed\n*** End Patch"
+
+        await expect(
+          execute({ patchText }, {
+            ...ctx,
+            extra: {
+              ownership: {
+                mode: "exclusive_edit",
+                files: ["other.txt"],
+              },
+            },
+          } as ToolCtx),
+        ).rejects.toThrow("outside exclusive ownership set")
+      },
+    })
+  })
+
   test("permission metadata includes move file info", async () => {
     await using fixture = await tmpdir({ git: true })
     const { ctx, calls } = makeCtx()

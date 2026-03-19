@@ -244,6 +244,11 @@ describe("session.message-v2.toModelMessage", () => {
             prompt: "prompt",
             description: "desc",
             agent: "agent",
+            lane: "research",
+            ownership: {
+              mode: "exclusive_edit",
+              files: ["src/foo.ts"],
+            },
           },
         ] as MessageV2.Part[],
       },
@@ -261,7 +266,8 @@ describe("session.message-v2.toModelMessage", () => {
             data: "https://example.com/img.png",
           },
           { type: "text", text: "What did we do so far?" },
-          { type: "text", text: "The following tool was executed by the user" },
+          { type: "text", text: "The following research task was executed by the user" },
+          { type: "text", text: "This task had exclusive edit ownership for: src/foo.ts" },
         ],
       },
     ])

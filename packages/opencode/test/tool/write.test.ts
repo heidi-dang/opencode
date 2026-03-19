@@ -70,6 +70,39 @@ describe("tool.write", () => {
       })
     })
 
+    test("rejects writes outside exclusive ownership set", async () => {
+      await using tmp = await tmpdir()
+      const filepath = path.join(tmp.path, "blocked.txt")
+
+      await Instance.provide({
+        directory: tmp.path,
+        fn: async () => {
+          const { HeidiState } = await import("../../src/heidi/state")
+          const state = await HeidiState.ensure(ctx.sessionID, "")
+          state.fsm_state = "EXECUTION"
+          await HeidiState.write(ctx.sessionID, state)
+          const write = await WriteTool.init()
+          await expect(
+            write.execute(
+              {
+                filePath: filepath,
+                content: "nope",
+              },
+              {
+                ...ctx,
+                extra: {
+                  ownership: {
+                    mode: "exclusive_edit",
+                    files: ["allowed.txt"],
+                  },
+                },
+              },
+            ),
+          ).rejects.toThrow("outside exclusive ownership set")
+        },
+      })
+    })
+
     test("handles relative paths by resolving to instance directory", async () => {
       await using tmp = await tmpdir()
 

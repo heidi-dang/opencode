@@ -23,6 +23,14 @@ import { HeidiJail } from "@/heidi/jail"
 
 const MAX_DIAGNOSTICS_PER_FILE = 20
 
+function assertOwnership(ctx: Tool.Context, filePath: string) {
+  const own = ctx.extra?.ownership as { mode?: string; files?: string[] } | undefined
+  if (!own || own.mode !== "exclusive_edit") return
+  const rel = path.relative(Instance.worktree, filePath).replaceAll("\\", "/")
+  if ((own.files ?? []).includes(rel)) return
+  throw new Error(`edit denied: file is outside exclusive ownership set (${rel})`)
+}
+
 function normalizeLineEndings(text: string): string {
   return text.replaceAll("\r\n", "\n")
 }
@@ -63,6 +71,7 @@ export const EditTool = Tool.define("edit", {
     const filePath = path.isAbsolute(params.filePath) ? params.filePath : path.join(Instance.directory, params.filePath)
     HeidiJail.assert(filePath)
     await assertExternalDirectory(ctx, filePath)
+    assertOwnership(ctx, filePath)
 
     let diff = ""
     let contentOld = ""
@@ -107,7 +116,7 @@ export const EditTool = Tool.define("edit", {
         const ending = detectLineEnding(contentOld)
         const old = convertToLineEnding(normalizeLineEndings(params.oldString), ending)
         const next = convertToLineEnding(normalizeLineEndings(params.newString), ending)
-        
+
         const before = params.before ? convertToLineEnding(normalizeLineEndings(params.before), ending) : ""
         const after = params.after ? convertToLineEnding(normalizeLineEndings(params.after), ending) : ""
 
@@ -660,12 +669,12 @@ export function trimDiff(diff: string): string {
 }
 
 export function replace(
-  content: string, 
-  oldString: string, 
-  newString: string, 
+  content: string,
+  oldString: string,
+  newString: string,
   replaceAll = false,
   before = "",
-  after = ""
+  after = "",
 ): string {
   const find = before + oldString + after
   if (find === newString) {
@@ -694,7 +703,7 @@ export function replace(
       }
       const lastIndex = content.lastIndexOf(search)
       if (index !== lastIndex) continue
-      
+
       const prefix = content.substring(0, index + before.length)
       const suffix = content.substring(index + before.length + oldString.length)
       return prefix + newString + suffix

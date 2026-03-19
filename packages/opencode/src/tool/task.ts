@@ -17,6 +17,13 @@ const parameters = z.object({
   description: z.string().describe("A short (3-5 words) description of the task"),
   prompt: z.string().describe("The task for the agent to perform"),
   subagent_type: z.string().describe("The type of specialized agent to use for this task"),
+  lane: z.enum(["research", "implementation", "review"]).optional(),
+  ownership: z
+    .object({
+      mode: z.enum(["shared", "read_only", "exclusive_edit"]),
+      files: z.array(z.string()),
+    })
+    .optional(),
   task_id: z
     .string()
     .describe(
@@ -122,6 +129,8 @@ export const TaskTool = Tool.define("task", async (ctx) => {
         metadata: {
           sessionId: session.id,
           model,
+          lane: params.lane,
+          ownership: params.ownership,
         },
       })
 
@@ -134,6 +143,7 @@ export const TaskTool = Tool.define("task", async (ctx) => {
       using _ = defer(() => ctx.abort?.removeEventListener("abort", cancel))
       const promptParts = await SessionPrompt.resolvePromptParts(params.prompt)
 
+      const started = Date.now()
       const result = await SessionPrompt.prompt({
         messageID,
         sessionID: session.id,
@@ -152,6 +162,7 @@ export const TaskTool = Tool.define("task", async (ctx) => {
       })
 
       const text = result.parts.findLast((x) => x.type === "text")?.text ?? ""
+      const finished = Date.now()
 
       const output = [
         `task_id: ${session.id} (for resuming to continue this task if needed)`,
@@ -166,6 +177,13 @@ export const TaskTool = Tool.define("task", async (ctx) => {
         metadata: {
           sessionId: session.id,
           model,
+          lane: params.lane,
+          ownership: params.ownership,
+          timing: {
+            start: started,
+            end: finished,
+            duration_ms: finished - started,
+          },
         },
         output,
       }

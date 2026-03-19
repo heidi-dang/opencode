@@ -174,6 +174,37 @@ async function runBenchmarks() {
   })
 
   // ==========================================================================
+  // Benchmark 6: Parallel Orchestration Contract
+  // ==========================================================================
+  console.log("\n📋 Benchmark 6: Parallel Orchestration")
+
+  const promptPath = path.join(baseDir, "src/session/prompt.ts")
+  const promptContent = fs.readFileSync(promptPath, "utf-8")
+  const taskPath = path.join(baseDir, "src/tool/task.ts")
+  const taskContent = fs.readFileSync(taskPath, "utf-8")
+  const orchestrationChecks = [
+    { name: "Has lane metadata", pattern: /lane:\s*(z\.enum\(|"research")/ },
+    { name: "Has ownership metadata", pattern: /ownership:\s*\{/ },
+    { name: "Has Beast report parser", pattern: /export function parseBeastReport/ },
+    { name: "Has synthesis reminder", pattern: /export function buildSynthesisReminder/ },
+    { name: "Has timing metadata", pattern: /duration_ms|timing:\s*\{/ },
+  ]
+
+  let orchestrationPassed = 0
+  for (const check of orchestrationChecks) {
+    const passed = check.pattern.test(agentContent + promptContent + taskContent)
+    if (passed) orchestrationPassed++
+    console.log(`  ${passed ? "✅" : "❌"} ${check.name}`)
+  }
+
+  results.push({
+    name: "Parallel Orchestration",
+    passed: orchestrationPassed === orchestrationChecks.length,
+    score: orchestrationPassed / orchestrationChecks.length,
+    details: `${orchestrationPassed}/${orchestrationChecks.length} checks passed`,
+  })
+
+  // ==========================================================================
   // Summary
   // ==========================================================================
   const total = results.length

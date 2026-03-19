@@ -19,6 +19,14 @@ import { HeidiJail } from "@/heidi/jail"
 const MAX_DIAGNOSTICS_PER_FILE = 20
 const MAX_PROJECT_DIAGNOSTICS_FILES = 5
 
+function assertOwnership(ctx: Tool.Context, filePath: string) {
+  const own = ctx.extra?.ownership as { mode?: string; files?: string[] } | undefined
+  if (!own || own.mode !== "exclusive_edit") return
+  const rel = path.relative(Instance.worktree, filePath).replaceAll("\\", "/")
+  if ((own.files ?? []).includes(rel)) return
+  throw new Error(`write denied: file is outside exclusive ownership set (${rel})`)
+}
+
 export const WriteTool = Tool.define("write", {
   description: DESCRIPTION,
   parameters: z.object({
@@ -34,10 +42,11 @@ export const WriteTool = Tool.define("write", {
     const filepath = path.isAbsolute(params.filePath) ? params.filePath : path.join(Instance.directory, params.filePath)
     HeidiJail.assert(filepath)
     await assertExternalDirectory(ctx, filepath)
+    assertOwnership(ctx, filepath)
 
     const exists = await Filesystem.exists(filepath)
     const contentOld = exists ? await Filesystem.readText(filepath) : ""
-    
+
     // Checkpoint
     const transactionId = state.resume.checkpoint_id
     const checkpoint = transactionId ?? (await HeidiExec.checkpoint(ctx.sessionID, `write:${filepath}`, [filepath]))
@@ -56,7 +65,7 @@ export const WriteTool = Tool.define("write", {
     try {
       await Filesystem.write(filepath, params.content)
       await HeidiExec.changed(ctx.sessionID, [filepath])
-      
+
       await Bus.publish(File.Event.Edited, {
         file: filepath,
       })

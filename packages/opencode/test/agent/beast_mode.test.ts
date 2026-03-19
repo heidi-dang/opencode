@@ -60,6 +60,13 @@ describe("Beast Mode Agent Benchmark", () => {
       expect(beastModeAgent?.permission).toBeDefined()
       expect(beastModeAgent?.permission.length).toBeGreaterThan(0)
     })
+
+    test("has structured synthesis contract", () => {
+      expect(beastModeAgent?.prompt).toContain("## Files Read")
+      expect(beastModeAgent?.prompt).toContain("## Findings")
+      expect(beastModeAgent?.prompt).toContain("## Risks")
+      expect(beastModeAgent?.prompt).toContain("## Open Questions")
+    })
   })
 
   // ============================================================================
@@ -287,6 +294,9 @@ export async function generateBenchmarkReport(): Promise<BenchmarkReport> {
   }
   if (toolCoverage.notebook === 2) {
     recommendations.push("✅ Jupyter notebook support")
+  }
+  if (beastModeAgent?.prompt?.includes("## Recommended Changes")) {
+    recommendations.push("✅ Structured synthesis report contract")
   }
 
   return {

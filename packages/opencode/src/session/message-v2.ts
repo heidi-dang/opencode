@@ -212,6 +212,13 @@ export namespace MessageV2 {
     prompt: z.string(),
     description: z.string(),
     agent: z.string(),
+    lane: z.enum(["research", "implementation", "review"]).optional(),
+    ownership: z
+      .object({
+        mode: z.enum(["shared", "read_only", "exclusive_edit"]),
+        files: z.array(z.string()),
+      })
+      .optional(),
     model: z
       .object({
         providerID: ProviderID.zod,
@@ -659,8 +666,16 @@ export namespace MessageV2 {
           if (part.type === "subtask") {
             userMessage.parts.push({
               type: "text",
-              text: "The following tool was executed by the user",
+              text:
+                part.lane === "research"
+                  ? "The following research task was executed by the user"
+                  : "The following tool was executed by the user",
             })
+            if (part.ownership?.mode === "exclusive_edit" && part.ownership.files.length > 0)
+              userMessage.parts.push({
+                type: "text",
+                text: `This task had exclusive edit ownership for: ${part.ownership.files.join(", ")}`,
+              })
           }
         }
       }

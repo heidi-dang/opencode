@@ -244,6 +244,51 @@ describe("session.prompt parallel assist", () => {
     expect(prompt).toContain("## Open Questions")
   })
 
+  test("parses Beast report sections", () => {
+    const report = SessionPrompt.parseBeastReport(`## Summary
+- root cause isolated
+
+## Files Read
+- src/a.ts
+
+## Findings
+- auth path uses stale state
+
+## Recommended Changes
+- file: src/a.ts | action: edit | reason: refresh token before retry
+
+## Risks
+- retry loops
+
+## Open Questions
+- none`)
+
+    expect(report?.summary).toEqual(["root cause isolated"])
+    expect(report?.files).toEqual(["src/a.ts"])
+    expect(report?.findings).toEqual(["auth path uses stale state"])
+    expect(report?.changes).toEqual([{ file: "src/a.ts", action: "edit", reason: "refresh token before retry" }])
+    expect(report?.risks).toEqual(["retry loops"])
+    expect(report?.questions).toEqual(["none"])
+  })
+
+  test("builds a Heidi synthesis reminder from Beast report", () => {
+    const text = SessionPrompt.buildSynthesisReminder({
+      text: "ignored",
+      report: {
+        summary: ["root cause isolated"],
+        files: ["src/a.ts"],
+        findings: ["auth path uses stale state"],
+        changes: [{ file: "src/a.ts", action: "edit", reason: "refresh token before retry" }],
+        risks: ["retry loops"],
+        questions: ["none"],
+      },
+    })
+
+    expect(text).toContain("A Beast research lane completed")
+    expect(text).toContain("## Beast Summary")
+    expect(text).toContain("file: src/a.ts | action: edit | reason: refresh token before retry")
+  })
+
   test("adds a beast research subtask for complex heidi prompts", async () => {
     await using tmp = await tmpdir({
       git: true,
