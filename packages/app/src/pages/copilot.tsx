@@ -52,18 +52,18 @@ function Pill(props: { label: string; value: string; accent?: boolean }) {
 
 function Empty(props: { title: string; copy: string; action?: string; onAction?: () => void; disabled?: boolean }) {
   return (
-    <div class="flex h-full min-h-48 flex-col items-center justify-center px-6 py-10 text-center">
-      <div class="mx-auto h-12 w-12 rounded-2xl border border-white/8 bg-white/5 grid place-items-center mb-4">
-        <svg class="h-5 w-5 text-white/30" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+    <div class="flex h-full min-h-32 flex-col items-center justify-center px-4 py-6 text-center sm:min-h-48 sm:px-6 sm:py-10">
+      <div class="mx-auto h-9 w-9 rounded-xl border border-white/8 bg-white/5 grid place-items-center mb-3 sm:h-12 sm:w-12 sm:rounded-2xl sm:mb-4">
+        <svg class="h-4 w-4 text-white/30 sm:h-5 sm:w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
         </svg>
       </div>
-      <div class="text-15-medium text-white/80">{props.title}</div>
-      <div class="mt-1.5 max-w-sm text-13-regular leading-5 text-white/40">{props.copy}</div>
+      <div class="text-13-medium text-white/80 sm:text-15-medium">{props.title}</div>
+      <div class="mt-1 max-w-[260px] text-12-regular leading-[1.5] text-white/40 sm:mt-1.5 sm:max-w-sm sm:text-13-regular">{props.copy}</div>
       <Show when={props.action && props.onAction}>
         <button
           type="button"
-          class="mt-5 rounded-full border border-sky-400/30 bg-sky-400/10 px-5 py-2 text-13-medium text-sky-300 transition-all duration-200 hover:bg-sky-400/20 hover:shadow-[0_0_20px_rgba(56,189,248,0.15)] disabled:opacity-40"
+          class="mt-4 rounded-full border border-sky-400/30 bg-sky-400/10 px-4 py-1.5 text-12-medium text-sky-300 transition-all duration-200 hover:bg-sky-400/20 disabled:opacity-40 sm:mt-5 sm:px-5 sm:py-2 sm:text-13-medium"
           onClick={() => props.onAction?.()}
           disabled={props.disabled}
         >
@@ -618,30 +618,30 @@ export default function CopilotPage() {
 
       {/* ─── top bar ─────────────────────── */}
       <header class="z-20 shrink-0 border-b border-white/6 bg-[#0d1117]/95 backdrop-blur-lg">
-        <div class="flex h-12 items-center justify-between gap-3 px-3 sm:h-14 sm:px-5">
+        <div class="flex h-11 items-center justify-between gap-2 px-2 sm:h-14 sm:gap-3 sm:px-5">
           {/* left: back + title */}
-          <div class="flex items-center gap-2.5 min-w-0">
+          <div class="flex items-center gap-1.5 min-w-0 sm:gap-2.5">
             <button
               type="button"
-              class="grid h-8 w-8 shrink-0 place-items-center rounded-xl border border-white/8 bg-white/5 text-white/50 transition-all duration-200 hover:bg-white/10 hover:text-white/80 sm:hidden"
+              class="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-white/8 bg-white/5 text-white/50 transition-all duration-200 hover:bg-white/10 sm:hidden"
               onClick={() => navigate(-1)}
             >
-              <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
               </svg>
             </button>
             <div class="min-w-0">
-              <div class="flex items-center gap-2">
-                <div class="h-2 w-2 shrink-0 rounded-full" classList={{ "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]": connected(), "bg-white/20": !connected() }} />
-                <h1 class="truncate text-14-medium text-white/90 sm:text-15-medium">{builder.data()?.title ?? app()}</h1>
+              <div class="flex items-center gap-1.5">
+                <div class="h-1.5 w-1.5 shrink-0 rounded-full sm:h-2 sm:w-2" classList={{ "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.5)]": connected(), "bg-white/20": !connected() }} />
+                <h1 class="truncate text-12-medium text-white/90 sm:text-15-medium">{builder.data()?.title ?? app()}</h1>
               </div>
-              <div class="text-[10px] uppercase tracking-[0.16em] text-white/30 sm:text-11-medium">
+              <div class="hidden text-[10px] uppercase tracking-[0.16em] text-white/30 sm:block sm:text-11-medium">
                 Copilot Builder Studio
               </div>
             </div>
           </div>
 
-          {/* center: status pills (hidden on mobile) */}
+          {/* center: status pills (hidden below lg) */}
           <div class="hidden items-center gap-2 lg:flex">
             <Pill label="status" value={status()} accent={status() !== "idle"} />
             <Pill label="tokens" value={total().toLocaleString()} />
@@ -649,27 +649,28 @@ export default function CopilotPage() {
           </div>
 
           {/* right: actions */}
-          <div class="flex items-center gap-1.5">
+          <div class="flex items-center gap-1">
             <Show when={!sessionID()}>
               <button
                 type="button"
-                class="rounded-full border border-sky-400/30 bg-sky-400/10 px-3 py-1.5 text-12-medium text-sky-300 transition-all duration-200 hover:bg-sky-400/20 disabled:opacity-40"
+                class="rounded-full border border-sky-400/30 bg-sky-400/10 px-2.5 py-1 text-[11px] font-medium text-sky-300 transition-all duration-200 hover:bg-sky-400/20 disabled:opacity-40 sm:px-3 sm:py-1.5 sm:text-12-medium"
                 onClick={ensureSession}
                 disabled={!connected()}
               >
-                New session
+                <span class="sm:hidden">New</span>
+                <span class="hidden sm:inline">New session</span>
               </button>
             </Show>
             <button
               type="button"
-              class="rounded-full border border-white/8 bg-white/5 px-3 py-1.5 text-12-medium text-white/60 transition-all duration-200 hover:bg-white/10 hover:text-white/80"
+              class="rounded-full border border-white/8 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-white/60 transition-all duration-200 hover:bg-white/10 sm:px-3 sm:py-1.5 sm:text-12-medium"
               onClick={() => dialog.show(() => <DialogConnectProvider provider="github-copilot" />)}
             >
               {connected() ? "Reconnect" : "Connect"}
             </button>
             <button
               type="button"
-              class="hidden rounded-full border border-white/8 bg-white/5 px-3 py-1.5 text-12-medium text-white/60 transition-all duration-200 hover:bg-white/10 hover:text-white/80 sm:block"
+              class="hidden rounded-full border border-white/8 bg-white/5 px-3 py-1.5 text-12-medium text-white/60 transition-all duration-200 hover:bg-white/10 md:block"
               onClick={() => navigate(`/${params.dir}/session/${sessionID() ?? ""}`)}
               disabled={!sessionID()}
             >
@@ -678,7 +679,7 @@ export default function CopilotPage() {
             {/* sidebar toggle desktop */}
             <button
               type="button"
-              class="hidden h-8 w-8 place-items-center rounded-xl border border-white/8 bg-white/5 text-white/50 transition-all duration-200 hover:bg-white/10 hover:text-white/80 lg:grid"
+              class="hidden h-8 w-8 place-items-center rounded-xl border border-white/8 bg-white/5 text-white/50 transition-all duration-200 hover:bg-white/10 lg:grid"
               onClick={() => setSidebar(!sidebar())}
             >
               <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -695,14 +696,14 @@ export default function CopilotPage() {
           {/* chat main panel */}
           <section class="flex min-h-0 flex-1 flex-col">
             {/* thread */}
-            <div class="min-h-0 flex-1 overflow-y-auto">
-              <div class="mx-auto max-w-3xl px-3 py-4 sm:px-6 sm:py-6">
+            <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+              <div class="mx-auto max-w-3xl px-2 py-3 sm:px-6 sm:py-6">
                 <Show
                   when={sessionID()}
                   fallback={
                     <Empty
                       title="No builder session"
-                      copy="Create a session to start chatting with the builder agent."
+                      copy="Create a session to start chatting."
                       action="Create session"
                       onAction={ensureSession}
                       disabled={!connected()}
@@ -714,42 +715,42 @@ export default function CopilotPage() {
                     fallback={
                       <Empty
                         title="Ready for prompts"
-                        copy="Type below to start a builder run. Messages will stream here in real time."
+                        copy="Type below to start. Messages stream in real time."
                       />
                     }
                   >
-                    <div class="flex flex-col gap-3">
+                    <div class="flex flex-col gap-2 sm:gap-3">
                       <For each={thread()}>
                         {(item) => (
                           <div
                             classList={{
-                              "group relative animate-[fadeIn_0.2s_ease-out]": true,
-                              "ml-auto max-w-[88%] sm:max-w-[75%]": item.role === "user",
-                              "max-w-[92%] sm:max-w-[80%]": item.role !== "user",
+                              "group relative": true,
+                              "ml-auto max-w-[85%] sm:max-w-[75%]": item.role === "user",
+                              "max-w-[90%] sm:max-w-[80%]": item.role !== "user",
                             }}
                           >
                             <div
                               classList={{
-                                "rounded-2xl px-4 py-3 transition-all duration-200": true,
+                                "rounded-xl px-3 py-2 sm:rounded-2xl sm:px-4 sm:py-3 transition-all duration-200": true,
                                 "bg-sky-500/15 border border-sky-400/20 text-white": item.role === "user",
                                 "bg-white/[0.04] border border-white/6 text-white/80": item.role !== "user",
                               }}
                             >
-                              <div class="flex items-center justify-between gap-2 mb-1.5">
+                              <div class="flex items-center justify-between gap-1.5 mb-1">
                                 <span
                                   classList={{
-                                    "text-[10px] font-semibold uppercase tracking-[0.14em]": true,
+                                    "text-[9px] font-semibold uppercase tracking-[0.14em] sm:text-[10px]": true,
                                     "text-sky-300/70": item.role === "user",
                                     "text-white/30": item.role !== "user",
                                   }}
                                 >
                                   {item.role}
                                 </span>
-                                <span class="text-[10px] text-white/20">{item.time}</span>
+                                <span class="text-[9px] text-white/20 sm:text-[10px]">{item.time}</span>
                               </div>
-                              <div class="whitespace-pre-wrap break-words text-13-regular leading-[1.7]">
+                              <div class="whitespace-pre-wrap break-words text-12-regular leading-[1.6] sm:text-13-regular sm:leading-[1.7]">
                                 {item.body || (item.busy ? (
-                                  <span class="inline-flex items-center gap-1.5 text-white/40">
+                                  <span class="inline-flex items-center gap-1 text-white/40">
                                     <span class="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-sky-400" />
                                     Working…
                                   </span>
@@ -766,15 +767,15 @@ export default function CopilotPage() {
             </div>
 
             {/* floating composer */}
-            <div class="shrink-0 border-t border-white/6 bg-[#0d1117]/95 px-3 py-3 backdrop-blur-lg sm:px-6 sm:py-4">
+            <div class="shrink-0 border-t border-white/6 bg-[#0d1117]/95 px-2 py-2 backdrop-blur-lg sm:px-6 sm:py-4">
               <div class="mx-auto max-w-3xl">
-                <div class="rounded-2xl border border-white/8 bg-white/[0.03] p-3 transition-all duration-200 focus-within:border-sky-400/30 focus-within:shadow-[0_0_24px_rgba(56,189,248,0.08)]">
+                <div class="rounded-xl border border-white/8 bg-white/[0.03] p-2 transition-all duration-200 focus-within:border-sky-400/30 sm:rounded-2xl sm:p-3">
                   <textarea
-                    class="w-full resize-none bg-transparent text-13-regular text-white/90 outline-none placeholder:text-white/25"
-                    rows={2}
+                    class="w-full resize-none bg-transparent text-12-regular text-white/90 outline-none placeholder:text-white/25 sm:text-13-regular"
+                    rows={1}
                     value={store.prompt}
                     onInput={(event) => setStore("prompt", event.currentTarget.value)}
-                    placeholder="Make changes, add new features, ask for anything"
+                    placeholder="Make changes, ask for anything"
                     onKeyDown={(event) => {
                       if (event.key === "Enter" && !event.shiftKey && promptReady()) {
                         event.preventDefault()
@@ -782,15 +783,15 @@ export default function CopilotPage() {
                       }
                     }}
                   />
-                  <div class="mt-2 flex items-center justify-between gap-2">
-                    <div class="flex items-center gap-2 overflow-x-auto">
-                      {/* suggestion chips */}
+                  <div class="mt-1.5 flex items-center justify-between gap-1.5 sm:mt-2 sm:gap-2">
+                    <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+                      {/* suggestion chips — hidden on very small screens */}
                       <Show when={!thread().length && sessionID()}>
-                        <For each={["✨ AI Features", "Add Contact Form Validation", "Enhance UI"]}>
+                        <For each={["✨ AI", "Form", "UI"]}>
                           {(chip) => (
                             <button
                               type="button"
-                              class="shrink-0 rounded-full border border-white/8 bg-white/5 px-3 py-1 text-11-medium text-white/50 transition-all duration-200 hover:bg-white/10 hover:text-white/70"
+                              class="shrink-0 rounded-full border border-white/8 bg-white/5 px-2 py-0.5 text-[10px] font-medium text-white/50 transition-all sm:px-3 sm:py-1 sm:text-11-medium"
                               onClick={() => setStore("prompt", chip)}
                             >
                               {chip}
@@ -799,29 +800,31 @@ export default function CopilotPage() {
                         </For>
                       </Show>
                     </div>
-                    <div class="flex items-center gap-1.5 shrink-0">
-                      {/* model selector compact */}
-                      <Select
-                        options={summary.data()?.models ?? []}
-                        current={(summary.data()?.models ?? []).find((item) => item.id === store.modelID)}
-                        value={(item) => item.id}
-                        label={(item) => item.name}
-                        onSelect={(item) => item && setStore("modelID", item.id)}
-                        variant="secondary"
-                        size="small"
-                      />
+                    <div class="flex items-center gap-1 shrink-0 sm:gap-1.5">
+                      {/* model selector — hidden on mobile to save space */}
+                      <div class="hidden sm:block">
+                        <Select
+                          options={summary.data()?.models ?? []}
+                          current={(summary.data()?.models ?? []).find((item) => item.id === store.modelID)}
+                          value={(item) => item.id}
+                          label={(item) => item.name}
+                          onSelect={(item) => item && setStore("modelID", item.id)}
+                          variant="secondary"
+                          size="small"
+                        />
+                      </div>
                       {/* send */}
                       <button
                         type="button"
-                        class="grid h-8 w-8 shrink-0 place-items-center rounded-xl transition-all duration-200 disabled:opacity-30"
+                        class="grid h-7 w-7 shrink-0 place-items-center rounded-lg transition-all duration-200 disabled:opacity-30 sm:h-8 sm:w-8 sm:rounded-xl"
                         classList={{
-                          "bg-sky-500 text-white shadow-[0_0_16px_rgba(56,189,248,0.3)] hover:bg-sky-400": promptReady() && !store.buildPending,
+                          "bg-sky-500 text-white shadow-[0_0_12px_rgba(56,189,248,0.3)] hover:bg-sky-400": promptReady() && !store.buildPending,
                           "bg-white/10 text-white/30": !promptReady() || store.buildPending,
                         }}
                         disabled={!connected() || !promptReady() || store.buildPending}
                         onClick={buildRun}
                       >
-                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                        <svg class="h-3.5 w-3.5 sm:h-4 sm:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                           <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 10.5L12 3m0 0l7.5 7.5M12 3v18" />
                         </svg>
                       </button>
@@ -1085,14 +1088,14 @@ export default function CopilotPage() {
       </div>
 
       {/* ─── bottom tab bar ──────────────── */}
-      <nav class="z-20 shrink-0 border-t border-white/6 bg-[#0d1117]/95 backdrop-blur-lg">
-        <div class="mx-auto flex h-12 w-full max-w-md items-center gap-1 px-3">
+      <nav class="z-20 shrink-0 border-t border-white/6 bg-[#0d1117]/95 backdrop-blur-lg safe-area-pb">
+        <div class="mx-auto flex h-10 w-full items-center gap-0.5 px-2 sm:h-12 sm:max-w-md sm:gap-1 sm:px-3">
           <button
             type="button"
-            class="hidden h-9 w-9 shrink-0 place-items-center rounded-xl text-white/40 transition-colors hover:text-white/70 sm:grid"
+            class="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-white/40 transition-colors hover:text-white/70"
             onClick={() => navigate(-1)}
           >
-            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <svg class="h-3.5 w-3.5 sm:h-4 sm:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
             </svg>
           </button>
@@ -1101,9 +1104,9 @@ export default function CopilotPage() {
               <button
                 type="button"
                 classList={{
-                  "flex-1 rounded-xl py-2 text-13-medium transition-all duration-200": true,
-                  "bg-sky-500/15 text-sky-300 shadow-[0_0_16px_rgba(56,189,248,0.1)]": tab() === item,
-                  "text-white/40 hover:text-white/60": tab() !== item,
+                  "flex-1 rounded-lg py-1.5 text-12-medium transition-all duration-200 sm:rounded-xl sm:py-2 sm:text-13-medium": true,
+                  "bg-sky-500/15 text-sky-300": tab() === item,
+                  "text-white/40 active:text-white/60": tab() !== item,
                 }}
                 onClick={() => setTab(item)}
               >
@@ -1113,10 +1116,10 @@ export default function CopilotPage() {
           </For>
           <button
             type="button"
-            class="hidden h-9 w-9 shrink-0 place-items-center rounded-xl text-white/40 transition-colors hover:text-white/70 sm:grid"
+            class="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-white/40 transition-colors hover:text-white/70"
             onClick={() => setSidebar(!sidebar())}
           >
-            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+            <svg class="h-3.5 w-3.5 sm:h-4 sm:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
               <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM12.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM18.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />
             </svg>
           </button>
