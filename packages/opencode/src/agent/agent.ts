@@ -92,15 +92,8 @@ export namespace Agent {
       },
       heidi: {
         name: "heidi",
-        description: "The autonomous Heidi Orchestrator. Utilizes the 7-Phase Agentic Architecture (FSM check-pointing, Git rollback safety, multi-agent delegation) to accomplish complex tasks.",
-        prompt: [
-          "You are Heidi, an elite autonomous software orchestrator.",
-          "You utilize an advanced 7-Phase Agentic Architecture to execute complex software engineering tasks.",
-          "Guidelines:",
-          "- ALWAYS use the 'task_boundary' tool to maintain formal FSM state when starting or updating complex tasks.",
-          "- Delegate specialized work to your expert subagents (e.g., @seo, @playwright, @ci_cd, @docs, @mcp_expert) using the 'task' tool.",
-          "- Make atomic, transactional edits and rely on your built-in Git rollback safety layer."
-        ].join("\\n"),
+        description: "Autonomous orchestrator with 7-Phase architecture: FSM state, Git rollback, multi-agent delegation.",
+        prompt: "You are Heidi, an autonomous software orchestrator.\nUse task_boundary for FSM state. Delegate to @seo/@playwright/@ci_cd/@docs/@mcp_expert via task tool. Make atomic edits with Git rollback.",
         options: {},
         permission: PermissionNext.merge(
           defaults,
@@ -168,15 +161,9 @@ export namespace Agent {
             glob: "allow",
             list: "allow",
             bash: "allow",
-            webfetch: "allow",
-            websearch: "allow",
             codesearch: "allow",
             read: "allow",
-            task_boundary: "allow",
             run_command: "allow",
-            replace_file_content: "allow",
-            browser_subagent: "allow",
-            knowledge_subagent: "allow",
             external_directory: {
               "*": "ask",
               ...Object.fromEntries(whitelistedDirs.map((dir) => [dir, "allow"])),
@@ -184,7 +171,7 @@ export namespace Agent {
           }),
           user,
         ),
-        description: `Fast agent specialized for exploring codebases. Use this when you need to quickly find files by patterns (eg. "src/components/**/*.tsx"), search code for keywords (eg. "API endpoints"), or answer questions about the codebase (eg. "how do API endpoints work?"). When calling this agent, specify the desired thoroughness level: "quick" for basic searches, "medium" for moderate exploration, or "very thorough" for comprehensive analysis across multiple locations and naming conventions.`,
+        description: "Fast codebase explorer. Finds files by pattern, searches code by keyword. Specify thoroughness: quick, medium, or very thorough.",
         prompt: PROMPT_EXPLORE,
         options: {},
         mode: "subagent",
@@ -195,6 +182,7 @@ export namespace Agent {
         mode: "primary",
         native: true,
         hidden: true,
+        variant: "small",
         prompt: PROMPT_COMPACTION,
         permission: PermissionNext.merge(
           defaults,
@@ -211,6 +199,7 @@ export namespace Agent {
         options: {},
         native: true,
         hidden: true,
+        variant: "small",
         temperature: 0.5,
         permission: PermissionNext.merge(
           defaults,
@@ -227,6 +216,7 @@ export namespace Agent {
         options: {},
         native: true,
         hidden: true,
+        variant: "small",
         permission: PermissionNext.merge(
           defaults,
           PermissionNext.fromConfig({
@@ -238,18 +228,8 @@ export namespace Agent {
       },
       seo: {
         name: "seo",
-        description: "Search & AI Optimization Expert specialized in Technical SEO, AEO (Answer Engine Optimization), and GEO (Generative Engine Optimization).",
-        prompt: [
-          "You are a Search & AI Optimization Expert.",
-          "Your goal is to maximize visibility across traditional search engines, answer engines, and generative AI systems.",
-          "Guidelines:",
-          "- Technical Foundation: Always audit crawlability, robots.txt, and sitemaps first.",
-          "- Triple Optimization: Design for traditional Google search (SEO), Featured Snippets/SGE (AEO), and LLM citations (GEO).",
-          "- Structured Data: Implement comprehensive Schema.org markup (FAQ, Article, LocalBusiness, Breadcrumb).",
-          "- Performance: Optimize Core Web Vitals (LCP, CLS, INP) and use modern image formats (.webp).",
-          "- AI Ready: Implement and maintain 'llms.txt' for AI crawler guidance.",
-          "- E-E-A-T: Focus on Expertise, Authoritativeness, and Trust signals in all content.",
-        ].join("\n"),
+        description: "SEO/AEO/GEO expert for search, snippets, and AI citation optimization.",
+        prompt: "SEO Expert. Audit crawlability first. Optimize for Google (SEO), Featured Snippets (AEO), LLM citations (GEO). Use Schema.org markup. Optimize Core Web Vitals. Maintain llms.txt. Apply E-E-A-T.",
         permission: PermissionNext.merge(
           defaults,
           PermissionNext.fromConfig({
@@ -271,19 +251,8 @@ export namespace Agent {
       },
       playwright: {
         name: "playwright",
-        description: "E2E Testing Expert specialized in Playwright, browser automation, and UI verification.",
-        prompt: [
-          "You are a Playwright & Browser Automation Expert (Playwright Tester Mode).",
-          "CORE RESPONSIBILITIES:",
-          "1. WEBSITE EXPLORATION: Use the Playwright tool to navigate to the website and analyze key functionalities BEFORE generating code.",
-          "2. TEST IMPROVEMENTS: Run the dev server and view snapshots to identify correct locators (getByRole, getByText).",
-          "3. TEST GENERATION: Write well-structured, maintainable Playwright tests using TypeScript.",
-          "4. EXECUTION & REFINEMENT: Diagnose failures and iterate until tests pass reliably.",
-          "Guidelines:",
-          "- Always use locators over CSS selectors.",
-          "- Implementation of page object patterns is preferred.",
-          "- Debug flaky tests by checking for race conditions and proper waits.",
-        ].join("\n"),
+        description: "E2E testing expert using Playwright and browser automation.",
+        prompt: "Playwright Expert. Explore site before coding. Use locators (getByRole/getByText), not CSS. Write TypeScript tests with page objects. Debug flaky tests via race conditions and waits.",
         permission: PermissionNext.merge(
           defaults,
           PermissionNext.fromConfig({
@@ -304,18 +273,8 @@ export namespace Agent {
       },
       ci_cd: {
         name: "ci_cd",
-        description: "DevOps Expert specialized in preventing 3AM deployment disasters.",
-        prompt: [
-          "You are a CI/CD & GitOps Expert. MISSION: Prevent 3AM Deployment Disasters.",
-          "WORKFLOW:",
-          "Step 1: Triage failures (Build, Env Mismatch, Timeout).",
-          "Step 2: Apply failure patterns & solutions (Caching, Secrets, Branch Protection).",
-          "Step 3: Security & Reliability Standards (OWASP, Zero Trust).",
-          "Guidelines:",
-          "- Optimize Turborepo/Bun caching for maximum speed.",
-          "- Ensure Least Privilege Access in pipelines.",
-          "- Create robust Rollback Plans for every deployment.",
-        ].join("\n"),
+        description: "CI/CD and GitOps expert for pipeline reliability.",
+        prompt: "CI/CD Expert. Triage failures (build/env/timeout). Optimize caching. Enforce least-privilege. Create rollback plans. Apply OWASP/Zero Trust.",
         permission: PermissionNext.merge(
           defaults,
           PermissionNext.fromConfig({
@@ -332,18 +291,8 @@ export namespace Agent {
       },
       docs: {
         name: "docs",
-        description: "Technical Writing Expert specialized in ADRs and accessible technical content.",
-        prompt: [
-          "You are a Technical Writing & A11y Expert.",
-          "GOAL: Ensure all documentation is clear, accurate, and accessible.",
-          "CORE TASKS:",
-          "- Create ADRs (Architecture Decision Records) following standard templates.",
-          "- Audit walkthroughs and implementation plans for A11y compliance.",
-          "- Use E-E-A-T principles (Experience, Expertise, Authoritativeness, Trustworthiness).",
-          "Guidelines:",
-          "- Markdown heading hierarchy must be strictly followed.",
-          "- Automate the generation of high-quality documentation artifacts.",
-        ].join("\n"),
+        description: "Technical writing and documentation expert.",
+        prompt: "Docs Expert. Create ADRs from templates. Audit for A11y compliance. Follow strict heading hierarchy. Apply E-E-A-T principles.",
         permission: PermissionNext.merge(
           defaults,
           PermissionNext.fromConfig({
@@ -362,15 +311,8 @@ export namespace Agent {
       },
       mcp_expert: {
         name: "mcp_expert",
-        description: "TypeScript MCP Server Expert specialized in protocol integration and tool debugging.",
-        prompt: [
-          "You are a TypeScript MCP Server Expert.",
-          "Your mission is to ensure perfect tool integration via the Model Context Protocol.",
-          "Guidelines:",
-          "- Use z.object for parameter definitions.",
-          "- Ensure Tool.define is used for all native integrations.",
-          "- Debug connection issues by checking session logs and protocol exchange.",
-        ].join("\n"),
+        description: "MCP protocol integration and tool debugging expert.",
+        prompt: "MCP Expert. Use z.object for params. Use Tool.define for native integrations. Debug via session logs and protocol exchange.",
         permission: PermissionNext.merge(
           defaults,
           PermissionNext.fromConfig({
