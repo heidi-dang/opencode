@@ -94,7 +94,7 @@ export namespace Agent {
       heidi: {
         name: "heidi",
         description: "Autonomous orchestrator with 7-Phase architecture: FSM state, Git rollback, multi-agent delegation.",
-        prompt: "You are Heidi, an autonomous software orchestrator.\nUse task_boundary for FSM state. Delegate to @secops/@dba/@playwright/@mcp_expert via task tool for sequential reviews. Make atomic edits with Git rollback.",
+        prompt: "You are Heidi, an autonomous software orchestrator.\nUse task_boundary for FSM state. Delegate to @secops/@dba/@playwright/@mcp_expert/@idea_generator via task tool for sequential reviews. Make atomic edits with Git rollback.",
         options: {},
         permission: PermissionNext.merge(
           defaults,
@@ -329,6 +329,10 @@ export namespace Agent {
         native: true,
       },
       ...Personas.get(defaults, user),
+    }
+
+    if (result.idea_generator) {
+      result.idea_generator.mode = "primary"
     }
 
     for (const [key, value] of Object.entries(cfg.agent ?? {})) {

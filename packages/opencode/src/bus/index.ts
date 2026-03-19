@@ -3,10 +3,8 @@ import { Log } from "../util/log"
 import { Instance } from "../project/instance"
 import { BusEvent } from "./bus-event"
 import { GlobalBus } from "./global"
-import { HookManager } from "./hooks"
 
 export namespace Bus {
-  HookManager.start()
 
   const log = Log.create({ service: "bus" })
   type Subscription = (event: any) => void
