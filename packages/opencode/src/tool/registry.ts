@@ -11,6 +11,7 @@ import { TodoWriteTool, TodoReadTool } from "./todo"
 import { WebFetchTool } from "./webfetch"
 import { WriteTool } from "./write"
 import { InvalidTool } from "./invalid"
+import { MCPClient } from "./mcp-client"
 import { SkillTool } from "./skill"
 import { VerifyTool } from "./verify"
 import { TransactionTool } from "./transaction"
@@ -77,6 +78,19 @@ export namespace ToolRegistry {
       for (const [id, def] of Object.entries(plugin.tool ?? {})) {
         custom.push(fromPlugin(id, def))
       }
+    }
+
+    try {
+      const mcpPath = path.join(Instance.directory, ".heidi/mcp.json")
+      const mcpFile = Bun.file(mcpPath)
+      if (await mcpFile.exists()) {
+        const mcpConfig = await mcpFile.json()
+        const mcpTools = await MCPClient.connect(mcpConfig)
+        custom.push(...mcpTools)
+        log.info(`Loaded ${mcpTools.length} MCP tools from .heidi/mcp.json`)
+      }
+    } catch (err) {
+      log.error("Failed to load MCP configuration", err as any)
     }
 
     return { custom }

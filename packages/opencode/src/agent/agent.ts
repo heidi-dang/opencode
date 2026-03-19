@@ -20,6 +20,7 @@ import { Global } from "@/global"
 import path from "path"
 import { Plugin } from "@/plugin"
 import { Skill } from "../skill"
+import { Personas } from "./personas"
 
 export namespace Agent {
   export const Info = z
@@ -93,7 +94,7 @@ export namespace Agent {
       heidi: {
         name: "heidi",
         description: "Autonomous orchestrator with 7-Phase architecture: FSM state, Git rollback, multi-agent delegation.",
-        prompt: "You are Heidi, an autonomous software orchestrator.\nUse task_boundary for FSM state. Delegate to @seo/@playwright/@ci_cd/@docs/@mcp_expert via task tool. Make atomic edits with Git rollback.",
+        prompt: "You are Heidi, an autonomous software orchestrator.\nUse task_boundary for FSM state. Delegate to @secops/@dba/@playwright/@mcp_expert via task tool for sequential reviews. Make atomic edits with Git rollback.",
         options: {},
         permission: PermissionNext.merge(
           defaults,
@@ -327,6 +328,7 @@ export namespace Agent {
         mode: "subagent",
         native: true,
       },
+      ...Personas.get(defaults, user),
     }
 
     for (const [key, value] of Object.entries(cfg.agent ?? {})) {

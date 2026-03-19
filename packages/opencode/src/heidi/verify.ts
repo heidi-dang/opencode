@@ -5,7 +5,7 @@ import { VerifyState } from "./schema"
 export namespace HeidiVerify {
   export async function gate(sessionID: SessionID) {
     const state = await HeidiState.read(sessionID)
-    const pending = state.checklist.filter((item) => item.status !== "done" && item.category !== "Verify")
+    const pending = state.checklist.filter((item) => item.status !== "done")
     if (pending.length) throw new Error("verification gate failed: checklist incomplete")
     if (!state.plan.locked) throw new Error("verification gate failed: plan is not locked")
     if (state.block_reason) throw new Error("verification gate failed: blocked state")
