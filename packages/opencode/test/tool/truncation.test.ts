@@ -69,8 +69,8 @@ describe("Truncate", () => {
     })
 
     test("uses default MAX_LINES and MAX_BYTES", () => {
-      expect(Truncate.MAX_LINES).toBe(2000)
-      expect(Truncate.MAX_BYTES).toBe(50 * 1024)
+      expect(Truncate.MAX_LINES).toBe(1500)
+      expect(Truncate.MAX_BYTES).toBe(40 * 1024)
     })
 
     test("large single-line file truncates with byte message", async () => {

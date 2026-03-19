@@ -49,6 +49,14 @@ import { TestLinterTool } from "./test_linter"
 import { A11yTool } from "./a11y"
 import { TransparencyTool } from "./transparency"
 
+import { NotebookRunCellTool, NotebookSummaryTool } from "./notebook"
+import { ProblemsTool } from "./problems"
+import { TerminalLastCommandTool, TerminalSelectionTool } from "./terminal"
+import { OpenCodePluginListTool, OpenCodeInstallPluginTool, OpenCodePluginImplementTool } from "./opencode_plugin"
+import { GitHubRepoTool } from "./github_repo"
+import { TestFailureTool } from "./test_failure"
+import { CreateAndRunTaskTool, ListTasksTool } from "./create_task"
+
 import { ApplyPatchTool } from "./apply_patch"
 import { Glob } from "../util/glob"
 import { pathToFileURL } from "url"
@@ -172,6 +180,18 @@ export namespace ToolRegistry {
       TestLinterTool,
       A11yTool,
       TransparencyTool,
+      NotebookRunCellTool,
+      NotebookSummaryTool,
+      ProblemsTool,
+      TerminalLastCommandTool,
+      TerminalSelectionTool,
+      OpenCodePluginListTool,
+      OpenCodeInstallPluginTool,
+      OpenCodePluginImplementTool,
+      GitHubRepoTool,
+      TestFailureTool,
+      CreateAndRunTaskTool,
+      ListTasksTool,
       ...(Flag.OPENCODE_EXPERIMENTAL_LSP_TOOL ? [LspTool] : []),
       ...(config.experimental?.batch_tool === true ? [BatchTool] : []),
       ...(Flag.OPENCODE_EXPERIMENTAL_PLAN_MODE && Flag.OPENCODE_CLIENT === "cli" ? [PlanExitTool] : []),

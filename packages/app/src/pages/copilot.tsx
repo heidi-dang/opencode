@@ -7,6 +7,7 @@ import { batch, createEffect, createMemo, createResource, createSignal, For, on,
 import { createStore } from "solid-js/store"
 import { useNavigate, useParams } from "@solidjs/router"
 import { DialogConnectProvider } from "@/components/dialog-connect-provider"
+import { DialogEnvironment } from "@/components/dialog-environment"
 import { Terminal } from "@/components/terminal"
 import { useLanguage } from "@/context/language"
 import { useSync } from "@/context/sync"
@@ -301,6 +302,10 @@ export default function CopilotPage() {
     deployPending: false,
     deployURL: "",
     deployLogs: [] as string[],
+    systemInstruction: "",
+    temperature: 0.7,
+    topK: 40,
+    topP: 0.9,
   })
   const environments = createMemo(() => builder.data()?.environments ?? [])
   const releases = createMemo(() => builder.data()?.releases ?? [])
@@ -381,6 +386,10 @@ export default function CopilotPage() {
           providerID: "github-copilot",
           modelID: store.modelID,
           agent: store.agent,
+          variant: store.systemInstruction ? store.systemInstruction : undefined,
+          temperature: store.temperature,
+          topK: store.topK,
+          topP: store.topP,
         },
         { throwOnError: true },
       )
@@ -507,35 +516,50 @@ export default function CopilotPage() {
   async function deployRun() {
     const id = sessionID()
     const releaseID = releases()[0]?.id
-    if (!builder.sdk() || !store.environment || (!id && !releaseID)) return
-    setStore("deployPending", true)
-    try {
-      const result = await builder.sdk()!.builder.deploy(
-        {
-          environmentID: store.environment,
-          releaseID,
-          sessionID: id || undefined,
-        },
-        { throwOnError: true },
-      )
-      setStore("deployURL", result.data!.url)
-      setStore("deployLogs", result.data!.logs)
-      await Promise.all([builder.refetch(), summary.refetch()])
-      showToast({
-        variant: "success",
-        title: "Deployment finished",
-        description: result.data!.url,
-      })
-    } catch (error) {
-      setStore("deployLogs", [error instanceof Error ? error.message : language.t("common.requestFailed")])
-      showToast({
-        variant: "error",
-        title: "Deployment failed",
-        description: error instanceof Error ? error.message : language.t("common.requestFailed"),
-      })
-    } finally {
-      setStore("deployPending", false)
-    }
+    if (!builder.sdk() || (!id && !releaseID)) return
+
+    dialog.show(() => (
+      <DialogEnvironment
+        defaultHost={selectedEnv()?.host}
+        onDeploy={async (credentials) => {
+          setStore("deployPending", true)
+          try {
+            const result = await builder.sdk()!.builder.deploy(
+              {
+                environmentID: store.environment || undefined,
+                releaseID,
+                sessionID: id || undefined,
+                host: credentials.host,
+                port: credentials.port,
+                user: credentials.user,
+                password: credentials.password || "",
+                path: credentials.path,
+                publicPort: credentials.publicPort,
+              },
+              { throwOnError: true },
+            )
+            setStore("deployURL", result.data!.url)
+            setStore("deployLogs", result.data!.logs)
+            await Promise.all([builder.refetch(), summary.refetch()])
+            showToast({
+              variant: "success",
+              title: "Deployment finished",
+              description: result.data!.url,
+            })
+          } catch (error) {
+            setStore("deployLogs", [error instanceof Error ? error.message : language.t("common.requestFailed")])
+            showToast({
+              variant: "error",
+              title: "Deployment failed",
+              description: error instanceof Error ? error.message : language.t("common.requestFailed"),
+            })
+            throw error // ensures dialog spinner stops if handled internally
+          } finally {
+            setStore("deployPending", false)
+          }
+        }}
+      />
+    ))
   }
 
   async function rollbackDeploy(deployID: string, environmentID?: string) {
@@ -801,6 +825,20 @@ export default function CopilotPage() {
                       </Show>
                     </div>
                     <div class="flex items-center gap-1 shrink-0 sm:gap-1.5">
+                      {/* attach button */}
+                      <button
+                        type="button"
+                        class="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-white/40 transition-all duration-200 hover:bg-white/10 hover:text-white/80 sm:h-8 sm:w-8 sm:rounded-xl"
+                        onClick={() => {
+                          const val = store.prompt
+                          setStore("prompt", val + (val.length > 0 && !val.endsWith(" ") ? " " : "") + "`~/`")
+                        }}
+                        title="Attach context data"
+                      >
+                        <svg class="h-4 w-4 sm:h-4.5 sm:w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                        </svg>
+                      </button>
                       {/* model selector — hidden on mobile to save space */}
                       <div class="hidden sm:block">
                         <Select
@@ -853,6 +891,64 @@ export default function CopilotPage() {
               </div>
               <div class="min-h-0 flex-1 overflow-y-auto px-4 py-4">
                 <div class="flex flex-col gap-4">
+
+                  {/* system instructions */}
+                  <div class="rounded-xl border border-white/6 bg-white/3 px-3 py-3">
+                    <div class="text-12-medium text-white/60 mb-2">System Instructions</div>
+                    <textarea
+                      class="min-h-[100px] w-full resize-y rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-12-regular text-white/80 outline-none transition focus:border-sky-400/30 placeholder:text-white/20"
+                      value={store.systemInstruction}
+                      onInput={(e) => setStore("systemInstruction", e.currentTarget.value)}
+                      placeholder="Insert customized agent persona directives here..."
+                    />
+                  </div>
+
+                  {/* run settings */}
+                  <div class="rounded-xl border border-white/6 bg-white/3 px-3 py-3">
+                    <div class="text-12-medium text-white/60 mb-3">Run Settings</div>
+                    <div class="flex flex-col gap-3">
+                      <div>
+                        <div class="flex items-center justify-between mb-1.5">
+                          <label class="text-11-medium text-white/40">Temperature</label>
+                          <span class="text-11-medium text-white/70">{store.temperature.toFixed(2)}</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0"
+                          max="2"
+                          step="0.05"
+                          class="w-full accent-sky-400"
+                          value={store.temperature}
+                          onInput={(e) => setStore("temperature", parseFloat(e.currentTarget.value))}
+                        />
+                      </div>
+                      <div class="grid grid-cols-2 gap-3">
+                        <div>
+                          <label class="mb-1.5 block text-11-medium text-white/40">Top K</label>
+                          <input
+                            type="number"
+                            min="1"
+                            max="100"
+                            class="w-full rounded-lg border border-white/8 bg-white/[0.03] px-2.5 py-1.5 text-12-regular text-white/80 outline-none transition focus:border-sky-400/30"
+                            value={store.topK}
+                            onInput={(e) => setStore("topK", parseInt(e.currentTarget.value, 10))}
+                          />
+                        </div>
+                        <div>
+                          <label class="mb-1.5 block text-11-medium text-white/40">Top P</label>
+                          <input
+                            type="number"
+                            min="0"
+                            max="1"
+                            step="0.05"
+                            class="w-full rounded-lg border border-white/8 bg-white/[0.03] px-2.5 py-1.5 text-12-regular text-white/80 outline-none transition focus:border-sky-400/30"
+                            value={store.topP}
+                            onInput={(e) => setStore("topP", parseFloat(e.currentTarget.value))}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
 
                   {/* quick stats */}
                   <div class="grid grid-cols-2 gap-2">

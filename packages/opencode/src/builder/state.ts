@@ -161,6 +161,13 @@ export namespace BuilderState {
     providerID: z.string().optional(),
     modelID: z.string().optional(),
     agent: z.string().optional(),
+    options: z
+      .object({
+        temperature: z.number().optional(),
+        topK: z.number().optional(),
+        topP: z.number().optional(),
+      })
+      .optional(),
     prompt: z.string().optional(),
     environmentID: z.string().optional(),
     environments: z.array(Environment).default([]),
@@ -285,12 +292,23 @@ export namespace BuilderState {
     })
   }
 
-  export async function prompt(input: { prompt: string; providerID: string; modelID: string; agent: string }) {
+  export async function prompt(input: {
+    prompt: string
+    providerID: string
+    modelID: string
+    agent: string
+    options?: {
+      temperature?: number
+      topK?: number
+      topP?: number
+    }
+  }) {
     return update((draft) => {
       draft.prompt = input.prompt
       draft.providerID = input.providerID
       draft.modelID = input.modelID
       draft.agent = input.agent
+      draft.options = input.options
     })
   }
 

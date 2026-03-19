@@ -315,11 +315,10 @@ export async function CopilotAuthPlugin(input: PluginInput): Promise<Hooks> {
           query: {
             directory: input.directory,
           },
-          throwOnError: true,
         })
         .catch(() => undefined)
 
-      if (parts?.data.parts?.some((part) => part.type === "compaction")) {
+      if (parts?.data?.parts?.some((part) => part.type === "compaction")) {
         output.headers["x-initiator"] = "agent"
         return
       }
@@ -332,10 +331,9 @@ export async function CopilotAuthPlugin(input: PluginInput): Promise<Hooks> {
           query: {
             directory: input.directory,
           },
-          throwOnError: true,
         })
         .catch(() => undefined)
-      if (!session || !session.data.parentID) return
+      if (!session || !session?.data?.parentID) return
       // mark subagent sessions as agent initiated matching standard that other copilot tools have
       output.headers["x-initiator"] = "agent"
     },

@@ -26,6 +26,10 @@ describe("tool.write", () => {
       await Instance.provide({
         directory: tmp.path,
         fn: async () => {
+          const { HeidiState } = await import("../../src/heidi/state")
+          const state = await HeidiState.ensure(ctx.sessionID, "")
+          state.fsm_state = "EXECUTION"
+          await HeidiState.write(ctx.sessionID, state)
           const write = await WriteTool.init()
           const result = await write.execute(
             {

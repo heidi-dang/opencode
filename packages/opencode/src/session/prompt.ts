@@ -111,6 +111,13 @@ export namespace SessionPrompt {
     format: MessageV2.Format.optional(),
     system: z.string().optional(),
     variant: z.string().optional(),
+    options: z
+      .object({
+        temperature: z.number().optional(),
+        topK: z.number().optional(),
+        topP: z.number().optional(),
+      })
+      .optional(),
     parts: z.array(
       z.discriminatedUnion("type", [
         MessageV2.TextPart.omit({

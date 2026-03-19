@@ -32,6 +32,9 @@ const BuildInput = z.object({
   modelID: ModelID.zod,
   agent: z.string().default("build"),
   variant: z.string().optional(),
+  temperature: z.number().optional(),
+  topK: z.number().optional(),
+  topP: z.number().optional(),
 })
 
 const PreviewStartInput = z.object({
@@ -354,6 +357,11 @@ export const BuilderRoutes = lazy(() =>
           model: {
             providerID: body.providerID,
             modelID: body.modelID,
+          },
+          options: {
+            temperature: body.temperature,
+            topK: body.topK,
+            topP: body.topP,
           },
           parts: [{ type: "text", text: body.prompt }],
         }).catch(() => undefined)
