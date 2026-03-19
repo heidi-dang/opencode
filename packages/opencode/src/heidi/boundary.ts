@@ -17,7 +17,10 @@ const allowed = new Set([
   // Allowed regressions
   "PLAN_LOCKED->DISCOVERY",
   "EXECUTION->PLAN_DRAFT",
+  "EXECUTION->DISCOVERY",
   "VERIFICATION->EXECUTION",
+  "VERIFICATION->PLAN_DRAFT",
+  "VERIFICATION->DISCOVERY",
   // Transitions to BLOCKED
   "IDLE->BLOCKED",
   "DISCOVERY->BLOCKED",
@@ -54,7 +57,7 @@ const Request = z.object({
     "block",
     "complete",
   ]),
-  payload: z.record(z.string(), z.any()).default({}),
+  payload: z.record(z.string(), z.unknown()).default({}),
 })
 
 const Response = z.object({
@@ -107,7 +110,7 @@ export namespace HeidiBoundary {
 
   export async function apply(input: z.infer<typeof Request>) {
     const req = Request.parse(input)
-    const state = await HeidiState.ensure(req.task_id, req.payload.objective ?? "")
+    const state = await HeidiState.ensure(req.task_id, req.payload.objective ? String(req.payload.objective) : "")
 
     if (req.action === "start") {
       state.run_id = req.run_id || state.run_id || Identifier.ascending("tool")
