@@ -1,5 +1,5 @@
 import { waitSessionIdle, withSession } from "../actions"
-import { test, expect } from "../fixtures"
+import { test, expect, type Page } from "../fixtures"
 import { createSdk } from "../utils"
 
 const count = 14
@@ -57,18 +57,18 @@ async function patch(sdk: ReturnType<typeof createSdk>, sessionID: string, patch
   await waitSessionIdle(sdk, sessionID, 120_000)
 }
 
-async function show(page: Parameters<typeof test>[0]["page"]) {
+async function show(page: Page) {
   const btn = page.getByRole("button", { name: "Toggle review" }).first()
   await expect(btn).toBeVisible()
   if ((await btn.getAttribute("aria-expanded")) !== "true") await btn.click()
   await expect(btn).toHaveAttribute("aria-expanded", "true")
 }
 
-async function expand(page: Parameters<typeof test>[0]["page"]) {
+async function expand(page: Page) {
   const close = page.getByRole("button", { name: /^Collapse all$/i }).first()
   const open = await close
     .isVisible()
-    .then((value) => value)
+    .then((value: boolean) => value)
     .catch(() => false)
 
   const btn = page.getByRole("button", { name: /^Expand all$/i }).first()
@@ -82,9 +82,9 @@ async function expand(page: Parameters<typeof test>[0]["page"]) {
   await expect(close).toBeVisible()
 }
 
-async function waitMark(page: Parameters<typeof test>[0]["page"], file: string, mark: string) {
+async function waitMark(page: Page, file: string, mark: string) {
   await page.waitForFunction(
-    ({ file, mark }) => {
+    ({ file, mark }: { file: string; mark: string }) => {
       const view = document.querySelector('[data-slot="session-review-scroll"] .scroll-view__viewport')
       if (!(view instanceof HTMLElement)) return false
 
@@ -104,8 +104,8 @@ async function waitMark(page: Parameters<typeof test>[0]["page"], file: string, 
   )
 }
 
-async function spot(page: Parameters<typeof test>[0]["page"], file: string) {
-  return page.evaluate((file) => {
+async function spot(page: Page, file: string) {
+  return page.evaluate((file: string) => {
     const view = document.querySelector('[data-slot="session-review-scroll"] .scroll-view__viewport')
     if (!(view instanceof HTMLElement)) return null
 
@@ -123,7 +123,7 @@ async function spot(page: Parameters<typeof test>[0]["page"], file: string) {
   }, file)
 }
 
-async function comment(page: Parameters<typeof test>[0]["page"], file: string, note: string) {
+async function comment(page: Page, file: string, note: string) {
   const row = page.locator(`[data-file="${file}"]`).first()
   await expect(row).toBeVisible()
 
@@ -147,14 +147,14 @@ async function comment(page: Parameters<typeof test>[0]["page"], file: string, n
   await expect(row.locator('[data-slot="line-comment-tools"]').first()).toBeVisible()
 }
 
-async function overflow(page: Parameters<typeof test>[0]["page"], file: string) {
+async function overflow(page: Page, file: string) {
   const row = page.locator(`[data-file="${file}"]`).first()
   const view = page.locator('[data-slot="session-review-scroll"] .scroll-view__viewport').first()
   const pop = row.locator('[data-slot="line-comment-popover"][data-inline-body]').first()
   const tools = row.locator('[data-slot="line-comment-tools"]').first()
 
   const [width, viewBox, popBox, toolsBox] = await Promise.all([
-    view.evaluate((el) => el.scrollWidth - el.clientWidth),
+    view.evaluate((el: HTMLElement) => el.scrollWidth - el.clientWidth),
     view.boundingBox(),
     pop.boundingBox(),
     tools.boundingBox(),
@@ -181,7 +181,7 @@ test("review applies inline comment clicks without horizontal overflow", async (
   await withProject(async (project) => {
     const sdk = createSdk(project.directory)
 
-    await withSession(sdk, `e2e review comment ${tag}`, async (session) => {
+    await withSession(sdk, `e2e review comment ${tag}`, async (session: { id: string }) => {
       await patch(sdk, session.id, seed([{ file, mark: tag }]))
 
       await expect
@@ -232,7 +232,7 @@ test("review keeps scroll position after a live diff update", async ({ page, wit
   await withProject(async (project) => {
     const sdk = createSdk(project.directory)
 
-    await withSession(sdk, `e2e review ${tag}`, async (session) => {
+    await withSession(sdk, `e2e review ${tag}`, async (session: { id: string }) => {
       await patch(sdk, session.id, seed(list))
 
       await expect

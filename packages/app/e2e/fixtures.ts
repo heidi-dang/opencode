@@ -1,4 +1,5 @@
 import { test as base, expect, type Page } from "@playwright/test"
+export type { Page }
 import type { E2EWindow } from "../src/testing/terminal"
 import { cleanupSession, cleanupTestProject, createTestProject, seedProjects, sessionIDFromUrl } from "./actions"
 import { promptSelector } from "./selectors"

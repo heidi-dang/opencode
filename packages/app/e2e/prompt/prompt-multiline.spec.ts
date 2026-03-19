@@ -20,5 +20,5 @@ test("shift+enter inserts a newline without submitting", async ({ page, gotoSess
   await prompt.pressSequentially("line two")
 
   await expect(page).toHaveURL(/\/session\/?$/)
-  await expect.poll(() => prompt.evaluate((el) => el.innerText)).toBe("line one\nline two")
+  await expect.poll(() => prompt.evaluate((el: HTMLElement) => el.innerText)).toBe("line one\nline two")
 })

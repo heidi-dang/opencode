@@ -93,7 +93,7 @@ async function todoDock(page: any, sessionID: string) {
 
   const write = async (driver: ComposerDriverState | undefined) => {
     await page.evaluate(
-      (input) => {
+      (input: { event: string; sessionID: string; driver: ComposerDriverState | undefined }) => {
         const win = window as ComposerWindow
         const composer = win.__opencode_e2e?.composer
         if (!composer?.enabled) throw new Error("Composer e2e driver is not enabled")
@@ -118,7 +118,7 @@ async function todoDock(page: any, sessionID: string) {
   }
 
   const read = () =>
-    page.evaluate((sessionID) => {
+    page.evaluate((sessionID: string) => {
       const win = window as ComposerWindow
       return win.__opencode_e2e?.composer?.sessions?.[sessionID]?.probe ?? null
     }, sessionID) as Promise<ComposerProbeState | null>
