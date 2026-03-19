@@ -4,7 +4,7 @@ import { Tabs } from "@opencode-ai/ui/tabs"
 import { TextField } from "@opencode-ai/ui/text-field"
 import { Select } from "@opencode-ai/ui/select"
 import { showToast } from "@opencode-ai/ui/toast"
-import { batch, createEffect, createMemo, For, on, Show, createSignal } from "solid-js"
+import { batch, createEffect, createMemo, createResource, For, on, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useNavigate, useParams } from "@solidjs/router"
 import { DialogConnectProvider } from "@/components/dialog-connect-provider"
@@ -18,6 +18,167 @@ const tabs = ["build", "preview", "publish", "deploy"] as const
 
 function text(value: unknown) {
   return typeof value === "string" ? value : ""
+}
+
+type EnvItem = {
+  id: string
+  name: string
+  host?: string
+  url?: string
+  vars?: Record<string, { source: "env" | "file" | "external" | "local"; redacted: string }>
+}
+
+type SecretItem = {
+  id: string
+  redacted: string
+  updatedAt: number
+}
+
+function EnvSelect(props: {
+  environments: EnvItem[]
+  value: string
+  onChange: (id: string) => void
+}) {
+  return (
+    <Select
+      options={props.environments}
+      current={props.environments.find((item) => item.id === props.value)}
+      value={(item) => item.id}
+      label={(item) => item.name}
+      onSelect={(item) => item && props.onChange(item.id)}
+      variant="secondary"
+      size="small"
+    />
+  )
+}
+
+function DeployHistory(props: {
+  deploys: Array<{
+    id: string
+    host: string
+    path: string
+    url: string
+    status: "running" | "ready" | "failed"
+    environmentID?: string
+    releaseID?: string
+    createdAt: number
+  }>
+  onRollback: (deployID: string, environmentID?: string) => void
+  environments: Record<string, string>
+}) {
+  return (
+    <div class="mt-4 flex max-h-[420px] flex-col gap-3 overflow-y-auto">
+      <Show
+        when={props.deploys.length}
+        fallback={<div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3 text-13-regular text-text-weak">No deploys recorded yet.</div>}
+      >
+        <For each={props.deploys}>
+          {(item) => (
+            <div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3">
+              <div class="flex items-center justify-between gap-3">
+                <div class="min-w-0">
+                  <div class="truncate text-13-medium text-text-strong">{item.host}</div>
+                  <div class="text-11-medium uppercase tracking-[0.12em] text-text-weak">{props.environments[item.environmentID ?? ""] || item.environmentID || "manual"}</div>
+                </div>
+                <Button size="small" variant="ghost" onClick={() => props.onRollback(item.id, item.environmentID)} disabled={item.status === "running"}>
+                  Rollback
+                </Button>
+              </div>
+              <div class="mt-1 break-all text-12-regular text-text-weak">{item.url}</div>
+              <div class="mt-1 break-all text-12-regular text-text-weak">{item.path}</div>
+              <div class="mt-2 text-11-regular text-text-weak">{item.releaseID || "No release"}</div>
+              <div class="mt-2 text-11-regular text-text-weak">{new Date(item.createdAt).toLocaleString()}</div>
+            </div>
+          )}
+        </For>
+      </Show>
+    </div>
+  )
+}
+
+function ReleaseHistory(props: {
+  releases: Array<{
+    id: string
+    title: string
+    shareURL?: string
+    environmentID?: string
+    createdAt: number
+  }>
+  onRollback: (releaseID: string, environmentID?: string) => void
+  environments: Record<string, string>
+}) {
+  return (
+    <div class="mt-4 flex max-h-[420px] flex-col gap-3 overflow-y-auto">
+      <Show
+        when={props.releases.length}
+        fallback={<div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3 text-13-regular text-text-weak">No releases recorded yet.</div>}
+      >
+        <For each={props.releases}>
+          {(item) => (
+            <div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3">
+              <div class="flex items-center justify-between gap-3">
+                <div class="min-w-0">
+                  <div class="truncate text-13-medium text-text-strong">{item.title}</div>
+                  <div class="text-11-medium uppercase tracking-[0.12em] text-text-weak">{props.environments[item.environmentID ?? ""] || item.environmentID || "shared"}</div>
+                </div>
+                <Button size="small" variant="ghost" onClick={() => props.onRollback(item.id, item.environmentID)}>
+                  Rollback
+                </Button>
+              </div>
+              <div class="mt-1 break-all text-12-regular text-text-weak">{item.shareURL || "Private release"}</div>
+              <div class="mt-2 text-11-regular text-text-weak">{new Date(item.createdAt).toLocaleString()}</div>
+            </div>
+          )}
+        </For>
+      </Show>
+    </div>
+  )
+}
+
+function EnvVarsSecrets(props: {
+  vars: Record<string, { source: "env" | "file" | "external" | "local"; redacted: string }>
+  secrets: SecretItem[]
+}) {
+  return (
+    <div class="grid gap-4 lg:grid-cols-2">
+      <div>
+        <div class="mb-2 text-12-medium uppercase tracking-[0.12em] text-text-weak">Environment references</div>
+        <div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3">
+          <Show when={Object.keys(props.vars).length} fallback={<div class="text-13-regular text-text-weak">No environment variables configured.</div>}>
+            <For each={Object.entries(props.vars)}>
+              {([key, value]) => (
+                <div class="flex items-start justify-between gap-3 py-1.5">
+                  <div class="min-w-0">
+                    <div class="text-13-medium text-text-strong">{key}</div>
+                    <div class="text-11-regular uppercase tracking-[0.12em] text-text-weak">{value.source}</div>
+                  </div>
+                  <div class="text-right text-12-regular text-text-weak">{value.redacted}</div>
+                </div>
+              )}
+            </For>
+          </Show>
+        </div>
+      </div>
+      <div>
+        <div class="mb-2 text-12-medium uppercase tracking-[0.12em] text-text-weak">Stored secrets</div>
+        <div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3">
+          <Show when={props.secrets.length} fallback={<div class="text-13-regular text-text-weak">No stored secrets found.</div>}>
+            <For each={props.secrets}>
+              {(item) => (
+                <div class="flex items-start justify-between gap-3 py-1.5">
+                  <div class="min-w-0">
+                    <div class="break-all text-13-medium text-text-strong">{item.id}</div>
+                    <div class="text-11-regular text-text-weak">Updated {new Date(item.updatedAt).toLocaleString()}</div>
+                  </div>
+                  <div class="text-right text-12-regular text-text-weak">{item.redacted}</div>
+                </div>
+              )}
+            </For>
+          </Show>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export default function CopilotPage() {
@@ -70,7 +231,7 @@ export default function CopilotPage() {
         time: new Date(msg.time.created).toLocaleTimeString(),
       })),
   )
-  const share = createMemo(() => builder.data()?.releases[0]?.shareURL || session()?.share?.url)
+  const share = createMemo(() => builder.data()?.releases?.[0]?.shareURL || session()?.share?.url)
   const preview = createMemo(() => builder.data()?.preview)
   const previewPty = createMemo(() => {
     const info = preview()?.info
@@ -90,11 +251,6 @@ export default function CopilotPage() {
     annotationFile: "",
     annotationNote: "",
     environment: "",
-    deploySecret: "",
-    host: "",
-    publicPort: "8080",
-    user: "",
-    path: "",
     buildPending: false,
     previewPending: false,
     publishPending: false,
@@ -102,6 +258,20 @@ export default function CopilotPage() {
     deployURL: "",
     deployLogs: [] as string[],
   })
+  const environments = createMemo(() => builder.data()?.environments ?? [])
+  const releases = createMemo(() => builder.data()?.releases ?? [])
+  const deploys = createMemo(() => builder.data()?.deploys ?? [])
+  const annotations = createMemo(() => builder.data()?.annotations ?? [])
+  const selectedEnv = createMemo(() => environments().find((item) => item.id === store.environment))
+  const environmentMap = createMemo(() => Object.fromEntries(environments().map((item) => [item.id, item.name])))
+  const [secrets] = createResource(
+    () => builder.dir(),
+    async (dir) => {
+      if (!dir || !builder.sdk()) return [] as SecretItem[]
+      const out = await builder.sdk()!.builder.secret.list(undefined, { throwOnError: true })
+      return (out.data ?? []) as SecretItem[]
+    },
+  )
 
   createEffect(
     on(
@@ -127,6 +297,11 @@ export default function CopilotPage() {
       if (!store.previewCommand && nextCommand) setStore("previewCommand", nextCommand)
       if (!store.previewURL && nextURL) setStore("previewURL", nextURL)
     })
+  })
+
+  createEffect(() => {
+    const next = builder.data()?.environmentID ?? environments()[0]?.id
+    if (!store.environment && next) setStore("environment", next)
   })
 
   async function ensureSession() {
@@ -284,30 +459,20 @@ export default function CopilotPage() {
 
   async function deployRun() {
     const id = sessionID()
-    if (!summary.sdk() || !store.environment || !store.deploySecret) return
+    const releaseID = releases()[0]?.id
+    if (!builder.sdk() || !store.environment || (!id && !releaseID)) return
     setStore("deployPending", true)
     try {
-      const result = await summary.sdk()!.provider.deploy(
+      const result = await builder.sdk()!.builder.deploy(
         {
-          providerID: "github-copilot",
-          environment: store.environment,
-          secret: store.deploySecret,
-          sessionID: id,
+          environmentID: store.environment,
+          releaseID,
+          sessionID: id || undefined,
         },
         { throwOnError: true },
       )
       setStore("deployURL", result.data!.url)
       setStore("deployLogs", result.data!.logs)
-      await summary.sdk()!.builder.deploy(
-        {
-          releaseID: builder.data()?.releases[0]?.id,
-          environment: store.environment,
-          url: result.data!.url,
-          status: "ready",
-          logs: result.data!.logs,
-        },
-        { throwOnError: true },
-      )
       await Promise.all([builder.refetch(), summary.refetch()])
       showToast({
         variant: "success",
@@ -323,6 +488,60 @@ export default function CopilotPage() {
       })
     } finally {
       setStore("deployPending", false)
+    }
+  }
+
+  async function rollbackDeploy(deployID: string, environmentID?: string) {
+    if (!builder.sdk()) return
+    setStore("deployPending", true)
+    try {
+      await builder.sdk()!.builder.rollback(
+        {
+          deployID,
+          environmentID,
+        },
+        { throwOnError: true },
+      )
+      await Promise.all([builder.refetch(), summary.refetch()])
+      showToast({
+        variant: "success",
+        title: "Rollback started",
+      })
+    } catch (error) {
+      showToast({
+        variant: "error",
+        title: "Rollback failed",
+        description: error instanceof Error ? error.message : language.t("common.requestFailed"),
+      })
+    } finally {
+      setStore("deployPending", false)
+    }
+  }
+
+  async function rollbackRelease(releaseID: string, environmentID?: string) {
+    if (!builder.sdk()) return
+    setStore("publishPending", true)
+    try {
+      await builder.sdk()!.builder.rollback(
+        {
+          releaseID,
+          environmentID,
+        },
+        { throwOnError: true },
+      )
+      await Promise.all([builder.refetch(), summary.refetch()])
+      showToast({
+        variant: "success",
+        title: "Rollback started",
+      })
+    } catch (error) {
+      showToast({
+        variant: "error",
+        title: "Rollback failed",
+        description: error instanceof Error ? error.message : language.t("common.requestFailed"),
+      })
+    } finally {
+      setStore("publishPending", false)
     }
   }
 
@@ -409,11 +628,11 @@ export default function CopilotPage() {
               </div>
               <div class="rounded-2xl border border-border-weak-base bg-surface-raised-base p-4">
                 <div class="text-11-medium uppercase tracking-[0.12em] text-text-weak">Releases</div>
-                <div class="mt-2 text-18-medium text-text-strong">{builder.data()?.releases.length.toLocaleString() ?? "0"}</div>
+                <div class="mt-2 text-18-medium text-text-strong">{releases().length.toLocaleString()}</div>
               </div>
               <div class="rounded-2xl border border-border-weak-base bg-surface-raised-base p-4">
                 <div class="text-11-medium uppercase tracking-[0.12em] text-text-weak">Deploys</div>
-                <div class="mt-2 text-18-medium text-text-strong">{builder.data()?.deploys.length.toLocaleString() ?? "0"}</div>
+                <div class="mt-2 text-18-medium text-text-strong">{deploys().length.toLocaleString()}</div>
               </div>
             </div>
           </div>
@@ -603,8 +822,8 @@ export default function CopilotPage() {
                     </Button>
                   </div>
                   <div class="mt-4 flex max-h-56 flex-col gap-3 overflow-y-auto">
-                    <Show when={builder.data()?.annotations.length} fallback={<div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3 text-13-regular text-text-weak">No annotations yet.</div>}>
-                      <For each={builder.data()?.annotations ?? []}>
+                    <Show when={annotations().length} fallback={<div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3 text-13-regular text-text-weak">No annotations yet.</div>}>
+                      <For each={annotations()}>
                         {(item) => (
                           <div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3">
                             <div class="text-13-medium text-text-strong break-all">{item.file}</div>
@@ -638,8 +857,8 @@ export default function CopilotPage() {
               <div class="rounded-3xl border border-border-weak-base bg-surface-base p-5 sm:p-6">
                 <div class="text-14-medium text-text-strong">Release history</div>
                 <div class="mt-4 flex max-h-[420px] flex-col gap-3 overflow-y-auto">
-                  <Show when={builder.data()?.releases.length} fallback={<div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3 text-13-regular text-text-weak">No releases recorded yet.</div>}>
-                    <For each={builder.data()?.releases ?? []}>
+                  <Show when={releases().length} fallback={<div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3 text-13-regular text-text-weak">No releases recorded yet.</div>}>
+                    <For each={releases()}>
                       {(item) => (
                         <div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3">
                           <div class="text-13-medium text-text-strong">{item.title}</div>
@@ -658,28 +877,14 @@ export default function CopilotPage() {
             <div class="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
               <div class="rounded-3xl border border-border-weak-base bg-surface-base p-5 sm:p-6">
                 <div class="text-18-medium text-text-strong">Deploy</div>
-                <div class="mt-1 text-13-regular text-text-weak">The VPS deploy call is still real. This tab now records the result into builder deploy history as well.</div>
-                <Show when={builder.data()?.environments?.length}>
+                <div class="mt-1 text-13-regular text-text-weak">Deploy the local builder release through the selected environment. Secrets stay in the builder secret store and are only exposed here as redacted references.</div>
+                <Show when={environments().length}>
                   <div class="mt-5">
                     <div class="mb-2 text-12-medium uppercase tracking-[0.12em] text-text-weak">Environment</div>
                     <EnvSelect
-                      environments={builder.data()?.environments ?? []}
+                      environments={environments()}
                       value={store.environment}
                       onChange={(id) => setStore("environment", id)}
-                    />
-                  </div>
-                </Show>
-                <Show when={builder.data()?.secrets?.length}>
-                  <div class="mt-5">
-                    <div class="mb-2 text-12-medium uppercase tracking-[0.12em] text-text-weak">Deploy Secret</div>
-                    <Select
-                      options={builder.data()?.secrets ?? []}
-                      current={(builder.data()?.secrets ?? []).find((s) => s.name === store.deploySecret)}
-                      value={(s) => s.name}
-                      label={(s) => s.name}
-                      onSelect={(s) => s && setStore("deploySecret", s.name)}
-                      variant="secondary"
-                      size="small"
                     />
                   </div>
                 </Show>
@@ -687,7 +892,7 @@ export default function CopilotPage() {
                   <Button
                     size="large"
                     variant="secondary"
-                    disabled={store.deployPending || !store.environment || !store.deploySecret}
+                    disabled={store.deployPending || !store.environment || (!sessionID() && !releases()[0]?.id)}
                     onClick={deployRun}
                   >
                     {store.deployPending ? "Deploying..." : "Run deploy"}
@@ -708,8 +913,8 @@ export default function CopilotPage() {
                 <Show when={store.environment}>
                   <div class="mt-6">
                     <EnvVarsSecrets
-                      envVars={builder.data()?.environments?.find((e) => e.id === store.environment)?.envVars ?? {}}
-                      secrets={builder.data()?.environments?.find((e) => e.id === store.environment)?.secrets ?? []}
+                      vars={selectedEnv()?.vars ?? {}}
+                      secrets={secrets() ?? []}
                     />
                   </div>
                 </Show>
@@ -717,9 +922,9 @@ export default function CopilotPage() {
               <div class="rounded-3xl border border-border-weak-base bg-surface-base p-5 sm:p-6">
                 <div class="text-14-medium text-text-strong">Deploy history</div>
                 <DeployHistory
-                  deploys={builder.data()?.deploys ?? []}
+                  deploys={deploys()}
                   onRollback={rollbackDeploy}
-                  environments={Object.fromEntries((builder.data()?.environments ?? []).map((e) => [e.id, e.name]))}
+                  environments={environmentMap()}
                 />
               </div>
             </div>
@@ -728,246 +933,4 @@ export default function CopilotPage() {
       </div>
     </main>
   )
-}
-
-// --- Store: Remove password, add env/secret selection ---
-const [store, setStore] = createStore({
-  prompt: "",
-  modelID: "",
-  agent: "build",
-  previewCommand: "",
-  previewURL: "",
-  annotationFile: "",
-  annotationNote: "",
-  environment: "",
-  deploySecret: "",
-  host: "",
-  publicPort: "8080",
-  user: "",
-  path: "",
-  buildPending: false,
-  previewPending: false,
-  publishPending: false,
-  deployPending: false,
-  deployURL: "",
-  deployLogs: [] as string[],
-})
-
-// --- New: Builder Environment/Deploy/Secret UI helpers ---
-function EnvSelect(props: {
-  environments: { id: string; name: string; description?: string }[]
-  value: string
-  onChange: (id: string) => void
-}) {
-  return (
-    <Select
-      options={props.environments}
-      current={props.environments.find((e) => e.id === props.value)}
-      value={(e) => e.id}
-      label={(e) => e.name}
-      onSelect={(e) => e && props.onChange(e.id)}
-      variant="secondary"
-      size="small"
-    />
-  )
-}
-
-function DeployHistory(props: {
-  deploys: any[]
-  onRollback: (deployID: string) => void
-  environments: Record<string, string>
-}) {
-  return (
-    <div class="mt-4 flex max-h-[420px] flex-col gap-3 overflow-y-auto">
-      <Show when={props.deploys.length} fallback={<div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3 text-13-regular text-text-weak">No deploys recorded yet.</div>}>
-        <For each={props.deploys}>
-          {(item) => (
-            <div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3">
-              <div class="flex items-center justify-between gap-3">
-                <div>
-                  <div class="text-13-medium text-text-strong">{item.host || item.environment || "—"}</div>
-                  <div class="text-11-medium uppercase tracking-[0.12em] text-text-weak">{props.environments[item.environment] || item.environment}</div>
-                </div>
-                <Button size="small" variant="ghost" onClick={() => props.onRollback(item.id)} disabled={item.status === "active"}>
-                  Rollback
-                </Button>
-              </div>
-              <div class="mt-1 break-all text-12-regular text-text-weak">{item.url}</div>
-              <div class="mt-1 break-all text-12-regular text-text-weak">{item.path}</div>
-              <div class="mt-2 text-11-regular text-text-weak">{item.releaseTitle || item.releaseID}</div>
-              <div class="mt-2 text-11-regular text-text-weak">{new Date(item.createdAt).toLocaleString()}</div>
-            </div>
-          )}
-        </For>
-      </Show>
-    </div>
-  )
-}
-
-function ReleaseHistory(props: {
-  releases: any[]
-  onRollback: (releaseID: string) => void
-  environments: Record<string, string>
-}) {
-  return (
-    <div class="mt-4 flex max-h-[420px] flex-col gap-3 overflow-y-auto">
-      <Show when={props.releases.length} fallback={<div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3 text-13-regular text-text-weak">No releases recorded yet.</div>}>
-        <For each={props.releases}>
-          {(item) => (
-            <div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3">
-              <div class="flex items-center justify-between gap-3">
-                <div>
-                  <div class="text-13-medium text-text-strong">{item.title}</div>
-                  <div class="text-11-medium uppercase tracking-[0.12em] text-text-weak">{props.environments[item.environment] || item.environment}</div>
-                </div>
-                <Button size="small" variant="ghost" onClick={() => props.onRollback(item.id)}>
-                  Rollback
-                </Button>
-              </div>
-              <div class="mt-1 break-all text-12-regular text-text-weak">{item.shareURL || "Private release"}</div>
-              <div class="mt-2 text-11-regular text-text-weak">{new Date(item.createdAt).toLocaleString()}</div>
-            </div>
-          )}
-        </For>
-      </Show>
-    </div>
-  )
-}
-
-function EnvVarsSecrets(props: {
-  envVars: Record<string, string>
-  secrets: { name: string; description?: string }[]
-}) {
-  return (
-    <div class="grid gap-4 sm:grid-cols-2">
-      <div>
-        <div class="mb-2 text-12-medium uppercase tracking-[0.12em] text-text-weak">Environment Variables</div>
-        <div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3">
-          <Show when={Object.keys(props.envVars).length} fallback={<div class="text-13-regular text-text-weak">No variables</div>}>
-            <For each={Object.entries(props.envVars)}>
-              {([key, value]) => (
-                <div class="flex items-center gap-2 py-1">
-                  <span class="text-13-medium text-text-strong">{key}</span>
-                  <span class="text-13-regular text-text-weak break-all">{value}</span>
-                </div>
-              )}
-            </For>
-          </Show>
-        </div>
-      </div>
-      <div>
-        <div class="mb-2 text-12-medium uppercase tracking-[0.12em] text-text-weak">Secrets</div>
-        <div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3">
-          <Show when={props.secrets.length} fallback={<div class="text-13-regular text-text-weak">No secrets</div>}>
-            <For each={props.secrets}>
-              {(secret) => (
-                <div class="flex flex-col py-1">
-                  <span class="text-13-medium text-text-strong">{secret.name}</span>
-                  <span class="text-12-regular text-text-weak">{secret.description}</span>
-                </div>
-              )}
-            </For>
-          </Show>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// --- Deploy using environment and secret reference ---
-async function deployRun() {
-  const id = sessionID()
-  if (!summary.sdk() || !store.environment || !store.deploySecret) return
-  setStore("deployPending", true)
-  try {
-    const result = await summary.sdk()!.provider.deploy(
-      {
-        providerID: "github-copilot",
-        environment: store.environment,
-        secret: store.deploySecret,
-        sessionID: id,
-      },
-      { throwOnError: true },
-    )
-    setStore("deployURL", result.data!.url)
-    setStore("deployLogs", result.data!.logs)
-    await summary.sdk()!.builder.deploy(
-      {
-        releaseID: builder.data()?.releases[0]?.id,
-        environment: store.environment,
-        url: result.data!.url,
-        status: "ready",
-        logs: result.data!.logs,
-      },
-      { throwOnError: true },
-    )
-    await Promise.all([builder.refetch(), summary.refetch()])
-    showToast({
-      variant: "success",
-      title: "Deployment finished",
-      description: result.data!.url,
-    })
-  } catch (error) {
-    setStore("deployLogs", [error instanceof Error ? error.message : language.t("common.requestFailed")])
-    showToast({
-      variant: "error",
-      title: "Deployment failed",
-      description: error instanceof Error ? error.message : language.t("common.requestFailed"),
-    })
-  } finally {
-    setStore("deployPending", false)
-  }
-}
-
-// --- Rollback logic for deploys/releases ---
-async function rollbackDeploy(deployID: string) {
-  if (!summary.sdk()) return
-  setStore("deployPending", true)
-  try {
-    await summary.sdk()!.builder.rollback(
-      {
-        deployID,
-      },
-      { throwOnError: true },
-    )
-    await Promise.all([builder.refetch(), summary.refetch()])
-    showToast({
-      variant: "success",
-      title: "Rollback started",
-    })
-  } catch (error) {
-    showToast({
-      variant: "error",
-      title: "Rollback failed",
-      description: error instanceof Error ? error.message : language.t("common.requestFailed"),
-    })
-  } finally {
-    setStore("deployPending", false)
-  }
-}
-
-async function rollbackRelease(releaseID: string) {
-  if (!summary.sdk()) return
-  setStore("publishPending", true)
-  try {
-    await summary.sdk()!.builder.rollback(
-      {
-        releaseID,
-      },
-      { throwOnError: true },
-    )
-    await Promise.all([builder.refetch(), summary.refetch()])
-    showToast({
-      variant: "success",
-      title: "Rollback started",
-    })
-  } catch (error) {
-    showToast({
-      variant: "error",
-      title: "Rollback failed",
-      description: error instanceof Error ? error.message : language.t("common.requestFailed"),
-    })
-  } finally {
-    setStore("publishPending", false)
-  }
 }
