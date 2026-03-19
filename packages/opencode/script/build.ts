@@ -178,6 +178,10 @@ for (const item of targets) {
     conditions: ["browser"],
     tsconfig: "./tsconfig.json",
     plugins: [solidPlugin],
+    // ssh2 optionally probes cpu-features via a native .node addon. Keep that
+    // module external so the runtime try/catch fallback still works during
+    // cross-target packaging builds.
+    external: ["cpu-features"],
     compile: {
       autoloadBunfig: false,
       autoloadDotenv: false,
