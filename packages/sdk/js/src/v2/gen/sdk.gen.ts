@@ -1013,6 +1013,9 @@ export class Builder extends HeyApiClient {
       modelID?: string
       agent?: string
       variant?: string
+      temperature?: number
+      topK?: number
+      topP?: number
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -1028,6 +1031,9 @@ export class Builder extends HeyApiClient {
             { in: "body", key: "modelID" },
             { in: "body", key: "agent" },
             { in: "body", key: "variant" },
+            { in: "body", key: "temperature" },
+            { in: "body", key: "topK" },
+            { in: "body", key: "topP" },
           ],
         },
       ],
@@ -2820,6 +2826,11 @@ export class Session2 extends HeyApiClient {
       format?: OutputFormat
       system?: string
       variant?: string
+      options?: {
+        temperature?: number
+        topK?: number
+        topP?: number
+      }
       parts?: Array<TextPartInput | FilePartInput | AgentPartInput | SubtaskPartInput>
     },
     options?: Options<never, ThrowOnError>,
@@ -2840,6 +2851,7 @@ export class Session2 extends HeyApiClient {
             { in: "body", key: "format" },
             { in: "body", key: "system" },
             { in: "body", key: "variant" },
+            { in: "body", key: "options" },
             { in: "body", key: "parts" },
           ],
         },
@@ -2952,6 +2964,11 @@ export class Session2 extends HeyApiClient {
       format?: OutputFormat
       system?: string
       variant?: string
+      options?: {
+        temperature?: number
+        topK?: number
+        topP?: number
+      }
       parts?: Array<TextPartInput | FilePartInput | AgentPartInput | SubtaskPartInput>
     },
     options?: Options<never, ThrowOnError>,
@@ -2972,6 +2989,7 @@ export class Session2 extends HeyApiClient {
             { in: "body", key: "format" },
             { in: "body", key: "system" },
             { in: "body", key: "variant" },
+            { in: "body", key: "options" },
             { in: "body", key: "parts" },
           ],
         },

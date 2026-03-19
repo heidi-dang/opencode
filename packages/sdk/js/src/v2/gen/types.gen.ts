@@ -400,6 +400,12 @@ export type SubtaskPart = {
   prompt: string
   description: string
   agent: string
+  lane?: "research" | "implementation" | "review"
+  ownership?: {
+    mode: "shared" | "read_only" | "exclusive_edit"
+    files: Array<string>
+    reserved?: Array<string>
+  }
   model?: {
     providerID: string
     modelID: string
@@ -1777,6 +1783,12 @@ export type SubtaskPartInput = {
   prompt: string
   description: string
   agent: string
+  lane?: "research" | "implementation" | "review"
+  ownership?: {
+    mode: "shared" | "read_only" | "exclusive_edit"
+    files: Array<string>
+    reserved?: Array<string>
+  }
   model?: {
     providerID: string
     modelID: string
@@ -2125,6 +2137,11 @@ export type BuilderGetResponses = {
     providerID?: string
     modelID?: string
     agent?: string
+    options?: {
+      temperature?: number
+      topK?: number
+      topP?: number
+    }
     prompt?: string
     environmentID?: string
     environments?: Array<{
@@ -2352,6 +2369,11 @@ export type BuilderSessionResponses = {
     providerID?: string
     modelID?: string
     agent?: string
+    options?: {
+      temperature?: number
+      topK?: number
+      topP?: number
+    }
     prompt?: string
     environmentID?: string
     environments?: Array<{
@@ -2550,6 +2572,9 @@ export type BuilderBuildData = {
     modelID: string
     agent?: string
     variant?: string
+    temperature?: number
+    topK?: number
+    topP?: number
   }
   path?: never
   query?: {
@@ -2581,6 +2606,11 @@ export type BuilderBuildResponses = {
     providerID?: string
     modelID?: string
     agent?: string
+    options?: {
+      temperature?: number
+      topK?: number
+      topP?: number
+    }
     prompt?: string
     environmentID?: string
     environments?: Array<{
@@ -3326,6 +3356,11 @@ export type BuilderPreviewStartResponses = {
     providerID?: string
     modelID?: string
     agent?: string
+    options?: {
+      temperature?: number
+      topK?: number
+      topP?: number
+    }
     prompt?: string
     environmentID?: string
     environments?: Array<{
@@ -3540,6 +3575,11 @@ export type BuilderPreviewStopResponses = {
     providerID?: string
     modelID?: string
     agent?: string
+    options?: {
+      temperature?: number
+      topK?: number
+      topP?: number
+    }
     prompt?: string
     environmentID?: string
     environments?: Array<{
@@ -5325,6 +5365,11 @@ export type SessionPromptData = {
     format?: OutputFormat
     system?: string
     variant?: string
+    options?: {
+      temperature?: number
+      topK?: number
+      topP?: number
+    }
     parts: Array<TextPartInput | FilePartInput | AgentPartInput | SubtaskPartInput>
   }
   path: {
@@ -5525,6 +5570,11 @@ export type SessionPromptAsyncData = {
     format?: OutputFormat
     system?: string
     variant?: string
+    options?: {
+      temperature?: number
+      topK?: number
+      topP?: number
+    }
     parts: Array<TextPartInput | FilePartInput | AgentPartInput | SubtaskPartInput>
   }
   path: {
