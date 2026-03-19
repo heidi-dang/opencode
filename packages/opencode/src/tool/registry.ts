@@ -42,6 +42,7 @@ import { PatternTool } from "./pattern"
 import { ReasoningTool } from "./reasoning"
 import { BlueprintTool } from "./blueprint"
 import { AdrTool } from "./adr"
+import { SequentialThinkingTool } from "./sequential_thinking"
 import { ReviewerTool } from "./reviewer"
 import { TestLinterTool } from "./test_linter"
 import { A11yTool } from "./a11y"
@@ -152,6 +153,7 @@ export namespace ToolRegistry {
       ReasoningTool,
       BlueprintTool,
       AdrTool,
+      SequentialThinkingTool,
       ReviewerTool,
       TestLinterTool,
       A11yTool,

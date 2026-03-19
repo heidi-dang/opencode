@@ -2,7 +2,13 @@ import z from "zod"
 import { Tool } from "./tool"
 import { MessageV2 } from "@/session/message-v2"
 
-const DESCRIPTION = `Audits a set of files or a proposed change against established architectural standards (e.g., Heidi's 6-phase architecture). Reports violations and suggests fixes.`
+const DESCRIPTION = `Audits a set of files or a proposed change against established architectural standards (e.g., Heidi's 6-phase architecture). 
+
+STEPS:
+0. Intelligent Architecture Context Analysis (System type, Complexity, Primary concerns).
+1. Clarify Constraints (Scale, Team, Budget).
+2. Apply Frameworks (Reliability, Security, Cost, Ops, Performance).
+3. Generate ADRs for decisions.`
 
 export const ReviewerTool = Tool.define("reviewer", {
   description: DESCRIPTION,

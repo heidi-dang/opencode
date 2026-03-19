@@ -9,10 +9,21 @@ export const TestLinterTool = Tool.define("test_linter", {
     directory: z.string().describe("The directory to audit for test quality.")
   }),
   async execute(params, ctx) {
+    const { $ } = await import("bun")
+    const smells = []
+    
+    // Check for .only
+    const only = await $`grep -r ".only" ${params.directory} --include="*.test.ts" --include="*.spec.ts"`.text().catch(() => "")
+    if (only) smells.push({ type: "Flakiness Risk", details: "Found .only in tests: " + only.split("\n")[0] })
+
+    // Check for hardcoded timeouts > 10s
+    const timeouts = await $`grep -r "timeout: [1-9][0-9][0-9][0-9][0-9]" ${params.directory}`.text().catch(() => "")
+    if (timeouts) smells.push({ type: "Performance Smell", details: "Found long hardcoded timeouts." })
+
     return {
       title: "Test Quality Audit",
-      output: `Audited tests in ${params.directory}. No critical flakiness detected.`,
-      metadata: { status: "clean", directory: params.directory }
+      output: smells.length > 0 ? `Found ${smells.length} test smells.` : "No critical flakiness detected.",
+      metadata: { smells, status: smells.length > 0 ? "failed" : "passed" }
     }
   }
 })
