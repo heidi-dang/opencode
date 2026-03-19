@@ -16,7 +16,7 @@ export const TransparencyTool = Tool.define("transparency", {
       title: "System Transparency Report",
       output: "Analyzing internal state...",
       metadata: {
-        memory_count: memory.items.length,
+        memory_count: memory.length,
         has_active_transaction: !!ctx.metadata, // simplified
         scope: params.scope
       }
