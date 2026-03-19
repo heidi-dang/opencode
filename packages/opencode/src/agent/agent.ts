@@ -206,6 +206,28 @@ export namespace Agent {
         ),
         prompt: PROMPT_SUMMARY,
       },
+      seo: {
+        name: "seo",
+        description: `Specialized agent for technical SEO automation and search index management. Handles Google Search Console API integration, IndexNow submissions, sitemap audits, and metadata/schema optimization. Use this agent for site-wide indexing tasks and fixing crawl errors.`,
+        permission: PermissionNext.merge(
+          defaults,
+          PermissionNext.fromConfig({
+            "*": "deny",
+            webfetch: "allow",
+            websearch: "allow",
+            bash: "allow",
+            run_command: "allow",
+            edit: "allow",
+            write: "allow",
+            read: "allow",
+            task_boundary: "allow",
+          }),
+          user,
+        ),
+        options: {},
+        mode: "subagent",
+        native: true,
+      },
     }
 
     for (const [key, value] of Object.entries(cfg.agent ?? {})) {

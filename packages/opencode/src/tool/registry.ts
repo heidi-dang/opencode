@@ -34,6 +34,9 @@ import { ReplaceFileContentTool } from "./replace_file_content"
 import { RunCommandTool } from "./run_command"
 import { BrowserSubagentTool } from "./browser_subagent"
 import { KnowledgeSubagentTool } from "./knowledge_subagent"
+import { SeoAuditTool } from "./seo_audit"
+import { GscIndexingTool } from "./gsc_indexing"
+import { IndexNowTool } from "./indexnow"
 
 import { ApplyPatchTool } from "./apply_patch"
 import { Glob } from "../util/glob"
@@ -132,6 +135,9 @@ export namespace ToolRegistry {
       ApplyPatchTool,
       VerifyTool,
       TransactionTool,
+      SeoAuditTool,
+      GscIndexingTool,
+      IndexNowTool,
       ...(Flag.OPENCODE_EXPERIMENTAL_LSP_TOOL ? [LspTool] : []),
       ...(config.experimental?.batch_tool === true ? [BatchTool] : []),
       ...(Flag.OPENCODE_EXPERIMENTAL_PLAN_MODE && Flag.OPENCODE_CLIENT === "cli" ? [PlanExitTool] : []),
