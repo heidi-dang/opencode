@@ -27,6 +27,24 @@ import { Flag } from "@/flag/flag"
 import { Log } from "@/util/log"
 import { LspTool } from "./lsp"
 import { Truncate } from "./truncate"
+import {
+  BrowserNavigateTool,
+  BrowserScreenshotTool,
+  BrowserClickTool,
+  BrowserTypeTool,
+  BrowserScrollTool,
+  BrowserResizeTool,
+  BrowserReadTool,
+  BrowserWaitTool,
+  BrowserHoverTool,
+  BrowserPressTool,
+  BrowserEmulateTool,
+} from "./browser"
+import { TaskBoundaryTool } from "./task_boundary"
+import { ReplaceFileContentTool } from "./replace_file_content"
+import { RunCommandTool } from "./run_command"
+import { BrowserSubagentTool } from "./browser_subagent"
+import { KnowledgeSubagentTool } from "./knowledge_subagent"
 
 import { ApplyPatchTool } from "./apply_patch"
 import { Glob } from "../util/glob"
@@ -117,6 +135,11 @@ export namespace ToolRegistry {
       WebSearchTool,
       CodeSearchTool,
       SkillTool,
+      TaskBoundaryTool,
+      ReplaceFileContentTool,
+      RunCommandTool,
+      BrowserSubagentTool,
+      KnowledgeSubagentTool,
       ApplyPatchTool,
       ...(Flag.OPENCODE_EXPERIMENTAL_LSP_TOOL ? [LspTool] : []),
       ...(config.experimental?.batch_tool === true ? [BatchTool] : []),
