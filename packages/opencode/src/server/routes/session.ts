@@ -19,6 +19,10 @@ import { PermissionID } from "@/permission/schema"
 import { ModelID, ProviderID } from "@/provider/schema"
 import { errors } from "../error"
 import { lazy } from "../../util/lazy"
+import { Database, eq } from "@/storage/db"
+import { PartTable } from "@/storage/schema"
+import { HeidiBoundary } from "@/heidi/boundary"
+import { HeidiState } from "@/heidi/state"
 
 const log = Log.create({ service: "server" })
 
@@ -153,6 +157,73 @@ export const SessionRoutes = lazy(() =>
         const sessionID = c.req.valid("param").sessionID
         const session = await Session.children(sessionID)
         return c.json(session)
+      },
+    )
+    .get(
+      "/:sessionID/task",
+      describeRoute({
+        summary: "Get Heidi task state",
+        description: "Get canonical Heidi task state for this session.",
+        operationId: "session.task.get",
+        responses: {
+          200: {
+            description: "Task state",
+            content: {
+              "application/json": {
+                schema: resolver(HeidiBoundary.Output.or(z.any())),
+              },
+            },
+          },
+          ...errors(400, 404),
+        },
+      }),
+      validator(
+        "param",
+        z.object({
+          sessionID: SessionID.zod,
+        }),
+      ),
+      async (c) => {
+        const sessionID = c.req.valid("param").sessionID
+        const state = await HeidiState.read(sessionID)
+        return c.json(state)
+      },
+    )
+    .post(
+      "/:sessionID/task/boundary",
+      describeRoute({
+        summary: "Apply task boundary action",
+        description: "Mutate Heidi task state via task boundary contract.",
+        operationId: "session.task.boundary",
+        responses: {
+          200: {
+            description: "Boundary response",
+            content: {
+              "application/json": {
+                schema: resolver(HeidiBoundary.Output),
+              },
+            },
+          },
+          ...errors(400, 404),
+        },
+      }),
+      validator(
+        "param",
+        z.object({
+          sessionID: SessionID.zod,
+        }),
+      ),
+      validator(
+        "json",
+        HeidiBoundary.Input.omit({ task_id: true }).extend({
+          payload: z.record(z.string(), z.any()).default({}),
+        }),
+      ),
+      async (c) => {
+        const sessionID = c.req.valid("param").sessionID
+        const body = c.req.valid("json")
+        const result = await HeidiBoundary.apply({ ...body, task_id: sessionID })
+        return c.json(result)
       },
     )
     .get(
@@ -1019,5 +1090,51 @@ export const SessionRoutes = lazy(() =>
         })
         return c.json(true)
       },
+<<<<<<< HEAD
+=======
+    )
+    // Tool output retrieval endpoint
+    .get(
+      "/:sessionID/tool-output/:messageID/:partID",
+      describeRoute({
+        summary: "Retrieve full tool output",
+        operationId: "session.toolOutput",
+      }),
+      validator(
+        "param",
+        z.object({
+          sessionID: SessionID.zod,
+          messageID: MessageID.zod,
+          partID: PartID.zod,
+        }),
+      ),
+      async (c) => {
+        const { messageID, partID } = c.req.valid("param")
+
+        // Get the part from the database
+        const part = Database.use((db) => db.select().from(PartTable).where(eq(PartTable.id, partID)).get())
+
+        if (!part) {
+          return c.json({ error: "Part not found" }, 404)
+        }
+
+        // Check if part has outputRef
+        const data = part.data as Record<string, unknown>
+        if (!data?.outputRef) {
+          return c.json({ error: "No full output available", output: data?.output ?? "" })
+        }
+
+        // Retrieve full output from blob storage
+        const { Truncate } = await import("@/tool/truncation")
+        const fullOutput = await Truncate.retrieveFullOutput(data.outputRef as string)
+
+        return c.json({
+          output: fullOutput ?? data.output ?? "",
+          outputRef: data.outputRef,
+          outputBytes: data.outputBytes,
+          outputHasMore: data.outputHasMore,
+        })
+      },
+>>>>>>> ef1fe8f42 (feat(heidi): add runtime state machine and boundary API)
     ),
 )
