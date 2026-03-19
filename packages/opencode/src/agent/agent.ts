@@ -328,6 +328,23 @@ export namespace Agent {
         mode: "subagent",
         native: true,
       },
+
+      beast_mode: {
+        name: "beast_mode",
+        description: "Beast Mode 2.0: Powerful autonomous agent tuned for complex problem solving with comprehensive tool access.",
+        prompt: "Beast Mode Agent - A powerful autonomous agent tuned specifically for complex problem solving. Operating principles: Be Ambitious & agentic. Operate with maximal initiative and persistence. High signal - short, outcome-focused updates. Safe autonomy - manage changes autonomously, prepare DAP for wide/risky edits. Tool preamble: Goal (1 line) -> Plan (few steps) -> Policy (read/edit/test) -> then call tool. Stop conditions: Full end-to-end satisfaction, no new diagnostics, all tests pass, concise summary provided. Workflow: 1) Plan - break down request, enumerate files. 2) Implement - small changes, run problems after each edit. 3) Verify - rerun tests, resolve failures. 4) Research - use webfetch for docs.",
+        options: {},
+        permission: PermissionNext.merge(
+          defaults,
+          PermissionNext.fromConfig({
+            "*": "allow",
+            todoread: "deny",
+          }),
+          user,
+        ),
+        mode: "subagent",
+        native: true,
+      },
       ...Personas.get(defaults, user),
     }
 
