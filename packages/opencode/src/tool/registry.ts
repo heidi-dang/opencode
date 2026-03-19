@@ -38,6 +38,7 @@ import { SeoAuditTool } from "./seo_audit"
 import { GscIndexingTool } from "./gsc_indexing"
 import { IndexNowTool } from "./indexnow"
 import { MemoryTool } from "./memory"
+import { PatternTool } from "./pattern"
 
 import { ApplyPatchTool } from "./apply_patch"
 import { Glob } from "../util/glob"
@@ -140,6 +141,7 @@ export namespace ToolRegistry {
       GscIndexingTool,
       IndexNowTool,
       MemoryTool,
+      PatternTool,
       ...(Flag.OPENCODE_EXPERIMENTAL_LSP_TOOL ? [LspTool] : []),
       ...(config.experimental?.batch_tool === true ? [BatchTool] : []),
       ...(Flag.OPENCODE_EXPERIMENTAL_PLAN_MODE && Flag.OPENCODE_CLIENT === "cli" ? [PlanExitTool] : []),

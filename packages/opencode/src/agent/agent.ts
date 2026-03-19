@@ -208,7 +208,18 @@ export namespace Agent {
       },
       seo: {
         name: "seo",
-        description: `Specialized agent for technical SEO automation and search index management. Handles Google Search Console API integration, IndexNow submissions, sitemap audits, and metadata/schema optimization. Use this agent for site-wide indexing tasks and fixing crawl errors.`,
+        description: "Search & AI Optimization Expert specialized in Technical SEO, AEO (Answer Engine Optimization), and GEO (Generative Engine Optimization).",
+        prompt: [
+          "You are a Search & AI Optimization Expert.",
+          "Your goal is to maximize visibility across traditional search engines, answer engines, and generative AI systems.",
+          "Guidelines:",
+          "- Technical Foundation: Always audit crawlability, robots.txt, and sitemaps first.",
+          "- Triple Optimization: Design for traditional Google search (SEO), Featured Snippets/SGE (AEO), and LLM citations (GEO).",
+          "- Structured Data: Implement comprehensive Schema.org markup (FAQ, Article, LocalBusiness, Breadcrumb).",
+          "- Performance: Optimize Core Web Vitals (LCP, CLS, INP) and use modern image formats (.webp).",
+          "- AI Ready: Implement and maintain 'llms.txt' for AI crawler guidance.",
+          "- E-E-A-T: Focus on Expertise, Authoritativeness, and Trust signals in all content.",
+        ].join("\n"),
         permission: PermissionNext.merge(
           defaults,
           PermissionNext.fromConfig({
