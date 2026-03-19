@@ -1090,8 +1090,6 @@ export const SessionRoutes = lazy(() =>
         })
         return c.json(true)
       },
-<<<<<<< HEAD
-=======
     )
     // Tool output retrieval endpoint
     .get(
@@ -1125,7 +1123,7 @@ export const SessionRoutes = lazy(() =>
         }
 
         // Retrieve full output from blob storage
-        const { Truncate } = await import("@/tool/truncation")
+        const { Truncate } = await import("@/tool/truncate")
         const fullOutput = await Truncate.retrieveFullOutput(data.outputRef as string)
 
         return c.json({
@@ -1135,6 +1133,5 @@ export const SessionRoutes = lazy(() =>
           outputHasMore: data.outputHasMore,
         })
       },
->>>>>>> ef1fe8f42 (feat(heidi): add runtime state machine and boundary API)
     ),
 )

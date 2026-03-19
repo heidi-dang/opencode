@@ -38,6 +38,7 @@ export namespace TruncateEffect {
      * to the truncation directory and returns a preview plus a hint to inspect the saved file.
      */
     readonly output: (text: string, options?: Options, agent?: Agent.Info) => Effect.Effect<Result>
+    readonly retrieveFullOutput: (path: string) => Effect.Effect<string | undefined>
   }
 
   export class Service extends ServiceMap.Service<Service, Interface>()("@opencode/Truncate") {}
@@ -119,6 +120,13 @@ export namespace TruncateEffect {
         } as const
       })
 
+      const retrieveFullOutput = Effect.fn("Truncate.retrieveFullOutput")(function* (file: string) {
+        return yield* fs.readFileString(file).pipe(
+          Effect.map((s) => s.toString()),
+          Effect.catch(() => Effect.succeed(undefined)),
+        )
+      })
+
       yield* cleanup().pipe(
         Effect.catchCause((cause) => {
           log.error("truncation cleanup failed", { cause: Cause.pretty(cause) })
@@ -129,7 +137,7 @@ export namespace TruncateEffect {
         Effect.forkScoped,
       )
 
-      return Service.of({ cleanup, output })
+      return Service.of({ cleanup, output, retrieveFullOutput })
     }),
   )
 

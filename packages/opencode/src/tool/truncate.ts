@@ -15,4 +15,8 @@ export namespace Truncate {
   export async function output(text: string, options: Options = {}, agent?: Agent.Info): Promise<Result> {
     return runtime.runPromise(S.Service.use((s) => s.output(text, options, agent)))
   }
+
+  export async function retrieveFullOutput(path: string): Promise<string | undefined> {
+    return runtime.runPromise(S.Service.use((s) => s.retrieveFullOutput(path)))
+  }
 }

@@ -27,19 +27,6 @@ import { Flag } from "@/flag/flag"
 import { Log } from "@/util/log"
 import { LspTool } from "./lsp"
 import { Truncate } from "./truncate"
-import {
-  BrowserNavigateTool,
-  BrowserScreenshotTool,
-  BrowserClickTool,
-  BrowserTypeTool,
-  BrowserScrollTool,
-  BrowserResizeTool,
-  BrowserReadTool,
-  BrowserWaitTool,
-  BrowserHoverTool,
-  BrowserPressTool,
-  BrowserEmulateTool,
-} from "./browser"
 import { TaskBoundaryTool } from "./task_boundary"
 import { ReplaceFileContentTool } from "./replace_file_content"
 import { RunCommandTool } from "./run_command"
