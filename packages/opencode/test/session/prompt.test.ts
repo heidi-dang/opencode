@@ -210,3 +210,77 @@ describe("session.prompt agent variant", () => {
     }
   })
 })
+
+describe("session.prompt parallel assist", () => {
+  test("detects complex heidi work for parallel assist", () => {
+    const enabled = SessionPrompt.shouldUseParallelAssist({
+      agent: "heidi",
+      parts: [
+        { type: "text", text: "Investigate a provider bug across multiple files and research the dependency API" },
+      ],
+    })
+    const disabled = SessionPrompt.shouldUseParallelAssist({
+      agent: "build",
+      parts: [
+        { type: "text", text: "Investigate a provider bug across multiple files and research the dependency API" },
+      ],
+    })
+
+    expect(enabled).toBe(true)
+    expect(disabled).toBe(false)
+  })
+
+  test("builds a structured Beast research prompt", () => {
+    const prompt = SessionPrompt.buildParallelResearchPrompt({
+      text: "Debug the provider auth flow and summarize likely fixes.",
+    })
+
+    expect(prompt).toContain("Heidi's parallel research lane")
+    expect(prompt).toContain("## Summary")
+    expect(prompt).toContain("## Files Read")
+    expect(prompt).toContain("## Findings")
+    expect(prompt).toContain("## Recommended Changes")
+    expect(prompt).toContain("## Risks")
+    expect(prompt).toContain("## Open Questions")
+  })
+
+  test("adds a beast research subtask for complex heidi prompts", async () => {
+    await using tmp = await tmpdir({
+      git: true,
+      config: {
+        agent: {
+          heidi: {
+            model: "openai/gpt-5.2",
+          },
+        },
+      },
+    })
+
+    await Instance.provide({
+      directory: tmp.path,
+      fn: async () => {
+        const session = await Session.create({})
+        const msg = await SessionPrompt.prompt({
+          sessionID: session.id,
+          agent: "heidi",
+          noReply: true,
+          parts: [
+            {
+              type: "text",
+              text: "Investigate a provider bug across multiple files, research docs, and summarize recommended changes.",
+            },
+          ],
+        })
+
+        if (msg.info.role !== "user") throw new Error("expected user message")
+        const part = msg.parts.find((item) => item.type === "subtask")
+        expect(part?.type).toBe("subtask")
+        if (!part || part.type !== "subtask") throw new Error("expected subtask part")
+        expect(part.agent).toBe("beast_mode")
+        expect(part.description).toBe(SessionPrompt.PARALLEL_RESEARCH_DESCRIPTION)
+        expect(part.prompt).toContain("## Recommended Changes")
+        await Session.remove(session.id)
+      },
+    })
+  })
+})

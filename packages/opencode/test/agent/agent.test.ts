@@ -692,3 +692,17 @@ test("defaultAgent throws when all primary agents are disabled", async () => {
     },
   })
 })
+
+test("heidi prompt includes Phase 1 parallel assist contract", async () => {
+  await using tmp = await tmpdir()
+  await Instance.provide({
+    directory: tmp.path,
+    fn: async () => {
+      const agent = await Agent.get("heidi")
+      expect(agent?.prompt).toContain("Phase 1 parallel assist")
+      expect(agent?.prompt).toContain("@beast_mode")
+      expect(agent?.prompt).toContain("Beast lane")
+      expect(agent?.prompt).toContain("Heidi remains the single owner of final edits")
+    },
+  })
+})

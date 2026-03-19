@@ -1,6 +1,6 @@
 /**
  * Beast Mode Agent Benchmark
- * 
+ *
  * This script benchmarks the beast_mode agent implementation
  */
 
@@ -16,17 +16,17 @@ async function runBenchmarks() {
   }
 
   const results: BenchmarkResult[] = []
-  
+
   // ==========================================================================
   // Benchmark 1: File Structure Check
   // ==========================================================================
   console.log("📋 Benchmark 1: File Structure")
-  
+
   const fs = await import("fs")
   const path = await import("path")
-  
+
   const baseDir = path.resolve(import.meta.dir, "../..")
-  
+
   const requiredFiles = [
     "src/agent/agent.ts",
     "src/tool/opencode_plugin.ts",
@@ -37,33 +37,33 @@ async function runBenchmarks() {
     "src/tool/test_failure.ts",
     "src/tool/create_task.ts",
   ]
-  
+
   let filesPassed = 0
   for (const file of requiredFiles) {
     const fullPath = path.join(baseDir, file)
     const exists = fs.existsSync(fullPath)
     if (exists) filesPassed++
-    console.log(`  ${exists ? '✅' : '❌'} ${file}`)
+    console.log(`  ${exists ? "✅" : "❌"} ${file}`)
   }
-  
+
   results.push({
     name: "File Structure",
     passed: filesPassed === requiredFiles.length,
     score: filesPassed / requiredFiles.length,
-    details: `${filesPassed}/${requiredFiles.length} files exist`
+    details: `${filesPassed}/${requiredFiles.length} files exist`,
   })
 
   // ==========================================================================
   // Benchmark 2: Registry Configuration
   // ==========================================================================
   console.log("\n📋 Benchmark 2: Registry Configuration")
-  
+
   const registryPath = path.join(baseDir, "src/tool/registry.ts")
   const registryContent = fs.readFileSync(registryPath, "utf-8")
-  
+
   const toolImports = [
     "OpenCodePluginListTool",
-    "OpenCodeInstallPluginTool", 
+    "OpenCodeInstallPluginTool",
     "OpenCodePluginImplementTool",
     "NotebookRunCellTool",
     "NotebookSummaryTool",
@@ -75,78 +75,82 @@ async function runBenchmarks() {
     "CreateAndRunTaskTool",
     "ListTasksTool",
   ]
-  
+
   let importsPassed = 0
   for (const tool of toolImports) {
     const imported = registryContent.includes(tool)
     if (imported) importsPassed++
-    console.log(`  ${imported ? '✅' : '❌'} ${tool}`)
+    console.log(`  ${imported ? "✅" : "❌"} ${tool}`)
   }
-  
+
   results.push({
     name: "Tool Imports",
     passed: importsPassed === toolImports.length,
     score: importsPassed / toolImports.length,
-    details: `${importsPassed}/${toolImports.length} tools imported`
+    details: `${importsPassed}/${toolImports.length} tools imported`,
   })
 
   // ==========================================================================
   // Benchmark 3: Tool Registration in Registry
   // ==========================================================================
   console.log("\n📋 Benchmark 3: Tool Registration")
-  
+
   let toolsRegistered = 0
   for (const tool of toolImports) {
     const registered = registryContent.includes(`  ${tool},\n`) || registryContent.includes(`\n  ${tool},\n`)
     if (registered) toolsRegistered++
-    console.log(`  ${registered ? '✅' : '❌'} ${tool} registered`)
+    console.log(`  ${registered ? "✅" : "❌"} ${tool} registered`)
   }
-  
+
   results.push({
     name: "Tool Registration",
     passed: toolsRegistered === toolImports.length,
     score: toolsRegistered / toolImports.length,
-    details: `${toolsRegistered}/${toolImports.length} tools registered`
+    details: `${toolsRegistered}/${toolImports.length} tools registered`,
   })
 
   // ==========================================================================
   // Benchmark 4: Agent Configuration
   // ==========================================================================
   console.log("\n📋 Benchmark 4: Agent Configuration")
-  
+
   const agentPath = path.join(baseDir, "src/agent/agent.ts")
   const agentContent = fs.readFileSync(agentPath, "utf-8")
-  
+
   const agentChecks = [
     { name: "beast_mode definition exists", pattern: /beast_mode:/ },
     { name: "Has name '4.1 Beast Mode v3.1'", pattern: /name:\s*"4\.1 Beast Mode v3\.1"/ },
     { name: "Has GPT 4.1 description", pattern: /description:\s*"GPT 4\.1 as a top-notch coding agent\."/ },
-    { name: "Has GPT 4.1 model", pattern: /model:\s*\{[\s\S]*?providerID:\s*ProviderID\.make\("openai"\)[\s\S]*?modelID:\s*ModelID\.make\("gpt-4\.1"\)/ },
-    { name: "Has prompt", pattern: /prompt:\s*".*GPT 4\.1/ },
+    {
+      name: "Has GPT 4.1 model",
+      pattern:
+        /model:\s*\{[\s\S]*?providerID:\s*ProviderID\.make\("openai"\)[\s\S]*?modelID:\s*ModelID\.make\("gpt-4\.1"\)/,
+    },
+    { name: "Has prompt", pattern: /prompt:\s*(PROMPT_BEAST|".*GPT 4\.1)/ },
     { name: "Mode is subagent", pattern: /mode:\s*"subagent"/ },
     { name: "Native flag is true", pattern: /native:\s*true/ },
     { name: "Has permission config", pattern: /permission:\s*PermissionNext\.merge/ },
   ]
-  
+
   let agentPassed = 0
   for (const check of agentChecks) {
     const passed = check.pattern.test(agentContent)
     if (passed) agentPassed++
-    console.log(`  ${passed ? '✅' : '❌'} ${check.name}`)
+    console.log(`  ${passed ? "✅" : "❌"} ${check.name}`)
   }
-  
+
   results.push({
     name: "Agent Configuration",
     passed: agentPassed === agentChecks.length,
     score: agentPassed / agentChecks.length,
-    details: `${agentPassed}/${agentChecks.length} checks passed`
+    details: `${agentPassed}/${agentChecks.length} checks passed`,
   })
 
   // ==========================================================================
   // Benchmark 5: VSCode Tools Replaced
   // ==========================================================================
   console.log("\n📋 Benchmark 5: VSCode Tools Replacement")
-  
+
   const vscodeTools = [
     "VSCodeProjectSetupTool",
     "VSCodeInstallExtensionTool",
@@ -154,26 +158,26 @@ async function runBenchmarks() {
     "VSCodeExtensionsTool",
     "VSCodeApiTool",
   ]
-  
+
   let vscodeRemoved = 0
   for (const tool of vscodeTools) {
     const removed = !registryContent.includes(tool)
     if (removed) vscodeRemoved++
-    console.log(`  ${removed ? '✅' : '❌'} ${tool} removed`)
+    console.log(`  ${removed ? "✅" : "❌"} ${tool} removed`)
   }
-  
+
   results.push({
     name: "VSCode Tools Removed",
     passed: vscodeRemoved === vscodeTools.length,
     score: vscodeRemoved / vscodeTools.length,
-    details: `${vscodeRemoved}/${vscodeTools.length} VSCode tools removed`
+    details: `${vscodeRemoved}/${vscodeTools.length} VSCode tools removed`,
   })
 
   // ==========================================================================
   // Summary
   // ==========================================================================
   const total = results.length
-  const passed = results.filter(r => r.passed).length
+  const passed = results.filter((r) => r.passed).length
   const failed = total - passed
   const score = results.reduce((acc, r) => acc + r.score, 0) / total
 
@@ -193,7 +197,7 @@ async function runBenchmarks() {
   // Print detailed results
   console.log("\n📋 Detailed Results:")
   for (const result of results) {
-    console.log(`  ${result.passed ? '✅' : '❌'} ${result.name}: ${(result.score * 100).toFixed(0)}%`)
+    console.log(`  ${result.passed ? "✅" : "❌"} ${result.name}: ${(result.score * 100).toFixed(0)}%`)
     if (result.details) {
       console.log(`     ${result.details}`)
     }
@@ -204,7 +208,7 @@ async function runBenchmarks() {
   if (score === 1) {
     console.log("  🎉 All benchmarks passed! Beast Mode agent is fully configured.")
   } else {
-    const failedTests = results.filter(r => !r.passed)
+    const failedTests = results.filter((r) => !r.passed)
     for (const test of failedTests) {
       console.log(`  ⚠️  Review: ${test.name}`)
     }

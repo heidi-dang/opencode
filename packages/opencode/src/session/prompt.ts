@@ -65,6 +65,84 @@ const STRUCTURED_OUTPUT_SYSTEM_PROMPT = `IMPORTANT: The user has requested struc
 export namespace SessionPrompt {
   const log = Log.create({ service: "session.prompt" })
 
+  export const PARALLEL_RESEARCH_DESCRIPTION = "Parallel research lane for Heidi"
+
+  export function shouldUseParallelAssist(input: {
+    agent: string
+    parts: Array<Pick<MessageV2.Part, "type"> & { text?: string; synthetic?: boolean }>
+  }) {
+    if (input.agent !== "heidi") return false
+    const text = input.parts
+      .filter(
+        (part): part is Pick<MessageV2.TextPart, "type" | "text" | "synthetic"> =>
+          part.type === "text" && !part.synthetic,
+      )
+      .map((part) => part.text?.trim() ?? "")
+      .join("\n")
+      .toLowerCase()
+    if (!text) return false
+    const hits = [
+      "refactor",
+      "migration",
+      "investigate",
+      "research",
+      "performance",
+      "bug",
+      "debug",
+      "provider",
+      "dependency",
+      "architecture",
+      "multi-file",
+      "parallel",
+    ].filter((term) => text.includes(term)).length
+    return hits >= 2 || text.includes("3+ files") || text.includes("multiple files")
+  }
+
+  export function buildParallelResearchPrompt(input: { text: string }) {
+    return [
+      "Work as Heidi's parallel research lane for Phase 1.",
+      "Do read/search/research only. Do not edit shared files.",
+      "Investigate the user's request below and return a structured report using these exact sections:",
+      "## Summary",
+      "## Files Read",
+      "## Findings",
+      "## Recommended Changes",
+      "## Risks",
+      "## Open Questions",
+      "For Recommended Changes, include bullets with file, action, and reason.",
+      "User request:",
+      input.text.trim(),
+    ].join("\n\n")
+  }
+
+  async function createParallelResearchPart(input: {
+    sessionID: SessionID
+    messageID: MessageID
+    agent: string
+    parts: MessageV2.Part[]
+  }): Promise<MessageV2.SubtaskPart[]> {
+    if (!shouldUseParallelAssist({ agent: input.agent, parts: input.parts })) return []
+    const text = input.parts
+      .filter((part): part is MessageV2.TextPart => part.type === "text" && !part.synthetic)
+      .map((part) => part.text.trim())
+      .filter(Boolean)
+      .join("\n")
+    if (!text) return []
+    const beast = await Agent.get("beast_mode")
+    if (!beast) return []
+    return [
+      {
+        id: PartID.ascending(),
+        messageID: input.messageID,
+        sessionID: input.sessionID,
+        type: "subtask" as const,
+        agent: "beast_mode",
+        description: PARALLEL_RESEARCH_DESCRIPTION,
+        prompt: buildParallelResearchPrompt({ text }),
+      },
+    ]
+  }
+
   const state = Instance.state(
     () => {
       const data: Record<
@@ -1316,6 +1394,15 @@ export namespace SessionPrompt {
       }),
     ).then((x) => x.flat().map(assign))
 
+    const research = await createParallelResearchPart({
+      sessionID: input.sessionID,
+      messageID: info.id,
+      agent: agent.name,
+      parts,
+    })
+
+    const final = [...parts, ...research]
+
     await Plugin.trigger(
       "chat.message",
       {
@@ -1327,7 +1414,7 @@ export namespace SessionPrompt {
       },
       {
         message: info,
-        parts,
+        parts: final,
       },
     )
 
@@ -1342,7 +1429,7 @@ export namespace SessionPrompt {
       })
     }
 
-    parts.forEach((part, index) => {
+    final.forEach((part, index) => {
       const parsedPart = MessageV2.Part.safeParse(part)
       if (parsedPart.success) return
       log.error("invalid user part before save", {
@@ -1357,13 +1444,13 @@ export namespace SessionPrompt {
     })
 
     await Session.updateMessage(info)
-    for (const part of parts) {
+    for (const part of final) {
       await Session.updatePart(part)
     }
 
     return {
       info,
-      parts,
+      parts: final,
     }
   }
 

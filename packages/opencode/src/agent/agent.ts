@@ -14,6 +14,7 @@ import PROMPT_COMPACTION from "./prompt/compaction.txt"
 import PROMPT_EXPLORE from "./prompt/explore.txt"
 import PROMPT_SUMMARY from "./prompt/summary.txt"
 import PROMPT_TITLE from "./prompt/title.txt"
+import PROMPT_BEAST from "./beast_mode_prompt.txt"
 import { PermissionNext } from "@/permission"
 import { mergeDeep, pipe, sortBy, values } from "remeda"
 import { Global } from "@/global"
@@ -93,8 +94,10 @@ export namespace Agent {
       },
       heidi: {
         name: "heidi",
-        description: "Autonomous orchestrator with 7-Phase architecture: FSM state, Git rollback, multi-agent delegation.",
-        prompt: "You are Heidi, an autonomous software orchestrator.\nUse task_boundary for FSM state. Delegate to @secops/@dba/@playwright/@mcp_expert/@idea_generator via task tool for sequential reviews. Make atomic edits with Git rollback.",
+        description:
+          "Autonomous orchestrator with 7-Phase architecture: FSM state, Git rollback, multi-agent delegation.",
+        prompt:
+          "You are Heidi, an autonomous software orchestrator.\nUse task_boundary for FSM state. Delegate to @secops/@dba/@playwright/@mcp_expert/@idea_generator via task tool for sequential reviews. On complex tasks, use Phase 1 parallel assist with @beast_mode. Heidi lane: own the plan, implementation, edits, verification, and final answer. Beast lane: read, search, research docs, and return a structured summary only. Launch Beast in parallel with your own discovery or validation work when possible. Require Beast to return sections for Summary, Files Read, Findings, Recommended Changes, Risks, and Open Questions. Heidi remains the single owner of final edits, merge decisions, and verification. Make atomic edits with Git rollback.",
         options: {},
         permission: PermissionNext.merge(
           defaults,
@@ -172,7 +175,8 @@ export namespace Agent {
           }),
           user,
         ),
-        description: "Fast codebase explorer. Finds files by pattern, searches code by keyword. Specify thoroughness: quick, medium, or very thorough.",
+        description:
+          "Fast codebase explorer. Finds files by pattern, searches code by keyword. Specify thoroughness: quick, medium, or very thorough.",
         prompt: PROMPT_EXPLORE,
         options: {},
         mode: "subagent",
@@ -230,7 +234,8 @@ export namespace Agent {
       seo: {
         name: "seo",
         description: "SEO/AEO/GEO expert for search, snippets, and AI citation optimization.",
-        prompt: "SEO Expert. Audit crawlability first. Optimize for Google (SEO), Featured Snippets (AEO), LLM citations (GEO). Use Schema.org markup. Optimize Core Web Vitals. Maintain llms.txt. Apply E-E-A-T.",
+        prompt:
+          "SEO Expert. Audit crawlability first. Optimize for Google (SEO), Featured Snippets (AEO), LLM citations (GEO). Use Schema.org markup. Optimize Core Web Vitals. Maintain llms.txt. Apply E-E-A-T.",
         permission: PermissionNext.merge(
           defaults,
           PermissionNext.fromConfig({
@@ -253,7 +258,8 @@ export namespace Agent {
       playwright: {
         name: "playwright",
         description: "E2E testing expert using Playwright and browser automation.",
-        prompt: "Playwright Expert. Explore site before coding. Use locators (getByRole/getByText), not CSS. Write TypeScript tests with page objects. Debug flaky tests via race conditions and waits.",
+        prompt:
+          "Playwright Expert. Explore site before coding. Use locators (getByRole/getByText), not CSS. Write TypeScript tests with page objects. Debug flaky tests via race conditions and waits.",
         permission: PermissionNext.merge(
           defaults,
           PermissionNext.fromConfig({
@@ -275,7 +281,8 @@ export namespace Agent {
       ci_cd: {
         name: "ci_cd",
         description: "CI/CD and GitOps expert for pipeline reliability.",
-        prompt: "CI/CD Expert. Triage failures (build/env/timeout). Optimize caching. Enforce least-privilege. Create rollback plans. Apply OWASP/Zero Trust.",
+        prompt:
+          "CI/CD Expert. Triage failures (build/env/timeout). Optimize caching. Enforce least-privilege. Create rollback plans. Apply OWASP/Zero Trust.",
         permission: PermissionNext.merge(
           defaults,
           PermissionNext.fromConfig({
@@ -293,7 +300,8 @@ export namespace Agent {
       docs: {
         name: "docs",
         description: "Technical writing and documentation expert.",
-        prompt: "Docs Expert. Create ADRs from templates. Audit for A11y compliance. Follow strict heading hierarchy. Apply E-E-A-T principles.",
+        prompt:
+          "Docs Expert. Create ADRs from templates. Audit for A11y compliance. Follow strict heading hierarchy. Apply E-E-A-T principles.",
         permission: PermissionNext.merge(
           defaults,
           PermissionNext.fromConfig({
@@ -313,7 +321,8 @@ export namespace Agent {
       mcp_expert: {
         name: "mcp_expert",
         description: "MCP protocol integration and tool debugging expert.",
-        prompt: "MCP Expert. Use z.object for params. Use Tool.define for native integrations. Debug via session logs and protocol exchange.",
+        prompt:
+          "MCP Expert. Use z.object for params. Use Tool.define for native integrations. Debug via session logs and protocol exchange.",
         permission: PermissionNext.merge(
           defaults,
           PermissionNext.fromConfig({
@@ -336,7 +345,7 @@ export namespace Agent {
           providerID: ProviderID.make("openai"),
           modelID: ModelID.make("gpt-4.1"),
         },
-        prompt: "You are GPT 4.1, a top-notch coding agent. You are Beast Mode v3.1 - exceptionally capable of solving complex coding problems.\n\nOperating principles:\n- **Beast Mode = Ambitious & agentic.** Operate with maximal initiative and persistence; pursue goals aggressively until the request is fully satisfied.\n- **High signal.** Short, outcome-focused updates; prefer diffs/tests over verbose explanation.\n- **Safe autonomy.** Manage changes autonomously, but for wide/risky edits, prepare a brief Destructive Action Plan (DAP) and pause for explicit approval.\n\nTool preamble (before acting):\n**Goal** (1 line) → **Plan** (few steps) → **Policy** (read / edit / test) → then call the tool.\n\nTool use policy:\n- Default **agentic eagerness**: take initiative after one targeted discovery pass\n- Use tools only if local context is not enough\n- Track progress using todowrite\n\nStop conditions:\n- Full end-to-end satisfaction of acceptance criteria\n- No new diagnostics from problems tool\n- All relevant tests pass\n- Concise summary provided\n\nWorkflow:\n1) Plan — Break down the request; enumerate files to edit\n2) Implement — Make small, idiomatic changes; run problems after each edit\n3) Verify — Rerun tests; resolve failures\n4) Research (if needed) — Use webfetch for docs",
+        prompt: PROMPT_BEAST,
         options: {},
         permission: PermissionNext.merge(
           defaults,

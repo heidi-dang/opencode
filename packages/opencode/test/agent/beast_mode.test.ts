@@ -16,7 +16,7 @@ describe("Beast Mode Agent Benchmark", () => {
       fn: async () => {
         beastModeAgent = await Agent.get("beast_mode")
         allTools = await ToolRegistry.ids()
-      }
+      },
     })
   })
 
@@ -50,6 +50,10 @@ describe("Beast Mode Agent Benchmark", () => {
     test("has system prompt", () => {
       expect(beastModeAgent?.prompt).toBeTruthy()
       expect(beastModeAgent?.prompt).toContain("You are GPT 4.1")
+      expect(beastModeAgent?.prompt).toContain("parallel research lane")
+      expect(beastModeAgent?.prompt).toContain("Do not edit shared files")
+      expect(beastModeAgent?.prompt).toContain("## Summary")
+      expect(beastModeAgent?.prompt).toContain("## Recommended Changes")
     })
 
     test("has permissive permissions (allows all tools)", () => {
@@ -181,7 +185,7 @@ describe("Beast Mode Agent Benchmark", () => {
           const exploreAgent = await Agent.get("explore")
           // They should both have permissions, exact length check might vary based on defaults
           expect(beastModeAgent?.permission.length).toBeGreaterThanOrEqual(10)
-        }
+        },
       })
     })
 
@@ -194,7 +198,7 @@ describe("Beast Mode Agent Benchmark", () => {
         fn: async () => {
           const buildAgent = await Agent.get("build")
           expect(beastModeAgent?.name).not.toBe("build")
-        }
+        },
       })
     })
 
@@ -246,14 +250,14 @@ export async function generateBenchmarkReport(): Promise<BenchmarkReport> {
   const { Instance } = await import("../../src/project/instance")
   let beastModeAgent: Agent.Info | undefined
   let allTools: string[] = []
-  
+
   await using tmp = await tmpdir()
   await Instance.provide({
     directory: tmp.path,
     fn: async () => {
       beastModeAgent = await Agent.get("beast_mode")
       allTools = await ToolRegistry.ids()
-    }
+    },
   })
 
   const categories = {
@@ -270,7 +274,7 @@ export async function generateBenchmarkReport(): Promise<BenchmarkReport> {
 
   const toolCoverage: Record<string, number> = {}
   for (const [category, tools] of Object.entries(categories)) {
-    const available = tools.filter(t => allTools.includes(t)).length
+    const available = tools.filter((t) => allTools.includes(t)).length
     toolCoverage[category] = available
   }
 
