@@ -34,6 +34,12 @@ function planPath(sessionID: SessionID) {
   return path.join(root(sessionID), "implementation_plan.md")
 }
 
+function verifySync(state: TaskState) {
+  if (state.fsm_state === "COMPLETE" && !state.plan.locked) {
+    throw new Error("complete state requires locked plan")
+  }
+}
+
 function now() {
   return new Date().toISOString()
 }
@@ -154,8 +160,34 @@ export namespace HeidiState {
 
   export async function write(sessionID: SessionID, state: TaskState) {
     const next = TaskState.parse(state)
+    verifySync(next)
     await Filesystem.writeJson(taskPath(sessionID), next)
     await Filesystem.write(taskMdPath(sessionID), render(next))
+  }
+
+  export async function sync(sessionID: SessionID) {
+    const state = await read(sessionID)
+    await write(sessionID, state)
+  }
+
+  export async function files(sessionID: SessionID) {
+    const base = root(sessionID)
+    return {
+      task_json: taskPath(sessionID),
+      task_md: taskMdPath(sessionID),
+      implementation_plan: planPath(sessionID),
+      verification: verifyPath(sessionID),
+      resume: resumePath(sessionID),
+      knowledge: path.join(base, "knowledge.jsonl"),
+      exists: {
+        task_json: await Filesystem.exists(taskPath(sessionID)),
+        task_md: await Filesystem.exists(taskMdPath(sessionID)),
+        implementation_plan: await Filesystem.exists(planPath(sessionID)),
+        verification: await Filesystem.exists(verifyPath(sessionID)),
+        resume: await Filesystem.exists(resumePath(sessionID)),
+        knowledge: await Filesystem.exists(path.join(base, "knowledge.jsonl")),
+      },
+    }
   }
 
   export async function setPlanHash(sessionID: SessionID) {

@@ -74,6 +74,9 @@ describe("heidi boundary", () => {
 
         expect(result.ok).toBe(true)
         expect(result.fsm_state).toBe("COMPLETE")
+        expect(result.artifacts?.exists.task_json).toBe(true)
+        expect(result.artifacts?.exists.task_md).toBe(true)
+        expect(result.artifacts?.exists.resume).toBe(true)
       },
     })
   })

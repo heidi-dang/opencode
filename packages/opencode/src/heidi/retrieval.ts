@@ -16,6 +16,14 @@ type SymbolItem = {
   kind: "function" | "class" | "const" | "type"
 }
 
+type Row = {
+  type: "symbol"
+  file: string
+  line: number
+  name: string
+  kind: SymbolItem["kind"]
+}
+
 function parse(file: string, text: string) {
   const out = [] as SymbolItem[]
   const lines = text.split("\n")
@@ -62,11 +70,12 @@ export namespace HeidiRetrieval {
   export async function update(sessionID: SessionID, root: string, files: string[]) {
     const target = db(sessionID)
     const old = await Filesystem.readText(target).catch(() => "")
+    const skip = new Set(files.map((file) => (path.isAbsolute(file) ? path.relative(root, file) : file)))
     const rows = old
       .split("\n")
       .filter(Boolean)
-      .map((line) => JSON.parse(line) as any)
-      .filter((row) => !files.includes(row.file))
+      .map((line) => JSON.parse(line) as Row)
+      .filter((row) => !skip.has(row.file))
 
     const add = await Promise.all(
       files.map(async (file) => {
@@ -85,7 +94,7 @@ export namespace HeidiRetrieval {
     const symbols = index
       .split("\n")
       .filter(Boolean)
-      .map((line) => JSON.parse(line) as any)
+      .map((line) => JSON.parse(line) as Row)
       .filter((row) => row.name?.toLowerCase().includes(query.toLowerCase()) || row.file.includes(query))
       .slice(0, 20)
 

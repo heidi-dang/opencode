@@ -22,8 +22,10 @@ function block(cmd: string) {
 }
 
 function deny(profile: Profile, cmd: string) {
-  if (profile === "read_only") return block(cmd)
+  if (profile === "read_only") return block(cmd) || cmd.includes(">") || /\btee\b/.test(cmd)
   if (profile === "git_safe") return /(\bgit\s+push\s+--force\b|\bgit\s+reset\s+--hard\b)/.test(cmd)
+  if (profile === "format") return /(\bgit\s+reset\b|\bgit\s+clean\b)/.test(cmd)
+  if (profile === "test") return /(\bchmod\b|\bchown\b|\bgit\s+reset\b)/.test(cmd)
   return false
 }
 
@@ -115,9 +117,16 @@ export namespace HeidiExec {
       exit_code: proc.exitCode ?? 1,
       timestamp: now(),
     })
+    const code = proc.exitCode ?? 1
+    if (code !== 0) {
+      const checkpoint = state.resume.checkpoint_id
+      if (checkpoint) {
+        await rollback(sessionID, checkpoint)
+      }
+    }
     await HeidiState.write(sessionID, state)
     return {
-      code: proc.exitCode ?? 1,
+      code,
       out,
       ms: Date.now() - start,
     }

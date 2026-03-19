@@ -60,6 +60,17 @@ const Response = z.object({
   fsm_state: FsmState,
   mode: Mode,
   task_json_version: z.number(),
+  artifacts: z
+    .object({
+      task_json: z.string(),
+      task_md: z.string(),
+      implementation_plan: z.string(),
+      verification: z.string(),
+      resume: z.string(),
+      knowledge: z.string(),
+      exists: z.record(z.string(), z.boolean()),
+    })
+    .optional(),
   error: z.string().nullable().optional(),
 })
 
@@ -136,8 +147,16 @@ export namespace HeidiBoundary {
       next.resume.next_step = "begin_execution"
       await HeidiState.write(req.task_id, next)
       await HeidiState.updateResume(req.task_id)
+      const artifacts = await HeidiState.files(req.task_id)
       await Bus.publish(Event.Updated, { task_id: req.task_id, mode: next.mode, fsm_state: next.fsm_state })
-      return Response.parse({ ok: true, fsm_state: next.fsm_state, mode: next.mode, task_json_version: 1, error: null })
+      return Response.parse({
+        ok: true,
+        fsm_state: next.fsm_state,
+        mode: next.mode,
+        task_json_version: 1,
+        artifacts,
+        error: null,
+      })
     }
 
     if (req.action === "reopen_plan") {
@@ -193,6 +212,7 @@ export namespace HeidiBoundary {
 
     await HeidiState.write(req.task_id, state)
     await HeidiState.updateResume(req.task_id)
+    const artifacts = await HeidiState.files(req.task_id)
     await Bus.publish(Event.Updated, {
       task_id: req.task_id,
       mode: state.mode,
@@ -204,6 +224,7 @@ export namespace HeidiBoundary {
       fsm_state: state.fsm_state,
       mode: state.mode,
       task_json_version: 1,
+      artifacts,
       error: null,
     })
   }

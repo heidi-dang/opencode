@@ -280,7 +280,15 @@ export namespace PermissionNext {
     return runPromiseInstance(Service.use((svc) => svc.list()))
   }
 
-  const EDIT_TOOLS = ["edit", "write", "apply_patch", "multiedit"]
+  const EDIT_TOOLS = [
+    "edit",
+    "write",
+    "apply_patch",
+    "multiedit",
+    "task_boundary",
+    "replace_file_content",
+    "knowledge_subagent",
+  ]
 
   export function disabled(tools: string[], ruleset: Ruleset): Set<string> {
     const result = new Set<string>()
