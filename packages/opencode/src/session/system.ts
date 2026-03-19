@@ -14,6 +14,8 @@ import type { Agent } from "@/agent/agent"
 import { PermissionNext } from "@/permission"
 import { Skill } from "@/skill"
 
+import { HeidiMemory } from "@/heidi/memory"
+
 export namespace SystemPrompt {
   export function instructions() {
     return PROMPT_CODEX.trim()
@@ -31,6 +33,7 @@ export namespace SystemPrompt {
 
   export async function environment(model: Provider.Model) {
     const project = Instance.project
+    const memories = await HeidiMemory.system()
     return [
       [
         `You are powered by the model named ${model.api.id}. The exact model ID is ${model.providerID}/${model.api.id}`,
@@ -42,6 +45,7 @@ export namespace SystemPrompt {
         `  Platform: ${process.platform}`,
         `  Today's date: ${new Date().toDateString()}`,
         `</env>`,
+        memories,
         `<directories>`,
         `  ${
           project.vcs === "git" && false
