@@ -81,13 +81,13 @@ export namespace ToolRegistry {
     }
 
     try {
-      const mcpPath = path.join(Instance.directory, ".heidi/mcp.json")
+      const mcpPath = path.join(Instance.directory, ".opencode/mcp.json")
       const mcpFile = Bun.file(mcpPath)
       if (await mcpFile.exists()) {
         const mcpConfig = await mcpFile.json()
         const mcpTools = await MCPClient.connect(mcpConfig)
         custom.push(...mcpTools)
-        log.info(`Loaded ${mcpTools.length} MCP tools from .heidi/mcp.json`)
+        log.info(`Loaded ${mcpTools.length} MCP tools from .opencode/mcp.json`)
       }
     } catch (err) {
       log.error("Failed to load MCP configuration", err as any)

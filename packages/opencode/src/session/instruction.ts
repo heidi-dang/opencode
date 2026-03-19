@@ -12,7 +12,6 @@ import type { MessageV2 } from "./message-v2"
 const log = Log.create({ service: "instruction" })
 
 const FILES = [
-  ".heidi-rules.md",
   "AGENTS.md",
   "CLAUDE.md",
   "CONTEXT.md", // deprecated
@@ -21,10 +20,8 @@ const FILES = [
 function globalFiles() {
   const files = []
   if (Flag.OPENCODE_CONFIG_DIR) {
-    files.push(path.join(Flag.OPENCODE_CONFIG_DIR, ".heidi-rules.md"))
     files.push(path.join(Flag.OPENCODE_CONFIG_DIR, "AGENTS.md"))
   }
-  files.push(path.join(Global.Path.config, ".heidi-rules.md"))
   files.push(path.join(Global.Path.config, "AGENTS.md"))
   if (!Flag.OPENCODE_DISABLE_CLAUDE_CODE_PROMPT) {
     files.push(path.join(os.homedir(), ".claude", "CLAUDE.md"))
