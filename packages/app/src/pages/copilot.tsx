@@ -33,24 +33,42 @@ type SecretItem = {
   updatedAt: number
 }
 
-function Metric(props: { label: string; value: string }) {
+/* ── tiny helpers ────────────────────────── */
+
+function Pill(props: { label: string; value: string; accent?: boolean }) {
   return (
-    <div class="rounded-[24px] border border-border-weak-base bg-surface-base/80 px-4 py-3 backdrop-blur">
-      <div class="text-11-medium uppercase tracking-[0.14em] text-text-weak">{props.label}</div>
-      <div class="mt-2 text-14-medium text-text-strong">{props.value}</div>
+    <div
+      classList={{
+        "flex items-center gap-2 rounded-full border px-3 py-1.5 text-12-medium backdrop-blur-sm transition-all duration-200": true,
+        "border-sky-400/30 bg-sky-400/10 text-sky-300": !!props.accent,
+        "border-white/8 bg-white/5 text-white/60": !props.accent,
+      }}
+    >
+      <span class="text-[10px] uppercase tracking-[0.16em] opacity-60">{props.label}</span>
+      <span>{props.value}</span>
     </div>
   )
 }
 
 function Empty(props: { title: string; copy: string; action?: string; onAction?: () => void; disabled?: boolean }) {
   return (
-    <div class="flex h-full min-h-56 flex-col items-center justify-center rounded-[28px] border border-dashed border-border-weak-base bg-surface-base/60 px-6 py-8 text-center">
-      <div class="text-16-medium text-text-strong">{props.title}</div>
-      <div class="mt-2 max-w-md text-13-regular leading-6 text-text-weak">{props.copy}</div>
+    <div class="flex h-full min-h-48 flex-col items-center justify-center px-6 py-10 text-center">
+      <div class="mx-auto h-12 w-12 rounded-2xl border border-white/8 bg-white/5 grid place-items-center mb-4">
+        <svg class="h-5 w-5 text-white/30" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+        </svg>
+      </div>
+      <div class="text-15-medium text-white/80">{props.title}</div>
+      <div class="mt-1.5 max-w-sm text-13-regular leading-5 text-white/40">{props.copy}</div>
       <Show when={props.action && props.onAction}>
-        <Button class="mt-5" size="large" variant="secondary" onClick={() => props.onAction?.()} disabled={props.disabled}>
+        <button
+          type="button"
+          class="mt-5 rounded-full border border-sky-400/30 bg-sky-400/10 px-5 py-2 text-13-medium text-sky-300 transition-all duration-200 hover:bg-sky-400/20 hover:shadow-[0_0_20px_rgba(56,189,248,0.15)] disabled:opacity-40"
+          onClick={() => props.onAction?.()}
+          disabled={props.disabled}
+        >
           {props.action}
-        </Button>
+        </button>
       </Show>
     </div>
   )
@@ -89,27 +107,24 @@ function DeployHistory(props: {
   environments: Record<string, string>
 }) {
   return (
-    <div class="mt-4 flex max-h-[320px] flex-col gap-3 overflow-y-auto">
+    <div class="mt-3 flex max-h-60 flex-col gap-2 overflow-y-auto">
       <Show
         when={props.deploys.length}
-        fallback={<div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3 text-13-regular text-text-weak">No deploys recorded yet.</div>}
+        fallback={<div class="rounded-xl border border-white/6 bg-white/3 px-3 py-2.5 text-12-regular text-white/40">No deploys recorded.</div>}
       >
         <For each={props.deploys}>
           {(item) => (
-            <div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3">
-              <div class="flex items-center justify-between gap-3">
+            <div class="rounded-xl border border-white/6 bg-white/3 px-3 py-2.5">
+              <div class="flex items-center justify-between gap-2">
                 <div class="min-w-0">
-                  <div class="truncate text-13-medium text-text-strong">{item.host}</div>
-                  <div class="text-11-medium uppercase tracking-[0.12em] text-text-weak">{props.environments[item.environmentID ?? ""] || item.environmentID || "manual"}</div>
+                  <div class="truncate text-12-medium text-white/70">{item.host}</div>
+                  <div class="text-[10px] uppercase tracking-[0.1em] text-white/30">{props.environments[item.environmentID ?? ""] || "manual"}</div>
                 </div>
                 <Button size="small" variant="ghost" onClick={() => props.onRollback(item.id, item.environmentID)} disabled={item.status === "running"}>
                   Rollback
                 </Button>
               </div>
-              <div class="mt-1 break-all text-12-regular text-text-weak">{item.url}</div>
-              <div class="mt-1 break-all text-12-regular text-text-weak">{item.path}</div>
-              <div class="mt-2 text-11-regular text-text-weak">{item.releaseID || "No release"}</div>
-              <div class="mt-2 text-11-regular text-text-weak">{new Date(item.createdAt).toLocaleString()}</div>
+              <div class="mt-1 break-all text-11-regular text-white/30">{item.url}</div>
             </div>
           )}
         </For>
@@ -130,25 +145,24 @@ function ReleaseHistory(props: {
   environments: Record<string, string>
 }) {
   return (
-    <div class="mt-4 flex max-h-[320px] flex-col gap-3 overflow-y-auto">
+    <div class="mt-3 flex max-h-60 flex-col gap-2 overflow-y-auto">
       <Show
         when={props.releases.length}
-        fallback={<div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3 text-13-regular text-text-weak">No releases recorded yet.</div>}
+        fallback={<div class="rounded-xl border border-white/6 bg-white/3 px-3 py-2.5 text-12-regular text-white/40">No releases recorded.</div>}
       >
         <For each={props.releases}>
           {(item) => (
-            <div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3">
-              <div class="flex items-center justify-between gap-3">
+            <div class="rounded-xl border border-white/6 bg-white/3 px-3 py-2.5">
+              <div class="flex items-center justify-between gap-2">
                 <div class="min-w-0">
-                  <div class="truncate text-13-medium text-text-strong">{item.title}</div>
-                  <div class="text-11-medium uppercase tracking-[0.12em] text-text-weak">{props.environments[item.environmentID ?? ""] || item.environmentID || "shared"}</div>
+                  <div class="truncate text-12-medium text-white/70">{item.title}</div>
+                  <div class="text-[10px] uppercase tracking-[0.1em] text-white/30">{props.environments[item.environmentID ?? ""] || "shared"}</div>
                 </div>
                 <Button size="small" variant="ghost" onClick={() => props.onRollback(item.id, item.environmentID)}>
                   Rollback
                 </Button>
               </div>
-              <div class="mt-1 break-all text-12-regular text-text-weak">{item.shareURL || "Private release"}</div>
-              <div class="mt-2 text-11-regular text-text-weak">{new Date(item.createdAt).toLocaleString()}</div>
+              <div class="mt-1 break-all text-11-regular text-white/30">{item.shareURL || "Private"}</div>
             </div>
           )}
         </For>
@@ -162,19 +176,19 @@ function EnvVarsSecrets(props: {
   secrets: SecretItem[]
 }) {
   return (
-    <div class="grid gap-4 lg:grid-cols-2">
+    <div class="grid gap-3 lg:grid-cols-2">
       <div>
-        <div class="mb-2 text-12-medium uppercase tracking-[0.12em] text-text-weak">Environment references</div>
-        <div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3">
-          <Show when={Object.keys(props.vars).length} fallback={<div class="text-13-regular text-text-weak">No environment variables configured.</div>}>
+        <div class="mb-1.5 text-[10px] uppercase tracking-[0.14em] text-white/40">Env vars</div>
+        <div class="rounded-xl border border-white/6 bg-white/3 px-3 py-2.5">
+          <Show when={Object.keys(props.vars).length} fallback={<div class="text-12-regular text-white/30">None</div>}>
             <For each={Object.entries(props.vars)}>
               {([key, value]) => (
-                <div class="flex items-start justify-between gap-3 py-1.5">
+                <div class="flex items-start justify-between gap-2 py-1">
                   <div class="min-w-0">
-                    <div class="text-13-medium text-text-strong">{key}</div>
-                    <div class="text-11-regular uppercase tracking-[0.12em] text-text-weak">{value.source}</div>
+                    <div class="text-12-medium text-white/70">{key}</div>
+                    <div class="text-[10px] uppercase tracking-[0.1em] text-white/30">{value.source}</div>
                   </div>
-                  <div class="text-right text-12-regular text-text-weak">{value.redacted}</div>
+                  <div class="text-right text-11-regular text-white/30">{value.redacted}</div>
                 </div>
               )}
             </For>
@@ -182,17 +196,17 @@ function EnvVarsSecrets(props: {
         </div>
       </div>
       <div>
-        <div class="mb-2 text-12-medium uppercase tracking-[0.12em] text-text-weak">Stored secrets</div>
-        <div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3">
-          <Show when={props.secrets.length} fallback={<div class="text-13-regular text-text-weak">No stored secrets found.</div>}>
+        <div class="mb-1.5 text-[10px] uppercase tracking-[0.14em] text-white/40">Secrets</div>
+        <div class="rounded-xl border border-white/6 bg-white/3 px-3 py-2.5">
+          <Show when={props.secrets.length} fallback={<div class="text-12-regular text-white/30">None</div>}>
             <For each={props.secrets}>
               {(item) => (
-                <div class="flex items-start justify-between gap-3 py-1.5">
+                <div class="flex items-start justify-between gap-2 py-1">
                   <div class="min-w-0">
-                    <div class="break-all text-13-medium text-text-strong">{item.id}</div>
-                    <div class="text-11-regular text-text-weak">Updated {new Date(item.updatedAt).toLocaleString()}</div>
+                    <div class="break-all text-12-medium text-white/70">{item.id}</div>
+                    <div class="text-[10px] text-white/30">{new Date(item.updatedAt).toLocaleString()}</div>
                   </div>
-                  <div class="text-right text-12-regular text-text-weak">{item.redacted}</div>
+                  <div class="text-right text-11-regular text-white/30">{item.redacted}</div>
                 </div>
               )}
             </For>
@@ -203,6 +217,8 @@ function EnvVarsSecrets(props: {
   )
 }
 
+/* ── page ────────────────────────────────── */
+
 export default function CopilotPage() {
   const dialog = useDialog()
   const language = useLanguage()
@@ -212,6 +228,7 @@ export default function CopilotPage() {
   const summary = useCopilotSummary()
   const builder = useBuilder()
   const [tab, setTab] = createSignal<Tab>("chat")
+  const [sidebar, setSidebar] = createSignal(true)
   const app = createMemo(() => builder.dir().split("/").filter(Boolean).at(-1) ?? "app")
   const connected = createMemo(() => summary.data()?.connected ?? false)
   const total = createMemo(() => {
@@ -330,6 +347,8 @@ export default function CopilotPage() {
     const next = builder.data()?.environmentID ?? environments()[0]?.id
     if (!store.environment && next) setStore("environment", next)
   })
+
+  /* ── actions ─────────────────────────── */
 
   async function ensureSession() {
     if (!builder.sdk()) return
@@ -531,10 +550,7 @@ export default function CopilotPage() {
         { throwOnError: true },
       )
       await Promise.all([builder.refetch(), summary.refetch()])
-      showToast({
-        variant: "success",
-        title: "Rollback started",
-      })
+      showToast({ variant: "success", title: "Rollback started" })
     } catch (error) {
       showToast({
         variant: "error",
@@ -558,10 +574,7 @@ export default function CopilotPage() {
         { throwOnError: true },
       )
       await Promise.all([builder.refetch(), summary.refetch()])
-      showToast({
-        variant: "success",
-        title: "Rollback started",
-      })
+      showToast({ variant: "success", title: "Rollback started" })
     } catch (error) {
       showToast({
         variant: "error",
@@ -598,350 +611,447 @@ export default function CopilotPage() {
   const promptReady = createMemo(() => !!store.prompt.trim() && !!store.modelID)
   const previewReady = createMemo(() => !!preview()?.url)
 
-  return (
-    <main data-page="copilot-builder" class="flex h-full min-h-0 flex-col overflow-hidden bg-[linear-gradient(180deg,rgba(86,156,214,0.12),transparent_24%),radial-gradient(circle_at_top,rgba(86,156,214,0.18),transparent_36%),linear-gradient(180deg,rgba(10,14,22,0.96),rgba(10,14,22,0.98))]">
-      <div class="flex min-h-0 flex-1 flex-col overflow-hidden px-3 pb-3 pt-3 sm:px-5 sm:pb-5 sm:pt-4">
-        <section class="shrink-0 rounded-[30px] border border-border-weak-base bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] px-4 py-4 shadow-[0_24px_80px_rgba(0,0,0,0.28)] backdrop-blur sm:px-6 sm:py-5">
-          <div class="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-            <div class="max-w-3xl">
-              <div class="text-11-medium uppercase tracking-[0.18em] text-text-weak">GitHub Copilot Builder Studio</div>
-              <h1 class="mt-2 text-24-medium leading-tight text-text-strong sm:text-[30px]">{builder.data()?.title ?? app()}</h1>
-              <div class="mt-2 max-w-2xl text-13-regular leading-6 text-text-base sm:text-14-regular">
-                A builder-first Copilot workspace with a focused session thread and a live preview surface on the same route.
-              </div>
-              <div class="mt-4 flex flex-wrap gap-2">
-                <Button size="large" variant="secondary" onClick={() => dialog.show(() => <DialogConnectProvider provider="github-copilot" />)}>
-                  {connected() ? language.t("settings.copilot.cta.reconnect") : "Connect provider"}
-                </Button>
-                <Button size="large" variant="ghost" onClick={ensureSession} disabled={!connected() || !!sessionID()}>
-                  {sessionID() ? "Builder session ready" : "Create builder session"}
-                </Button>
-                <Button size="large" variant="ghost" onClick={() => navigate(`/${params.dir}/session/${sessionID() ?? ""}`)} disabled={!sessionID()}>
-                  Open full session
-                </Button>
-              </div>
-            </div>
+  /* ── render ──────────────────────────── */
 
-            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 xl:min-w-[560px]">
-              <Metric label="Connection" value={connected() ? "Connected" : "Disconnected"} />
-              <Metric label="Session" value={sessionID() ?? "Not created"} />
-              <Metric label="Status" value={status()} />
-              <Metric label="Tokens" value={total().toLocaleString()} />
+  return (
+    <main data-page="copilot-builder" class="flex h-full min-h-0 flex-col overflow-hidden bg-[#0a0e16]">
+
+      {/* ─── top bar ─────────────────────── */}
+      <header class="z-20 shrink-0 border-b border-white/6 bg-[#0d1117]/95 backdrop-blur-lg">
+        <div class="flex h-12 items-center justify-between gap-3 px-3 sm:h-14 sm:px-5">
+          {/* left: back + title */}
+          <div class="flex items-center gap-2.5 min-w-0">
+            <button
+              type="button"
+              class="grid h-8 w-8 shrink-0 place-items-center rounded-xl border border-white/8 bg-white/5 text-white/50 transition-all duration-200 hover:bg-white/10 hover:text-white/80 sm:hidden"
+              onClick={() => navigate(-1)}
+            >
+              <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+              </svg>
+            </button>
+            <div class="min-w-0">
+              <div class="flex items-center gap-2">
+                <div class="h-2 w-2 shrink-0 rounded-full" classList={{ "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]": connected(), "bg-white/20": !connected() }} />
+                <h1 class="truncate text-14-medium text-white/90 sm:text-15-medium">{builder.data()?.title ?? app()}</h1>
+              </div>
+              <div class="text-[10px] uppercase tracking-[0.16em] text-white/30 sm:text-11-medium">
+                Copilot Builder Studio
+              </div>
             </div>
           </div>
-        </section>
 
-        <div class="mt-3 flex min-h-0 flex-1 overflow-hidden rounded-[32px] border border-border-weak-base bg-black/20 shadow-[0_18px_60px_rgba(0,0,0,0.18)] backdrop-blur">
-          <Show when={tab() === "chat"}>
-            <div class="grid min-h-0 flex-1 grid-cols-1 gap-px bg-border-weak-base lg:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.9fr)]">
-              <section class="flex min-h-0 flex-col bg-background-base/90">
-                <div class="shrink-0 border-b border-border-weak-base px-4 py-4 sm:px-6">
-                  <div class="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-                    <div>
-                      <div class="text-18-medium text-text-strong">Chat</div>
-                      <div class="mt-1 text-13-regular text-text-weak">The builder session stream stays live here, with the current model, agent, prompt composer, and file diffs tied to the active session ID.</div>
-                    </div>
-                    <div class="flex flex-wrap gap-2">
-                      <Button size="small" variant="ghost" onClick={() => share() ? unpublish() : publish()} disabled={!sessionID() || store.publishPending}>
-                        {store.publishPending ? "Updating release..." : share() ? "Unpublish release" : "Publish release"}
-                      </Button>
-                      <Button size="small" variant="ghost" onClick={deployRun} disabled={store.deployPending || !store.environment || (!sessionID() && !releases()[0]?.id)}>
-                        {store.deployPending ? "Deploying..." : "Deploy"}
-                      </Button>
-                    </div>
-                  </div>
-                </div>
+          {/* center: status pills (hidden on mobile) */}
+          <div class="hidden items-center gap-2 lg:flex">
+            <Pill label="status" value={status()} accent={status() !== "idle"} />
+            <Pill label="tokens" value={total().toLocaleString()} />
+            <Pill label="files" value={diff().length.toString()} />
+          </div>
 
-                <div class="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+          {/* right: actions */}
+          <div class="flex items-center gap-1.5">
+            <Show when={!sessionID()}>
+              <button
+                type="button"
+                class="rounded-full border border-sky-400/30 bg-sky-400/10 px-3 py-1.5 text-12-medium text-sky-300 transition-all duration-200 hover:bg-sky-400/20 disabled:opacity-40"
+                onClick={ensureSession}
+                disabled={!connected()}
+              >
+                New session
+              </button>
+            </Show>
+            <button
+              type="button"
+              class="rounded-full border border-white/8 bg-white/5 px-3 py-1.5 text-12-medium text-white/60 transition-all duration-200 hover:bg-white/10 hover:text-white/80"
+              onClick={() => dialog.show(() => <DialogConnectProvider provider="github-copilot" />)}
+            >
+              {connected() ? "Reconnect" : "Connect"}
+            </button>
+            <button
+              type="button"
+              class="hidden rounded-full border border-white/8 bg-white/5 px-3 py-1.5 text-12-medium text-white/60 transition-all duration-200 hover:bg-white/10 hover:text-white/80 sm:block"
+              onClick={() => navigate(`/${params.dir}/session/${sessionID() ?? ""}`)}
+              disabled={!sessionID()}
+            >
+              Full session
+            </button>
+            {/* sidebar toggle desktop */}
+            <button
+              type="button"
+              class="hidden h-8 w-8 place-items-center rounded-xl border border-white/8 bg-white/5 text-white/50 transition-all duration-200 hover:bg-white/10 hover:text-white/80 lg:grid"
+              onClick={() => setSidebar(!sidebar())}
+            >
+              <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5M12 17.25h8.25" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* ─── main body ───────────────────── */}
+      <div class="flex min-h-0 flex-1 overflow-hidden">
+        <Show when={tab() === "chat"}>
+          {/* chat main panel */}
+          <section class="flex min-h-0 flex-1 flex-col">
+            {/* thread */}
+            <div class="min-h-0 flex-1 overflow-y-auto">
+              <div class="mx-auto max-w-3xl px-3 py-4 sm:px-6 sm:py-6">
+                <Show
+                  when={sessionID()}
+                  fallback={
+                    <Empty
+                      title="No builder session"
+                      copy="Create a session to start chatting with the builder agent."
+                      action="Create session"
+                      onAction={ensureSession}
+                      disabled={!connected()}
+                    />
+                  }
+                >
                   <Show
-                    when={sessionID()}
+                    when={thread().length}
                     fallback={
                       <Empty
-                        title="No builder session yet"
-                        copy="Create the builder session first, then prompts and assistant output will stream into this workspace instead of the old dashboard layout."
-                        action="Create session"
-                        onAction={ensureSession}
-                        disabled={!connected()}
+                        title="Ready for prompts"
+                        copy="Type below to start a builder run. Messages will stream here in real time."
                       />
                     }
                   >
-                    <Show
-                      when={thread().length}
-                      fallback={
-                        <Empty
-                          title="The workspace is ready for the first prompt"
-                          copy="Use the composer below to kick off a builder run. Messages from the dedicated session will appear here as they stream."
-                        />
+                    <div class="flex flex-col gap-3">
+                      <For each={thread()}>
+                        {(item) => (
+                          <div
+                            classList={{
+                              "group relative animate-[fadeIn_0.2s_ease-out]": true,
+                              "ml-auto max-w-[88%] sm:max-w-[75%]": item.role === "user",
+                              "max-w-[92%] sm:max-w-[80%]": item.role !== "user",
+                            }}
+                          >
+                            <div
+                              classList={{
+                                "rounded-2xl px-4 py-3 transition-all duration-200": true,
+                                "bg-sky-500/15 border border-sky-400/20 text-white": item.role === "user",
+                                "bg-white/[0.04] border border-white/6 text-white/80": item.role !== "user",
+                              }}
+                            >
+                              <div class="flex items-center justify-between gap-2 mb-1.5">
+                                <span
+                                  classList={{
+                                    "text-[10px] font-semibold uppercase tracking-[0.14em]": true,
+                                    "text-sky-300/70": item.role === "user",
+                                    "text-white/30": item.role !== "user",
+                                  }}
+                                >
+                                  {item.role}
+                                </span>
+                                <span class="text-[10px] text-white/20">{item.time}</span>
+                              </div>
+                              <div class="whitespace-pre-wrap break-words text-13-regular leading-[1.7]">
+                                {item.body || (item.busy ? (
+                                  <span class="inline-flex items-center gap-1.5 text-white/40">
+                                    <span class="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-sky-400" />
+                                    Working…
+                                  </span>
+                                ) : "No text content.")}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </For>
+                    </div>
+                  </Show>
+                </Show>
+              </div>
+            </div>
+
+            {/* floating composer */}
+            <div class="shrink-0 border-t border-white/6 bg-[#0d1117]/95 px-3 py-3 backdrop-blur-lg sm:px-6 sm:py-4">
+              <div class="mx-auto max-w-3xl">
+                <div class="rounded-2xl border border-white/8 bg-white/[0.03] p-3 transition-all duration-200 focus-within:border-sky-400/30 focus-within:shadow-[0_0_24px_rgba(56,189,248,0.08)]">
+                  <textarea
+                    class="w-full resize-none bg-transparent text-13-regular text-white/90 outline-none placeholder:text-white/25"
+                    rows={2}
+                    value={store.prompt}
+                    onInput={(event) => setStore("prompt", event.currentTarget.value)}
+                    placeholder="Make changes, add new features, ask for anything"
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && !event.shiftKey && promptReady()) {
+                        event.preventDefault()
+                        buildRun()
                       }
-                    >
-                      <div class="flex flex-col gap-4 pb-4">
-                        <For each={thread()}>
+                    }}
+                  />
+                  <div class="mt-2 flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2 overflow-x-auto">
+                      {/* suggestion chips */}
+                      <Show when={!thread().length && sessionID()}>
+                        <For each={["✨ AI Features", "Add Contact Form Validation", "Enhance UI"]}>
+                          {(chip) => (
+                            <button
+                              type="button"
+                              class="shrink-0 rounded-full border border-white/8 bg-white/5 px-3 py-1 text-11-medium text-white/50 transition-all duration-200 hover:bg-white/10 hover:text-white/70"
+                              onClick={() => setStore("prompt", chip)}
+                            >
+                              {chip}
+                            </button>
+                          )}
+                        </For>
+                      </Show>
+                    </div>
+                    <div class="flex items-center gap-1.5 shrink-0">
+                      {/* model selector compact */}
+                      <Select
+                        options={summary.data()?.models ?? []}
+                        current={(summary.data()?.models ?? []).find((item) => item.id === store.modelID)}
+                        value={(item) => item.id}
+                        label={(item) => item.name}
+                        onSelect={(item) => item && setStore("modelID", item.id)}
+                        variant="secondary"
+                        size="small"
+                      />
+                      {/* send */}
+                      <button
+                        type="button"
+                        class="grid h-8 w-8 shrink-0 place-items-center rounded-xl transition-all duration-200 disabled:opacity-30"
+                        classList={{
+                          "bg-sky-500 text-white shadow-[0_0_16px_rgba(56,189,248,0.3)] hover:bg-sky-400": promptReady() && !store.buildPending,
+                          "bg-white/10 text-white/30": !promptReady() || store.buildPending,
+                        }}
+                        disabled={!connected() || !promptReady() || store.buildPending}
+                        onClick={buildRun}
+                      >
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 10.5L12 3m0 0l7.5 7.5M12 3v18" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* sidebar (desktop only) */}
+          <Show when={sidebar()}>
+            <aside class="hidden w-80 shrink-0 border-l border-white/6 bg-[#0b0f17] lg:flex lg:flex-col xl:w-96">
+              <div class="shrink-0 border-b border-white/6 px-4 py-3">
+                <div class="flex items-center justify-between">
+                  <div class="text-13-medium text-white/70">Builder state</div>
+                  <div class="flex gap-1.5">
+                    <Button size="small" variant="ghost" onClick={() => share() ? unpublish() : publish()} disabled={!sessionID() || store.publishPending}>
+                      {store.publishPending ? "…" : share() ? "Unpublish" : "Publish"}
+                    </Button>
+                    <Button size="small" variant="ghost" onClick={deployRun} disabled={store.deployPending || !store.environment || (!sessionID() && !releases()[0]?.id)}>
+                      {store.deployPending ? "…" : "Deploy"}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+              <div class="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+                <div class="flex flex-col gap-4">
+
+                  {/* quick stats */}
+                  <div class="grid grid-cols-2 gap-2">
+                    <div class="rounded-xl border border-white/6 bg-white/3 px-3 py-2.5">
+                      <div class="text-[10px] uppercase tracking-[0.14em] text-white/30">Preview</div>
+                      <div class="mt-1 break-all text-12-medium text-white/70">{preview()?.url || "Off"}</div>
+                    </div>
+                    <div class="rounded-xl border border-white/6 bg-white/3 px-3 py-2.5">
+                      <div class="text-[10px] uppercase tracking-[0.14em] text-white/30">Release</div>
+                      <div class="mt-1 truncate text-12-medium text-white/70">{share() ? "Published" : "Draft"}</div>
+                    </div>
+                  </div>
+
+                  {/* changed files */}
+                  <div class="rounded-xl border border-white/6 bg-white/3 px-3 py-3">
+                    <div class="flex items-center justify-between">
+                      <div class="text-12-medium text-white/60">Changed files</div>
+                      <div class="text-11-regular text-white/30">{diff().length}</div>
+                    </div>
+                    <div class="mt-2 flex max-h-52 flex-col gap-1.5 overflow-y-auto">
+                      <Show when={diff().length} fallback={<div class="text-11-regular text-white/25">No changes yet</div>}>
+                        <For each={diff().slice(0, 15)}>
                           {(item) => (
-                            <div classList={{ "ml-auto max-w-[92%] sm:max-w-[80%]": item.role === "user", "max-w-[94%] sm:max-w-[82%]": item.role !== "user" }}>
-                              <div
-                                classList={{
-                                  "rounded-[28px] border px-4 py-3 shadow-[0_12px_32px_rgba(0,0,0,0.12)]": true,
-                                  "border-sky-400/30 bg-[linear-gradient(180deg,rgba(86,156,214,0.26),rgba(24,36,56,0.92))] text-white": item.role === "user",
-                                  "border-border-weak-base bg-surface-base text-text-base": item.role !== "user",
-                                }}
-                              >
-                                <div class="flex items-center justify-between gap-3 text-11-medium uppercase tracking-[0.12em]">
-                                  <span classList={{ "text-white/70": item.role === "user", "text-text-weak": item.role !== "user" }}>{item.role}</span>
-                                  <span classList={{ "text-white/60": item.role === "user", "text-text-weak": item.role !== "user" }}>{item.time}</span>
-                                </div>
-                                <div class="mt-2 whitespace-pre-wrap break-words text-14-regular leading-6">
-                                  {item.body || (item.busy ? "Working..." : "No text content captured for this message.")}
-                                </div>
+                            <div class="flex items-center justify-between gap-2 rounded-lg bg-white/[0.02] px-2 py-1.5">
+                              <div class="min-w-0 truncate text-11-medium text-white/60">{item.file.split("/").at(-1)}</div>
+                              <div class="shrink-0 text-[10px] text-white/25">
+                                <span class="text-emerald-400/60">+{item.additions}</span>{" "}
+                                <span class="text-red-400/60">-{item.deletions}</span>
                               </div>
                             </div>
                           )}
                         </For>
-                      </div>
-                    </Show>
-                  </Show>
-                </div>
-
-                <div class="shrink-0 border-t border-border-weak-base bg-background-base/95 px-4 py-4 sm:px-6 sm:py-5">
-                  <div class="rounded-[28px] border border-border-weak-base bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))] p-4 shadow-[0_18px_40px_rgba(0,0,0,0.18)]">
-                    <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(240px,0.42fr)_minmax(220px,0.38fr)]">
-                      <div>
-                        <div class="mb-2 text-12-medium uppercase tracking-[0.12em] text-text-weak">Prompt</div>
-                        <textarea
-                          class="min-h-32 w-full rounded-[22px] border border-border-weak-base bg-surface-raised-base px-4 py-3 text-14-regular text-text-strong outline-none transition focus:border-border-strong-base"
-                          value={store.prompt}
-                          onInput={(event) => setStore("prompt", event.currentTarget.value)}
-                          placeholder="Describe the feature, fix, or UI change you want the builder to make next."
-                        />
-                      </div>
-                      <div class="grid gap-4">
-                        <div>
-                          <div class="mb-2 text-12-medium uppercase tracking-[0.12em] text-text-weak">Model</div>
-                          <Select
-                            options={summary.data()?.models ?? []}
-                            current={(summary.data()?.models ?? []).find((item) => item.id === store.modelID)}
-                            value={(item) => item.id}
-                            label={(item) => item.name}
-                            onSelect={(item) => item && setStore("modelID", item.id)}
-                            variant="secondary"
-                            size="small"
-                          />
-                        </div>
-                        <div>
-                          <div class="mb-2 text-12-medium uppercase tracking-[0.12em] text-text-weak">Agent</div>
-                          <Select
-                            options={builder.agents() ?? []}
-                            current={(builder.agents() ?? []).find((item) => item.name === store.agent)}
-                            value={(item) => item.name}
-                            label={(item) => item.name}
-                            onSelect={(item) => item && setStore("agent", item.name)}
-                            variant="secondary"
-                            size="small"
-                          />
-                        </div>
-                      </div>
-                      <div class="flex flex-col gap-3">
-                        <div class="rounded-[22px] border border-border-weak-base bg-surface-raised-base px-4 py-3">
-                          <div class="text-11-medium uppercase tracking-[0.12em] text-text-weak">Session link</div>
-                          <div class="mt-2 break-all text-13-medium text-text-strong">{sessionID() ?? "Not created"}</div>
-                        </div>
-                        <div class="grid gap-2">
-                          <Button size="large" variant="secondary" disabled={!connected() || !promptReady() || store.buildPending} onClick={buildRun}>
-                            {store.buildPending ? "Starting build..." : "Send prompt"}
-                          </Button>
-                          <Button size="large" variant="ghost" onClick={() => navigate(`/${params.dir}/session/${sessionID() ?? ""}`)} disabled={!sessionID()}>
-                            Open full thread
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              <aside class="flex min-h-0 flex-col bg-background-stronger/95">
-                <div class="shrink-0 border-b border-border-weak-base px-4 py-4 sm:px-5">
-                  <div class="text-16-medium text-text-strong">Builder state</div>
-                  <div class="mt-1 text-13-regular text-text-weak">Live metadata, recent changes, and release readiness for the same builder session.</div>
-                </div>
-                <div class="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
-                  <div class="flex flex-col gap-4">
-                    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-                      <div class="rounded-[24px] border border-border-weak-base bg-surface-base px-4 py-4">
-                        <div class="text-11-medium uppercase tracking-[0.12em] text-text-weak">Preview</div>
-                        <div class="mt-2 break-all text-14-medium text-text-strong">{preview()?.url || "Not running"}</div>
-                      </div>
-                      <div class="rounded-[24px] border border-border-weak-base bg-surface-base px-4 py-4">
-                        <div class="text-11-medium uppercase tracking-[0.12em] text-text-weak">Release</div>
-                        <div class="mt-2 break-all text-14-medium text-text-strong">{share() || "Unpublished"}</div>
-                      </div>
-                    </div>
-
-                    <div class="rounded-[24px] border border-border-weak-base bg-surface-base px-4 py-4">
-                      <div class="flex items-center justify-between gap-3">
-                        <div class="text-14-medium text-text-strong">Changed files</div>
-                        <div class="text-12-regular text-text-weak">{diff().length}</div>
-                      </div>
-                      <div class="mt-3 flex max-h-72 flex-col gap-3 overflow-y-auto">
-                        <Show when={diff().length} fallback={<div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3 text-13-regular text-text-weak">No file diffs yet.</div>}>
-                          <For each={diff().slice(0, 10)}>
-                            {(item) => (
-                              <div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3">
-                                <div class="break-all text-13-medium text-text-strong">{item.file}</div>
-                                <div class="mt-1 text-12-regular text-text-weak">+{item.additions} / -{item.deletions}</div>
-                              </div>
-                            )}
-                          </For>
-                        </Show>
-                      </div>
-                    </div>
-
-                    <div class="rounded-[24px] border border-border-weak-base bg-surface-base px-4 py-4">
-                      <div class="text-14-medium text-text-strong">Release history</div>
-                      <ReleaseHistory releases={releases()} onRollback={rollbackRelease} environments={environmentMap()} />
-                    </div>
-                  </div>
-                </div>
-              </aside>
-            </div>
-          </Show>
-
-          <Show when={tab() === "preview"}>
-            <div class="grid min-h-0 flex-1 grid-cols-1 gap-px bg-border-weak-base xl:grid-cols-[minmax(0,1.5fr)_minmax(340px,0.85fr)]">
-              <section class="flex min-h-0 flex-col bg-background-base/90">
-                <div class="shrink-0 border-b border-border-weak-base px-4 py-4 sm:px-6">
-                  <div class="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-                    <div>
-                      <div class="text-18-medium text-text-strong">Preview</div>
-                      <div class="mt-1 text-13-regular text-text-weak">The builder preview process, current URL, and live surface stay front and center here.</div>
-                    </div>
-                    <div class="flex flex-wrap gap-2 text-12-regular text-text-weak">
-                      <span class="rounded-full border border-border-weak-base bg-surface-base px-3 py-1">{preview()?.status ?? "idle"}</span>
-                      <span class="rounded-full border border-border-weak-base bg-surface-base px-3 py-1">{preview()?.url || "No URL"}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="min-h-0 flex-1 overflow-hidden p-3 sm:p-4">
-                  <div class="flex h-full min-h-0 flex-col overflow-hidden rounded-[28px] border border-border-weak-base bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))] shadow-[0_18px_50px_rgba(0,0,0,0.22)]">
-                    <div class="flex items-center justify-between gap-3 border-b border-border-weak-base px-4 py-3">
-                      <div class="min-w-0">
-                        <div class="truncate text-13-medium text-text-strong">{preview()?.url || "Preview surface"}</div>
-                        <div class="mt-1 text-12-regular text-text-weak">{preview()?.shell || store.previewCommand || "No active preview command"}</div>
-                      </div>
-                      <div class="flex gap-2">
-                        <Button size="small" variant="secondary" disabled={store.previewPending} onClick={preview()?.ptyID ? previewStop : previewStart}>
-                          {store.previewPending ? "Updating..." : preview()?.ptyID ? "Stop" : "Start"}
-                        </Button>
-                        <Button size="small" variant="ghost" disabled={!previewReady()} onClick={() => preview()?.url && window.open(preview()!.url!, "_blank", "noopener,noreferrer")}>
-                          Open
-                        </Button>
-                      </div>
-                    </div>
-                    <div class="min-h-0 flex-1 overflow-hidden bg-white">
-                      <Show
-                        when={preview()?.url}
-                        fallback={
-                          <div class="flex h-full items-center justify-center p-6">
-                            <Empty
-                              title="No live preview yet"
-                              copy="Start the workspace preview process to render the builder app here. The current URL and terminal status will update alongside it."
-                              action="Start preview"
-                              onAction={previewStart}
-                              disabled={store.previewPending}
-                            />
-                          </div>
-                        }
-                      >
-                        <iframe title="builder-preview" src={preview()?.url} class="h-full min-h-0 w-full bg-white" />
                       </Show>
                     </div>
                   </div>
-                </div>
-              </section>
 
-              <aside class="flex min-h-0 flex-col bg-background-stronger/95">
-                <div class="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
+                  {/* agent selector */}
+                  <div class="rounded-xl border border-white/6 bg-white/3 px-3 py-3">
+                    <div class="text-12-medium text-white/60 mb-2">Agent</div>
+                    <Select
+                      options={builder.agents() ?? []}
+                      current={(builder.agents() ?? []).find((item) => item.name === store.agent)}
+                      value={(item) => item.name}
+                      label={(item) => item.name}
+                      onSelect={(item) => item && setStore("agent", item.name)}
+                      variant="secondary"
+                      size="small"
+                    />
+                  </div>
+
+                  {/* release history */}
+                  <div class="rounded-xl border border-white/6 bg-white/3 px-3 py-3">
+                    <div class="text-12-medium text-white/60">Release history</div>
+                    <ReleaseHistory releases={releases()} onRollback={rollbackRelease} environments={environmentMap()} />
+                  </div>
+
+                  {/* deploy history */}
+                  <div class="rounded-xl border border-white/6 bg-white/3 px-3 py-3">
+                    <div class="text-12-medium text-white/60">Deploy history</div>
+                    <DeployHistory deploys={deploys()} onRollback={rollbackDeploy} environments={environmentMap()} />
+                  </div>
+                </div>
+              </div>
+            </aside>
+          </Show>
+        </Show>
+
+        {/* ─── preview tab ────────────────── */}
+        <Show when={tab() === "preview"}>
+          <div class="flex min-h-0 flex-1 flex-col lg:flex-row">
+            {/* preview surface */}
+            <section class="flex min-h-0 flex-1 flex-col">
+              <div class="shrink-0 border-b border-white/6 px-3 py-2.5 sm:px-5">
+                <div class="flex items-center justify-between gap-2">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <div
+                      class="h-2 w-2 shrink-0 rounded-full"
+                      classList={{
+                        "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]": String(preview()?.status) === "ready",
+                        "bg-amber-400 animate-pulse": preview()?.status === "running",
+                        "bg-white/15": !preview()?.status || preview()?.status === "idle",
+                      }}
+                    />
+                    <div class="truncate text-12-medium text-white/60">{preview()?.url || "No preview"}</div>
+                  </div>
+                  <div class="flex gap-1.5">
+                    <Button size="small" variant="secondary" disabled={store.previewPending} onClick={preview()?.ptyID ? previewStop : previewStart}>
+                      {store.previewPending ? "…" : preview()?.ptyID ? "Stop" : "Start"}
+                    </Button>
+                    <Button size="small" variant="ghost" disabled={!previewReady()} onClick={() => preview()?.url && window.open(preview()!.url!, "_blank", "noopener,noreferrer")}>
+                      Open ↗
+                    </Button>
+                  </div>
+                </div>
+              </div>
+              <div class="min-h-0 flex-1 overflow-hidden">
+                <Show
+                  when={preview()?.url}
+                  fallback={
+                    <Empty
+                      title="No live preview"
+                      copy="Start the preview process to render your app here."
+                      action="Start preview"
+                      onAction={previewStart}
+                      disabled={store.previewPending}
+                    />
+                  }
+                >
+                  <iframe title="builder-preview" src={preview()?.url} class="h-full min-h-0 w-full border-0 bg-white" />
+                </Show>
+              </div>
+            </section>
+
+            {/* preview sidebar (desktop) */}
+            <Show when={sidebar()}>
+              <aside class="hidden w-80 shrink-0 border-l border-white/6 bg-[#0b0f17] lg:flex lg:flex-col xl:w-96">
+                <div class="min-h-0 flex-1 overflow-y-auto px-4 py-4">
                   <div class="flex flex-col gap-4">
-                    <div class="rounded-[24px] border border-border-weak-base bg-surface-base px-4 py-4">
-                      <div class="text-14-medium text-text-strong">Preview controls</div>
-                      <div class="mt-3 grid gap-3">
-                        <TextField label="Preview command" value={store.previewCommand} onChange={(value) => setStore("previewCommand", value)} />
-                        <TextField label="Preview URL" value={store.previewURL} onChange={(value) => setStore("previewURL", value)} />
+
+                    {/* preview controls */}
+                    <div class="rounded-xl border border-white/6 bg-white/3 px-3 py-3">
+                      <div class="text-12-medium text-white/60 mb-2">Preview controls</div>
+                      <div class="grid gap-2">
+                        <TextField label="Command" value={store.previewCommand} onChange={(value) => setStore("previewCommand", value)} />
+                        <TextField label="URL" value={store.previewURL} onChange={(value) => setStore("previewURL", value)} />
                       </div>
                     </div>
 
-                    <div class="overflow-hidden rounded-[24px] border border-border-weak-base bg-surface-base">
-                      <div class="border-b border-border-weak-base px-4 py-3 text-14-medium text-text-strong">Preview terminal</div>
-                      <div class="h-[300px] min-h-[300px]">
-                        <Show when={previewPty()} fallback={<div class="flex h-full items-center justify-center px-6 text-center text-13-regular text-text-weak">No preview PTY attached yet.</div>}>
+                    {/* terminal */}
+                    <div class="overflow-hidden rounded-xl border border-white/6 bg-white/3">
+                      <div class="border-b border-white/6 px-3 py-2 text-12-medium text-white/60">Terminal</div>
+                      <div class="h-64">
+                        <Show when={previewPty()} fallback={<div class="flex h-full items-center justify-center text-12-regular text-white/25">No PTY attached</div>}>
                           {(pty) => <Terminal pty={pty()} class="h-full" autoFocus={false} />}
                         </Show>
                       </div>
                     </div>
 
-                    <div class="rounded-[24px] border border-border-weak-base bg-surface-base px-4 py-4">
-                      <div class="text-14-medium text-text-strong">Release and deploy</div>
-                      <div class="mt-3 flex flex-col gap-3">
-                        <div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3">
-                          <div class="text-11-medium uppercase tracking-[0.12em] text-text-weak">Share URL</div>
-                          <div class="mt-2 break-all text-13-medium text-text-strong">{share() || "No published release yet."}</div>
+                    {/* release + deploy */}
+                    <div class="rounded-xl border border-white/6 bg-white/3 px-3 py-3">
+                      <div class="text-12-medium text-white/60 mb-2">Release & Deploy</div>
+                      <div class="flex flex-col gap-2">
+                        <div class="rounded-lg bg-white/[0.02] px-2.5 py-2">
+                          <div class="text-[10px] uppercase tracking-[0.12em] text-white/30">Share URL</div>
+                          <div class="mt-1 break-all text-12-medium text-white/60">{share() || "Unpublished"}</div>
                         </div>
-                        <div class="flex flex-wrap gap-2">
+                        <div class="flex flex-wrap gap-1.5">
                           <Button size="small" variant="secondary" disabled={!sessionID() || store.publishPending} onClick={() => share() ? unpublish() : publish()}>
-                            {store.publishPending ? "Updating release..." : share() ? "Unpublish" : "Publish"}
+                            {store.publishPending ? "…" : share() ? "Unpublish" : "Publish"}
                           </Button>
                           <Button size="small" variant="ghost" disabled={!share()} onClick={() => share() && window.open(share(), "_blank", "noopener,noreferrer")}>
-                            Open release
+                            Open ↗
                           </Button>
                         </div>
                         <Show when={environments().length}>
                           <div>
-                            <div class="mb-2 text-12-medium uppercase tracking-[0.12em] text-text-weak">Environment</div>
+                            <div class="mb-1 text-[10px] uppercase tracking-[0.12em] text-white/30">Environment</div>
                             <EnvSelect environments={environments()} value={store.environment} onChange={(id) => setStore("environment", id)} />
                           </div>
                         </Show>
-                        <div class="flex flex-wrap gap-2">
+                        <div class="flex flex-wrap gap-1.5">
                           <Button size="small" variant="secondary" disabled={store.deployPending || !store.environment || (!sessionID() && !releases()[0]?.id)} onClick={deployRun}>
-                            {store.deployPending ? "Deploying..." : "Run deploy"}
+                            {store.deployPending ? "Deploying…" : "Deploy"}
                           </Button>
                           <Button size="small" variant="ghost" disabled={!store.deployURL} onClick={() => store.deployURL && window.open(store.deployURL, "_blank", "noopener,noreferrer")}>
-                            Open deploy
+                            Open ↗
                           </Button>
                         </div>
                         <Show when={store.deployURL}>
-                          <div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3 text-13-medium text-text-strong">{store.deployURL}</div>
+                          <div class="rounded-lg bg-white/[0.02] px-2.5 py-2 text-12-medium text-white/60">{store.deployURL}</div>
                         </Show>
                         <Show when={store.deployLogs.length}>
-                          <div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3">
-                            <div class="text-12-medium uppercase tracking-[0.12em] text-text-weak">Latest deploy logs</div>
-                            <div class="mt-2 max-h-40 overflow-y-auto whitespace-pre-wrap break-words text-12-regular text-text-base">{store.deployLogs.join("\n")}</div>
+                          <div class="rounded-lg bg-white/[0.02] px-2.5 py-2">
+                            <div class="text-[10px] uppercase tracking-[0.12em] text-white/30">Logs</div>
+                            <div class="mt-1 max-h-32 overflow-y-auto whitespace-pre-wrap break-words text-11-regular text-white/40">{store.deployLogs.join("\n")}</div>
                           </div>
                         </Show>
                       </div>
                     </div>
 
-                    <div class="rounded-[24px] border border-border-weak-base bg-surface-base px-4 py-4">
-                      <div class="text-14-medium text-text-strong">Annotations</div>
-                      <div class="mt-2 text-13-regular text-text-weak">Capture preview findings or implementation notes for the next builder run.</div>
-                      <div class="mt-3 grid gap-3">
+                    {/* annotations */}
+                    <div class="rounded-xl border border-white/6 bg-white/3 px-3 py-3">
+                      <div class="text-12-medium text-white/60 mb-2">Annotations</div>
+                      <div class="grid gap-2">
                         <TextField label="File" value={store.annotationFile} onChange={(value) => setStore("annotationFile", value)} />
                         <textarea
-                          class="min-h-28 w-full rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3 text-14-regular text-text-strong outline-none transition focus:border-border-strong-base"
+                          class="min-h-20 w-full rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-12-regular text-white/80 outline-none transition focus:border-sky-400/30 placeholder:text-white/20"
                           value={store.annotationNote}
                           onInput={(event) => setStore("annotationNote", event.currentTarget.value)}
-                          placeholder="Describe what should change in that file or region."
+                          placeholder="Describe what should change…"
                         />
                         <Button size="small" variant="secondary" onClick={addAnnotation} disabled={!store.annotationFile.trim() || !store.annotationNote.trim()}>
-                          Save annotation
+                          Save
                         </Button>
                       </div>
-                      <div class="mt-4 flex max-h-56 flex-col gap-3 overflow-y-auto">
-                        <Show when={annotations().length} fallback={<div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3 text-13-regular text-text-weak">No annotations yet.</div>}>
+                      <div class="mt-2 flex max-h-40 flex-col gap-1.5 overflow-y-auto">
+                        <Show when={annotations().length} fallback={<div class="text-11-regular text-white/25">No annotations</div>}>
                           <For each={annotations()}>
                             {(item) => (
-                              <div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-3">
-                                <div class="break-all text-13-medium text-text-strong">{item.file}</div>
-                                <div class="mt-1 whitespace-pre-wrap break-words text-12-regular text-text-base">{item.note}</div>
+                              <div class="rounded-lg bg-white/[0.02] px-2.5 py-2">
+                                <div class="break-all text-11-medium text-white/60">{item.file}</div>
+                                <div class="mt-0.5 whitespace-pre-wrap break-words text-11-regular text-white/40">{item.note}</div>
                               </div>
                             )}
                           </For>
@@ -949,42 +1059,51 @@ export default function CopilotPage() {
                       </div>
                     </div>
 
+                    {/* env state */}
                     <Show when={store.environment}>
-                      <div class="rounded-[24px] border border-border-weak-base bg-surface-base px-4 py-4">
-                        <div class="text-14-medium text-text-strong">Environment state</div>
-                        <div class="mt-4">
-                          <EnvVarsSecrets vars={selectedEnv()?.vars ?? {}} secrets={secrets() ?? []} />
-                        </div>
+                      <div class="rounded-xl border border-white/6 bg-white/3 px-3 py-3">
+                        <div class="text-12-medium text-white/60 mb-2">Environment state</div>
+                        <EnvVarsSecrets vars={selectedEnv()?.vars ?? {}} secrets={secrets() ?? []} />
                       </div>
                     </Show>
 
-                    <div class="rounded-[24px] border border-border-weak-base bg-surface-base px-4 py-4">
-                      <div class="text-14-medium text-text-strong">Release history</div>
+                    {/* histories */}
+                    <div class="rounded-xl border border-white/6 bg-white/3 px-3 py-3">
+                      <div class="text-12-medium text-white/60">Release history</div>
                       <ReleaseHistory releases={releases()} onRollback={rollbackRelease} environments={environmentMap()} />
                     </div>
-
-                    <div class="rounded-[24px] border border-border-weak-base bg-surface-base px-4 py-4">
-                      <div class="text-14-medium text-text-strong">Deploy history</div>
+                    <div class="rounded-xl border border-white/6 bg-white/3 px-3 py-3">
+                      <div class="text-12-medium text-white/60">Deploy history</div>
                       <DeployHistory deploys={deploys()} onRollback={rollbackDeploy} environments={environmentMap()} />
                     </div>
                   </div>
                 </div>
               </aside>
-            </div>
-          </Show>
-        </div>
+            </Show>
+          </div>
+        </Show>
       </div>
 
-      <div class="shrink-0 border-t border-border-weak-base bg-background-base/95 px-3 py-3 backdrop-blur sm:px-5 sm:py-4">
-        <div class="mx-auto flex w-full max-w-xl items-center rounded-full border border-border-weak-base bg-surface-base p-1 shadow-[0_10px_30px_rgba(0,0,0,0.14)]">
+      {/* ─── bottom tab bar ──────────────── */}
+      <nav class="z-20 shrink-0 border-t border-white/6 bg-[#0d1117]/95 backdrop-blur-lg">
+        <div class="mx-auto flex h-12 w-full max-w-md items-center gap-1 px-3">
+          <button
+            type="button"
+            class="hidden h-9 w-9 shrink-0 place-items-center rounded-xl text-white/40 transition-colors hover:text-white/70 sm:grid"
+            onClick={() => navigate(-1)}
+          >
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+            </svg>
+          </button>
           <For each={["chat", "preview"] as const}>
             {(item) => (
               <button
                 type="button"
                 classList={{
-                  "flex-1 rounded-full px-4 py-3 text-14-medium transition": true,
-                  "bg-[linear-gradient(180deg,rgba(86,156,214,0.28),rgba(86,156,214,0.14))] text-text-strong shadow-[0_10px_24px_rgba(86,156,214,0.16)]": tab() === item,
-                  "text-text-weak hover:text-text-strong": tab() !== item,
+                  "flex-1 rounded-xl py-2 text-13-medium transition-all duration-200": true,
+                  "bg-sky-500/15 text-sky-300 shadow-[0_0_16px_rgba(56,189,248,0.1)]": tab() === item,
+                  "text-white/40 hover:text-white/60": tab() !== item,
                 }}
                 onClick={() => setTab(item)}
               >
@@ -992,8 +1111,17 @@ export default function CopilotPage() {
               </button>
             )}
           </For>
+          <button
+            type="button"
+            class="hidden h-9 w-9 shrink-0 place-items-center rounded-xl text-white/40 transition-colors hover:text-white/70 sm:grid"
+            onClick={() => setSidebar(!sidebar())}
+          >
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM12.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM18.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />
+            </svg>
+          </button>
         </div>
-      </div>
+      </nav>
     </main>
   )
 }
