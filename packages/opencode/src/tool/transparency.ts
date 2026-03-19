@@ -21,11 +21,11 @@ export const TransparencyTool = Tool.define("transparency", {
         "Phase 4: Comprehensive Verification & Completion [WAITING]",
         "",
         `Memory Context: ${memory.length} items retrieved.`,
-        `Transaction Integrity: ${ctx.metadata ? "ACTIVE" : "STABLE"}`
+        `System Status: STABLE`
       ].join("\n"),
       metadata: {
         memory_count: memory.length,
-        has_active_transaction: !!ctx.metadata,
+        has_active_transaction: false, // simplified as not directly accessible from context here
         scope: params.scope,
         current_phase: 1
       }
