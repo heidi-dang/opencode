@@ -723,6 +723,23 @@ export type EventTodoUpdated = {
   }
 }
 
+export type EventTaskBoundaryUpdated = {
+  type: "task_boundary.updated"
+  properties: {
+    task_id: string
+    mode: "PLANNING" | "EXECUTION" | "VERIFICATION"
+    fsm_state:
+      | "IDLE"
+      | "DISCOVERY"
+      | "PLAN_DRAFT"
+      | "PLAN_LOCKED"
+      | "EXECUTION"
+      | "VERIFICATION"
+      | "COMPLETE"
+      | "BLOCKED"
+  }
+}
+
 export type EventTuiPromptAppend = {
   type: "tui.prompt.append"
   properties: {
@@ -983,6 +1000,7 @@ export type Event =
   | EventSessionIdle
   | EventSessionCompacted
   | EventTodoUpdated
+  | EventTaskBoundaryUpdated
   | EventTuiPromptAppend
   | EventTuiCommandExecute
   | EventTuiToastShow
@@ -2084,6 +2102,1863 @@ export type AuthSetResponses = {
 
 export type AuthSetResponse = AuthSetResponses[keyof AuthSetResponses]
 
+export type BuilderGetData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/builder"
+}
+
+export type BuilderGetResponses = {
+  /**
+   * Builder state
+   */
+  200: {
+    id: string
+    projectID: string
+    directory: string
+    title: string
+    sessionID?: string
+    providerID?: string
+    modelID?: string
+    agent?: string
+    prompt?: string
+    environmentID?: string
+    environments?: Array<{
+      id: string
+      name: string
+      branch?: string
+      host?: string
+      url?: string
+      vars?: {
+        [key: string]:
+          | {
+              source: "env"
+              name: string
+              redacted: string
+              updatedAt: number
+            }
+          | {
+              source: "file"
+              path: string
+              key?: string
+              redacted: string
+              updatedAt: number
+            }
+          | {
+              source: "external"
+              uri: string
+              redacted: string
+              updatedAt: number
+            }
+          | {
+              source: "local"
+              id: string
+              redacted: string
+              updatedAt: number
+            }
+      }
+      createdAt: number
+      updatedAt: number
+    }>
+    preview: {
+      ptyID?: string
+      shell?: string
+      url?: string
+      status: "idle" | "running" | "exited" | "error"
+      startedAt?: number
+      info?: Pty
+    }
+    releases?: Array<{
+      id: string
+      sessionID: string
+      title: string
+      shareURL?: string
+      environmentID?: string
+      branch?: string
+      commit?: string
+      artifact?: {
+        id?: string
+        key?: string
+        path?: string
+        url?: string
+        hash?: string
+        size?: number
+      }
+      runtime?: {
+        entry?: string
+        target?: string
+        platform?: string
+        arch?: string
+        node?: string
+        bun?: string
+        cmd?: string
+      }
+      remote?: {
+        id: string
+        releaseID?: string
+        sessionID?: string
+        title?: string
+        shareURL?: string
+        path: string
+        compose?: string
+        site?: string
+        archive?: string
+        host?: string
+        url?: string
+        publicPort?: number
+        branch?: string
+        commit?: string
+        createdAt: number
+        promotedAt?: number
+      }
+      deployedAt?: number
+      createdAt: number
+    }>
+    deploys?: Array<{
+      id: string
+      releaseID?: string
+      environmentID?: string
+      host: string
+      path: string
+      url: string
+      status: "running" | "ready" | "failed"
+      logs: Array<string>
+      branch?: string
+      commit?: string
+      revision?: {
+        id: string
+        parentID?: string
+        seq?: number
+        source?: "release" | "rollback" | "manual"
+      }
+      supervisor?: {
+        ptyID?: string
+        pid?: number
+        name?: string
+        status?: "idle" | "starting" | "running" | "stopped" | "failed"
+      }
+      promotion?: {
+        layout: {
+          root: string
+          releases: string
+          current: string
+          shared: string
+        }
+        previous?: {
+          id: string
+          releaseID?: string
+          sessionID?: string
+          title?: string
+          shareURL?: string
+          path: string
+          compose?: string
+          site?: string
+          archive?: string
+          host?: string
+          url?: string
+          publicPort?: number
+          branch?: string
+          commit?: string
+          createdAt: number
+          promotedAt?: number
+        }
+        current: {
+          id: string
+          releaseID?: string
+          sessionID?: string
+          title?: string
+          shareURL?: string
+          path: string
+          compose?: string
+          site?: string
+          archive?: string
+          host?: string
+          url?: string
+          publicPort?: number
+          branch?: string
+          commit?: string
+          createdAt: number
+          promotedAt?: number
+        }
+      }
+      createdAt: number
+      updatedAt?: number
+      readyAt?: number
+    }>
+    rollbacks?: Array<{
+      id: string
+      environmentID?: string
+      releaseID?: string
+      deployID?: string
+      fromDeployID?: string
+      toDeployID?: string
+      status: "running" | "ready" | "failed"
+      reason?: string
+      logs?: Array<string>
+      createdAt: number
+    }>
+    annotations?: Array<{
+      id: string
+      file: string
+      note: string
+      start?: number
+      end?: number
+      createdAt: number
+    }>
+    createdAt: number
+    updatedAt: number
+  }
+}
+
+export type BuilderGetResponse = BuilderGetResponses[keyof BuilderGetResponses]
+
+export type BuilderSessionData = {
+  body?: {
+    providerID?: string
+    modelID?: string
+    agent?: string
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/builder/session"
+}
+
+export type BuilderSessionErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type BuilderSessionError = BuilderSessionErrors[keyof BuilderSessionErrors]
+
+export type BuilderSessionResponses = {
+  /**
+   * Builder state
+   */
+  200: {
+    id: string
+    projectID: string
+    directory: string
+    title: string
+    sessionID?: string
+    providerID?: string
+    modelID?: string
+    agent?: string
+    prompt?: string
+    environmentID?: string
+    environments?: Array<{
+      id: string
+      name: string
+      branch?: string
+      host?: string
+      url?: string
+      vars?: {
+        [key: string]:
+          | {
+              source: "env"
+              name: string
+              redacted: string
+              updatedAt: number
+            }
+          | {
+              source: "file"
+              path: string
+              key?: string
+              redacted: string
+              updatedAt: number
+            }
+          | {
+              source: "external"
+              uri: string
+              redacted: string
+              updatedAt: number
+            }
+          | {
+              source: "local"
+              id: string
+              redacted: string
+              updatedAt: number
+            }
+      }
+      createdAt: number
+      updatedAt: number
+    }>
+    preview: {
+      ptyID?: string
+      shell?: string
+      url?: string
+      status: "idle" | "running" | "exited" | "error"
+      startedAt?: number
+      info?: Pty
+    }
+    releases?: Array<{
+      id: string
+      sessionID: string
+      title: string
+      shareURL?: string
+      environmentID?: string
+      branch?: string
+      commit?: string
+      artifact?: {
+        id?: string
+        key?: string
+        path?: string
+        url?: string
+        hash?: string
+        size?: number
+      }
+      runtime?: {
+        entry?: string
+        target?: string
+        platform?: string
+        arch?: string
+        node?: string
+        bun?: string
+        cmd?: string
+      }
+      remote?: {
+        id: string
+        releaseID?: string
+        sessionID?: string
+        title?: string
+        shareURL?: string
+        path: string
+        compose?: string
+        site?: string
+        archive?: string
+        host?: string
+        url?: string
+        publicPort?: number
+        branch?: string
+        commit?: string
+        createdAt: number
+        promotedAt?: number
+      }
+      deployedAt?: number
+      createdAt: number
+    }>
+    deploys?: Array<{
+      id: string
+      releaseID?: string
+      environmentID?: string
+      host: string
+      path: string
+      url: string
+      status: "running" | "ready" | "failed"
+      logs: Array<string>
+      branch?: string
+      commit?: string
+      revision?: {
+        id: string
+        parentID?: string
+        seq?: number
+        source?: "release" | "rollback" | "manual"
+      }
+      supervisor?: {
+        ptyID?: string
+        pid?: number
+        name?: string
+        status?: "idle" | "starting" | "running" | "stopped" | "failed"
+      }
+      promotion?: {
+        layout: {
+          root: string
+          releases: string
+          current: string
+          shared: string
+        }
+        previous?: {
+          id: string
+          releaseID?: string
+          sessionID?: string
+          title?: string
+          shareURL?: string
+          path: string
+          compose?: string
+          site?: string
+          archive?: string
+          host?: string
+          url?: string
+          publicPort?: number
+          branch?: string
+          commit?: string
+          createdAt: number
+          promotedAt?: number
+        }
+        current: {
+          id: string
+          releaseID?: string
+          sessionID?: string
+          title?: string
+          shareURL?: string
+          path: string
+          compose?: string
+          site?: string
+          archive?: string
+          host?: string
+          url?: string
+          publicPort?: number
+          branch?: string
+          commit?: string
+          createdAt: number
+          promotedAt?: number
+        }
+      }
+      createdAt: number
+      updatedAt?: number
+      readyAt?: number
+    }>
+    rollbacks?: Array<{
+      id: string
+      environmentID?: string
+      releaseID?: string
+      deployID?: string
+      fromDeployID?: string
+      toDeployID?: string
+      status: "running" | "ready" | "failed"
+      reason?: string
+      logs?: Array<string>
+      createdAt: number
+    }>
+    annotations?: Array<{
+      id: string
+      file: string
+      note: string
+      start?: number
+      end?: number
+      createdAt: number
+    }>
+    createdAt: number
+    updatedAt: number
+  }
+}
+
+export type BuilderSessionResponse = BuilderSessionResponses[keyof BuilderSessionResponses]
+
+export type BuilderBuildData = {
+  body?: {
+    prompt: string
+    providerID: string
+    modelID: string
+    agent?: string
+    variant?: string
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/builder/build"
+}
+
+export type BuilderBuildErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type BuilderBuildError = BuilderBuildErrors[keyof BuilderBuildErrors]
+
+export type BuilderBuildResponses = {
+  /**
+   * Builder state
+   */
+  200: {
+    id: string
+    projectID: string
+    directory: string
+    title: string
+    sessionID?: string
+    providerID?: string
+    modelID?: string
+    agent?: string
+    prompt?: string
+    environmentID?: string
+    environments?: Array<{
+      id: string
+      name: string
+      branch?: string
+      host?: string
+      url?: string
+      vars?: {
+        [key: string]:
+          | {
+              source: "env"
+              name: string
+              redacted: string
+              updatedAt: number
+            }
+          | {
+              source: "file"
+              path: string
+              key?: string
+              redacted: string
+              updatedAt: number
+            }
+          | {
+              source: "external"
+              uri: string
+              redacted: string
+              updatedAt: number
+            }
+          | {
+              source: "local"
+              id: string
+              redacted: string
+              updatedAt: number
+            }
+      }
+      createdAt: number
+      updatedAt: number
+    }>
+    preview: {
+      ptyID?: string
+      shell?: string
+      url?: string
+      status: "idle" | "running" | "exited" | "error"
+      startedAt?: number
+      info?: Pty
+    }
+    releases?: Array<{
+      id: string
+      sessionID: string
+      title: string
+      shareURL?: string
+      environmentID?: string
+      branch?: string
+      commit?: string
+      artifact?: {
+        id?: string
+        key?: string
+        path?: string
+        url?: string
+        hash?: string
+        size?: number
+      }
+      runtime?: {
+        entry?: string
+        target?: string
+        platform?: string
+        arch?: string
+        node?: string
+        bun?: string
+        cmd?: string
+      }
+      remote?: {
+        id: string
+        releaseID?: string
+        sessionID?: string
+        title?: string
+        shareURL?: string
+        path: string
+        compose?: string
+        site?: string
+        archive?: string
+        host?: string
+        url?: string
+        publicPort?: number
+        branch?: string
+        commit?: string
+        createdAt: number
+        promotedAt?: number
+      }
+      deployedAt?: number
+      createdAt: number
+    }>
+    deploys?: Array<{
+      id: string
+      releaseID?: string
+      environmentID?: string
+      host: string
+      path: string
+      url: string
+      status: "running" | "ready" | "failed"
+      logs: Array<string>
+      branch?: string
+      commit?: string
+      revision?: {
+        id: string
+        parentID?: string
+        seq?: number
+        source?: "release" | "rollback" | "manual"
+      }
+      supervisor?: {
+        ptyID?: string
+        pid?: number
+        name?: string
+        status?: "idle" | "starting" | "running" | "stopped" | "failed"
+      }
+      promotion?: {
+        layout: {
+          root: string
+          releases: string
+          current: string
+          shared: string
+        }
+        previous?: {
+          id: string
+          releaseID?: string
+          sessionID?: string
+          title?: string
+          shareURL?: string
+          path: string
+          compose?: string
+          site?: string
+          archive?: string
+          host?: string
+          url?: string
+          publicPort?: number
+          branch?: string
+          commit?: string
+          createdAt: number
+          promotedAt?: number
+        }
+        current: {
+          id: string
+          releaseID?: string
+          sessionID?: string
+          title?: string
+          shareURL?: string
+          path: string
+          compose?: string
+          site?: string
+          archive?: string
+          host?: string
+          url?: string
+          publicPort?: number
+          branch?: string
+          commit?: string
+          createdAt: number
+          promotedAt?: number
+        }
+      }
+      createdAt: number
+      updatedAt?: number
+      readyAt?: number
+    }>
+    rollbacks?: Array<{
+      id: string
+      environmentID?: string
+      releaseID?: string
+      deployID?: string
+      fromDeployID?: string
+      toDeployID?: string
+      status: "running" | "ready" | "failed"
+      reason?: string
+      logs?: Array<string>
+      createdAt: number
+    }>
+    annotations?: Array<{
+      id: string
+      file: string
+      note: string
+      start?: number
+      end?: number
+      createdAt: number
+    }>
+    createdAt: number
+    updatedAt: number
+  }
+}
+
+export type BuilderBuildResponse = BuilderBuildResponses[keyof BuilderBuildResponses]
+
+export type BuilderEnvironmentListData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/builder/environment"
+}
+
+export type BuilderEnvironmentListResponses = {
+  /**
+   * Builder environments
+   */
+  200: {
+    selectedID?: string
+    items: Array<{
+      id: string
+      name: string
+      branch?: string
+      host?: string
+      url?: string
+      vars?: {
+        [key: string]:
+          | {
+              source: "env"
+              name: string
+              redacted: string
+              updatedAt: number
+            }
+          | {
+              source: "file"
+              path: string
+              key?: string
+              redacted: string
+              updatedAt: number
+            }
+          | {
+              source: "external"
+              uri: string
+              redacted: string
+              updatedAt: number
+            }
+          | {
+              source: "local"
+              id: string
+              redacted: string
+              updatedAt: number
+            }
+      }
+      createdAt: number
+      updatedAt: number
+    }>
+  }
+}
+
+export type BuilderEnvironmentListResponse = BuilderEnvironmentListResponses[keyof BuilderEnvironmentListResponses]
+
+export type BuilderEnvironmentCreateData = {
+  body?: {
+    name: string
+    branch?: string
+    host?: string
+    url?: string
+    vars?: {
+      [key: string]:
+        | {
+            source: "env"
+            name: string
+          }
+        | {
+            source: "file"
+            path: string
+            key?: string
+          }
+        | {
+            source: "external"
+            uri: string
+          }
+        | {
+            source: "env"
+            name: string
+            redacted: string
+            updatedAt: number
+          }
+        | {
+            source: "file"
+            path: string
+            key?: string
+            redacted: string
+            updatedAt: number
+          }
+        | {
+            source: "external"
+            uri: string
+            redacted: string
+            updatedAt: number
+          }
+        | {
+            source: "local"
+            id: string
+            redacted: string
+            updatedAt: number
+          }
+    }
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/builder/environment"
+}
+
+export type BuilderEnvironmentCreateErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type BuilderEnvironmentCreateError = BuilderEnvironmentCreateErrors[keyof BuilderEnvironmentCreateErrors]
+
+export type BuilderEnvironmentCreateResponses = {
+  /**
+   * Created environment
+   */
+  200: {
+    id: string
+    name: string
+    branch?: string
+    host?: string
+    url?: string
+    vars?: {
+      [key: string]:
+        | {
+            source: "env"
+            name: string
+            redacted: string
+            updatedAt: number
+          }
+        | {
+            source: "file"
+            path: string
+            key?: string
+            redacted: string
+            updatedAt: number
+          }
+        | {
+            source: "external"
+            uri: string
+            redacted: string
+            updatedAt: number
+          }
+        | {
+            source: "local"
+            id: string
+            redacted: string
+            updatedAt: number
+          }
+    }
+    createdAt: number
+    updatedAt: number
+  }
+}
+
+export type BuilderEnvironmentCreateResponse =
+  BuilderEnvironmentCreateResponses[keyof BuilderEnvironmentCreateResponses]
+
+export type BuilderEnvironmentDeleteData = {
+  body?: never
+  path: {
+    id: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/builder/environment/{id}"
+}
+
+export type BuilderEnvironmentDeleteErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type BuilderEnvironmentDeleteError = BuilderEnvironmentDeleteErrors[keyof BuilderEnvironmentDeleteErrors]
+
+export type BuilderEnvironmentDeleteResponses = {
+  /**
+   * Delete result
+   */
+  200: boolean
+}
+
+export type BuilderEnvironmentDeleteResponse =
+  BuilderEnvironmentDeleteResponses[keyof BuilderEnvironmentDeleteResponses]
+
+export type BuilderEnvironmentUpdateData = {
+  body?: {
+    name?: string
+    branch?: string
+    host?: string
+    url?: string
+    vars?: {
+      [key: string]:
+        | {
+            source: "env"
+            name: string
+          }
+        | {
+            source: "file"
+            path: string
+            key?: string
+          }
+        | {
+            source: "external"
+            uri: string
+          }
+        | {
+            source: "env"
+            name: string
+            redacted: string
+            updatedAt: number
+          }
+        | {
+            source: "file"
+            path: string
+            key?: string
+            redacted: string
+            updatedAt: number
+          }
+        | {
+            source: "external"
+            uri: string
+            redacted: string
+            updatedAt: number
+          }
+        | {
+            source: "local"
+            id: string
+            redacted: string
+            updatedAt: number
+          }
+    }
+  }
+  path: {
+    id: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/builder/environment/{id}"
+}
+
+export type BuilderEnvironmentUpdateErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type BuilderEnvironmentUpdateError = BuilderEnvironmentUpdateErrors[keyof BuilderEnvironmentUpdateErrors]
+
+export type BuilderEnvironmentUpdateResponses = {
+  /**
+   * Updated environment
+   */
+  200: {
+    id: string
+    name: string
+    branch?: string
+    host?: string
+    url?: string
+    vars?: {
+      [key: string]:
+        | {
+            source: "env"
+            name: string
+            redacted: string
+            updatedAt: number
+          }
+        | {
+            source: "file"
+            path: string
+            key?: string
+            redacted: string
+            updatedAt: number
+          }
+        | {
+            source: "external"
+            uri: string
+            redacted: string
+            updatedAt: number
+          }
+        | {
+            source: "local"
+            id: string
+            redacted: string
+            updatedAt: number
+          }
+    }
+    createdAt: number
+    updatedAt: number
+  }
+}
+
+export type BuilderEnvironmentUpdateResponse =
+  BuilderEnvironmentUpdateResponses[keyof BuilderEnvironmentUpdateResponses]
+
+export type BuilderEnvironmentSelectData = {
+  body?: {
+    id?: string
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/builder/environment/select"
+}
+
+export type BuilderEnvironmentSelectErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type BuilderEnvironmentSelectError = BuilderEnvironmentSelectErrors[keyof BuilderEnvironmentSelectErrors]
+
+export type BuilderEnvironmentSelectResponses = {
+  /**
+   * Selected environment
+   */
+  200: {
+    id: string
+    name: string
+    branch?: string
+    host?: string
+    url?: string
+    vars?: {
+      [key: string]:
+        | {
+            source: "env"
+            name: string
+            redacted: string
+            updatedAt: number
+          }
+        | {
+            source: "file"
+            path: string
+            key?: string
+            redacted: string
+            updatedAt: number
+          }
+        | {
+            source: "external"
+            uri: string
+            redacted: string
+            updatedAt: number
+          }
+        | {
+            source: "local"
+            id: string
+            redacted: string
+            updatedAt: number
+          }
+    }
+    createdAt: number
+    updatedAt: number
+  }
+}
+
+export type BuilderEnvironmentSelectResponse =
+  BuilderEnvironmentSelectResponses[keyof BuilderEnvironmentSelectResponses]
+
+export type BuilderSecretListData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/builder/secret"
+}
+
+export type BuilderSecretListResponses = {
+  /**
+   * Builder secrets
+   */
+  200: Array<{
+    source: "local"
+    id: string
+    redacted: string
+    updatedAt: number
+    createdAt: number
+  }>
+}
+
+export type BuilderSecretListResponse = BuilderSecretListResponses[keyof BuilderSecretListResponses]
+
+export type BuilderSecretCreateData = {
+  body?: {
+    value: string
+    label?: string
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/builder/secret"
+}
+
+export type BuilderSecretCreateErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type BuilderSecretCreateError = BuilderSecretCreateErrors[keyof BuilderSecretCreateErrors]
+
+export type BuilderSecretCreateResponses = {
+  /**
+   * Stored secret
+   */
+  200: {
+    source: "local"
+    id: string
+    redacted: string
+    updatedAt: number
+    createdAt: number
+  }
+}
+
+export type BuilderSecretCreateResponse = BuilderSecretCreateResponses[keyof BuilderSecretCreateResponses]
+
+export type BuilderSecretDeleteData = {
+  body?: never
+  path: {
+    id: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/builder/secret/{id}"
+}
+
+export type BuilderSecretDeleteErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type BuilderSecretDeleteError = BuilderSecretDeleteErrors[keyof BuilderSecretDeleteErrors]
+
+export type BuilderSecretDeleteResponses = {
+  /**
+   * Delete result
+   */
+  200: boolean
+}
+
+export type BuilderSecretDeleteResponse = BuilderSecretDeleteResponses[keyof BuilderSecretDeleteResponses]
+
+export type BuilderSecretUpdateData = {
+  body?: {
+    value: string
+    label?: string
+  }
+  path: {
+    id: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/builder/secret/{id}"
+}
+
+export type BuilderSecretUpdateErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type BuilderSecretUpdateError = BuilderSecretUpdateErrors[keyof BuilderSecretUpdateErrors]
+
+export type BuilderSecretUpdateResponses = {
+  /**
+   * Updated secret
+   */
+  200: {
+    source: "local"
+    id: string
+    redacted: string
+    updatedAt: number
+    createdAt: number
+  }
+}
+
+export type BuilderSecretUpdateResponse = BuilderSecretUpdateResponses[keyof BuilderSecretUpdateResponses]
+
+export type BuilderPreviewStartData = {
+  body?: {
+    command?: string
+    url?: string
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/builder/preview/start"
+}
+
+export type BuilderPreviewStartErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type BuilderPreviewStartError = BuilderPreviewStartErrors[keyof BuilderPreviewStartErrors]
+
+export type BuilderPreviewStartResponses = {
+  /**
+   * Builder state
+   */
+  200: {
+    id: string
+    projectID: string
+    directory: string
+    title: string
+    sessionID?: string
+    providerID?: string
+    modelID?: string
+    agent?: string
+    prompt?: string
+    environmentID?: string
+    environments?: Array<{
+      id: string
+      name: string
+      branch?: string
+      host?: string
+      url?: string
+      vars?: {
+        [key: string]:
+          | {
+              source: "env"
+              name: string
+              redacted: string
+              updatedAt: number
+            }
+          | {
+              source: "file"
+              path: string
+              key?: string
+              redacted: string
+              updatedAt: number
+            }
+          | {
+              source: "external"
+              uri: string
+              redacted: string
+              updatedAt: number
+            }
+          | {
+              source: "local"
+              id: string
+              redacted: string
+              updatedAt: number
+            }
+      }
+      createdAt: number
+      updatedAt: number
+    }>
+    preview: {
+      ptyID?: string
+      shell?: string
+      url?: string
+      status: "idle" | "running" | "exited" | "error"
+      startedAt?: number
+      info?: Pty
+    }
+    releases?: Array<{
+      id: string
+      sessionID: string
+      title: string
+      shareURL?: string
+      environmentID?: string
+      branch?: string
+      commit?: string
+      artifact?: {
+        id?: string
+        key?: string
+        path?: string
+        url?: string
+        hash?: string
+        size?: number
+      }
+      runtime?: {
+        entry?: string
+        target?: string
+        platform?: string
+        arch?: string
+        node?: string
+        bun?: string
+        cmd?: string
+      }
+      remote?: {
+        id: string
+        releaseID?: string
+        sessionID?: string
+        title?: string
+        shareURL?: string
+        path: string
+        compose?: string
+        site?: string
+        archive?: string
+        host?: string
+        url?: string
+        publicPort?: number
+        branch?: string
+        commit?: string
+        createdAt: number
+        promotedAt?: number
+      }
+      deployedAt?: number
+      createdAt: number
+    }>
+    deploys?: Array<{
+      id: string
+      releaseID?: string
+      environmentID?: string
+      host: string
+      path: string
+      url: string
+      status: "running" | "ready" | "failed"
+      logs: Array<string>
+      branch?: string
+      commit?: string
+      revision?: {
+        id: string
+        parentID?: string
+        seq?: number
+        source?: "release" | "rollback" | "manual"
+      }
+      supervisor?: {
+        ptyID?: string
+        pid?: number
+        name?: string
+        status?: "idle" | "starting" | "running" | "stopped" | "failed"
+      }
+      promotion?: {
+        layout: {
+          root: string
+          releases: string
+          current: string
+          shared: string
+        }
+        previous?: {
+          id: string
+          releaseID?: string
+          sessionID?: string
+          title?: string
+          shareURL?: string
+          path: string
+          compose?: string
+          site?: string
+          archive?: string
+          host?: string
+          url?: string
+          publicPort?: number
+          branch?: string
+          commit?: string
+          createdAt: number
+          promotedAt?: number
+        }
+        current: {
+          id: string
+          releaseID?: string
+          sessionID?: string
+          title?: string
+          shareURL?: string
+          path: string
+          compose?: string
+          site?: string
+          archive?: string
+          host?: string
+          url?: string
+          publicPort?: number
+          branch?: string
+          commit?: string
+          createdAt: number
+          promotedAt?: number
+        }
+      }
+      createdAt: number
+      updatedAt?: number
+      readyAt?: number
+    }>
+    rollbacks?: Array<{
+      id: string
+      environmentID?: string
+      releaseID?: string
+      deployID?: string
+      fromDeployID?: string
+      toDeployID?: string
+      status: "running" | "ready" | "failed"
+      reason?: string
+      logs?: Array<string>
+      createdAt: number
+    }>
+    annotations?: Array<{
+      id: string
+      file: string
+      note: string
+      start?: number
+      end?: number
+      createdAt: number
+    }>
+    createdAt: number
+    updatedAt: number
+  }
+}
+
+export type BuilderPreviewStartResponse = BuilderPreviewStartResponses[keyof BuilderPreviewStartResponses]
+
+export type BuilderPreviewStopData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/builder/preview/stop"
+}
+
+export type BuilderPreviewStopResponses = {
+  /**
+   * Builder state
+   */
+  200: {
+    id: string
+    projectID: string
+    directory: string
+    title: string
+    sessionID?: string
+    providerID?: string
+    modelID?: string
+    agent?: string
+    prompt?: string
+    environmentID?: string
+    environments?: Array<{
+      id: string
+      name: string
+      branch?: string
+      host?: string
+      url?: string
+      vars?: {
+        [key: string]:
+          | {
+              source: "env"
+              name: string
+              redacted: string
+              updatedAt: number
+            }
+          | {
+              source: "file"
+              path: string
+              key?: string
+              redacted: string
+              updatedAt: number
+            }
+          | {
+              source: "external"
+              uri: string
+              redacted: string
+              updatedAt: number
+            }
+          | {
+              source: "local"
+              id: string
+              redacted: string
+              updatedAt: number
+            }
+      }
+      createdAt: number
+      updatedAt: number
+    }>
+    preview: {
+      ptyID?: string
+      shell?: string
+      url?: string
+      status: "idle" | "running" | "exited" | "error"
+      startedAt?: number
+      info?: Pty
+    }
+    releases?: Array<{
+      id: string
+      sessionID: string
+      title: string
+      shareURL?: string
+      environmentID?: string
+      branch?: string
+      commit?: string
+      artifact?: {
+        id?: string
+        key?: string
+        path?: string
+        url?: string
+        hash?: string
+        size?: number
+      }
+      runtime?: {
+        entry?: string
+        target?: string
+        platform?: string
+        arch?: string
+        node?: string
+        bun?: string
+        cmd?: string
+      }
+      remote?: {
+        id: string
+        releaseID?: string
+        sessionID?: string
+        title?: string
+        shareURL?: string
+        path: string
+        compose?: string
+        site?: string
+        archive?: string
+        host?: string
+        url?: string
+        publicPort?: number
+        branch?: string
+        commit?: string
+        createdAt: number
+        promotedAt?: number
+      }
+      deployedAt?: number
+      createdAt: number
+    }>
+    deploys?: Array<{
+      id: string
+      releaseID?: string
+      environmentID?: string
+      host: string
+      path: string
+      url: string
+      status: "running" | "ready" | "failed"
+      logs: Array<string>
+      branch?: string
+      commit?: string
+      revision?: {
+        id: string
+        parentID?: string
+        seq?: number
+        source?: "release" | "rollback" | "manual"
+      }
+      supervisor?: {
+        ptyID?: string
+        pid?: number
+        name?: string
+        status?: "idle" | "starting" | "running" | "stopped" | "failed"
+      }
+      promotion?: {
+        layout: {
+          root: string
+          releases: string
+          current: string
+          shared: string
+        }
+        previous?: {
+          id: string
+          releaseID?: string
+          sessionID?: string
+          title?: string
+          shareURL?: string
+          path: string
+          compose?: string
+          site?: string
+          archive?: string
+          host?: string
+          url?: string
+          publicPort?: number
+          branch?: string
+          commit?: string
+          createdAt: number
+          promotedAt?: number
+        }
+        current: {
+          id: string
+          releaseID?: string
+          sessionID?: string
+          title?: string
+          shareURL?: string
+          path: string
+          compose?: string
+          site?: string
+          archive?: string
+          host?: string
+          url?: string
+          publicPort?: number
+          branch?: string
+          commit?: string
+          createdAt: number
+          promotedAt?: number
+        }
+      }
+      createdAt: number
+      updatedAt?: number
+      readyAt?: number
+    }>
+    rollbacks?: Array<{
+      id: string
+      environmentID?: string
+      releaseID?: string
+      deployID?: string
+      fromDeployID?: string
+      toDeployID?: string
+      status: "running" | "ready" | "failed"
+      reason?: string
+      logs?: Array<string>
+      createdAt: number
+    }>
+    annotations?: Array<{
+      id: string
+      file: string
+      note: string
+      start?: number
+      end?: number
+      createdAt: number
+    }>
+    createdAt: number
+    updatedAt: number
+  }
+}
+
+export type BuilderPreviewStopResponse = BuilderPreviewStopResponses[keyof BuilderPreviewStopResponses]
+
+export type BuilderReleaseData = {
+  body?: {
+    sessionID: string
+    title: string
+    shareURL?: string
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/builder/release"
+}
+
+export type BuilderReleaseErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type BuilderReleaseError = BuilderReleaseErrors[keyof BuilderReleaseErrors]
+
+export type BuilderReleaseResponses = {
+  /**
+   * Recorded release
+   */
+  200: {
+    id: string
+    sessionID: string
+    title: string
+    shareURL?: string
+    environmentID?: string
+    branch?: string
+    commit?: string
+    artifact?: {
+      id?: string
+      key?: string
+      path?: string
+      url?: string
+      hash?: string
+      size?: number
+    }
+    runtime?: {
+      entry?: string
+      target?: string
+      platform?: string
+      arch?: string
+      node?: string
+      bun?: string
+      cmd?: string
+    }
+    remote?: {
+      id: string
+      releaseID?: string
+      sessionID?: string
+      title?: string
+      shareURL?: string
+      path: string
+      compose?: string
+      site?: string
+      archive?: string
+      host?: string
+      url?: string
+      publicPort?: number
+      branch?: string
+      commit?: string
+      createdAt: number
+      promotedAt?: number
+    }
+    deployedAt?: number
+    createdAt: number
+  }
+}
+
+export type BuilderReleaseResponse = BuilderReleaseResponses[keyof BuilderReleaseResponses]
+
+export type BuilderDeployData = {
+  body?: {
+    environmentID?: string
+    releaseID?: string
+    sessionID?: string
+    host?: string
+    port?: number
+    user: string
+    password: string
+    path?: string
+    publicPort?: number
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/builder/deploy"
+}
+
+export type BuilderDeployErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type BuilderDeployError = BuilderDeployErrors[keyof BuilderDeployErrors]
+
+export type BuilderDeployResponses = {
+  /**
+   * Deployment result
+   */
+  200: {
+    deployID: string
+    revisionID?: string
+    releaseID?: string
+    host: string
+    port: number
+    path: string
+    publicPort: number
+    url: string
+    shareURL?: string
+    sessionID?: string
+    logs: Array<string>
+  }
+}
+
+export type BuilderDeployResponse = BuilderDeployResponses[keyof BuilderDeployResponses]
+
+export type BuilderRollbackData = {
+  body?: {
+    environmentID?: string
+    releaseID?: string
+    deployID?: string
+    revisionID?: string
+    host?: string
+    port?: number
+    user: string
+    password: string
+    path?: string
+    publicPort?: number
+    reason?: string
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/builder/rollback"
+}
+
+export type BuilderRollbackErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type BuilderRollbackError = BuilderRollbackErrors[keyof BuilderRollbackErrors]
+
+export type BuilderRollbackResponses = {
+  /**
+   * Rollback result
+   */
+  200: {
+    rollbackID: string
+    deployID: string
+    revisionID?: string
+    releaseID?: string
+    fromDeployID?: string
+    toDeployID?: string
+    host: string
+    port: number
+    path: string
+    publicPort: number
+    url: string
+    logs: Array<string>
+  }
+}
+
+export type BuilderRollbackResponse = BuilderRollbackResponses[keyof BuilderRollbackResponses]
+
+export type BuilderAnnotationData = {
+  body?: {
+    file: string
+    note: string
+    start?: number
+    end?: number
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/builder/annotation"
+}
+
+export type BuilderAnnotationErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type BuilderAnnotationError = BuilderAnnotationErrors[keyof BuilderAnnotationErrors]
+
+export type BuilderAnnotationResponses = {
+  /**
+   * Recorded annotation
+   */
+  200: {
+    id: string
+    file: string
+    note: string
+    start?: number
+    end?: number
+    createdAt: number
+  }
+}
+
+export type BuilderAnnotationResponse = BuilderAnnotationResponses[keyof BuilderAnnotationResponses]
+
 export type ProjectListData = {
   body?: never
   path?: never
@@ -2998,6 +4873,141 @@ export type SessionChildrenResponses = {
 
 export type SessionChildrenResponse = SessionChildrenResponses[keyof SessionChildrenResponses]
 
+export type SessionTaskGetData = {
+  body?: never
+  path: {
+    sessionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/session/{sessionID}/task"
+}
+
+export type SessionTaskGetErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type SessionTaskGetError = SessionTaskGetErrors[keyof SessionTaskGetErrors]
+
+export type SessionTaskGetResponses = {
+  /**
+   * Task state
+   */
+  200:
+    | {
+        ok: boolean
+        fsm_state:
+          | "IDLE"
+          | "DISCOVERY"
+          | "PLAN_DRAFT"
+          | "PLAN_LOCKED"
+          | "EXECUTION"
+          | "VERIFICATION"
+          | "COMPLETE"
+          | "BLOCKED"
+        mode: "PLANNING" | "EXECUTION" | "VERIFICATION"
+        task_json_version: number
+        artifacts?: {
+          task_json: string
+          task_md: string
+          implementation_plan: string
+          verification: string
+          resume: string
+          knowledge: string
+          exists: {
+            [key: string]: boolean
+          }
+        }
+        error?: string | null
+      }
+    | unknown
+}
+
+export type SessionTaskGetResponse = SessionTaskGetResponses[keyof SessionTaskGetResponses]
+
+export type SessionTaskBoundaryData = {
+  body?: {
+    run_id: string
+    action:
+      | "start"
+      | "set_mode"
+      | "mark_item"
+      | "lock_plan"
+      | "reopen_plan"
+      | "begin_execution"
+      | "request_verification"
+      | "block"
+      | "complete"
+    payload?: {
+      [key: string]: unknown
+    }
+  }
+  path: {
+    sessionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/session/{sessionID}/task/boundary"
+}
+
+export type SessionTaskBoundaryErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type SessionTaskBoundaryError = SessionTaskBoundaryErrors[keyof SessionTaskBoundaryErrors]
+
+export type SessionTaskBoundaryResponses = {
+  /**
+   * Boundary response
+   */
+  200: {
+    ok: boolean
+    fsm_state:
+      | "IDLE"
+      | "DISCOVERY"
+      | "PLAN_DRAFT"
+      | "PLAN_LOCKED"
+      | "EXECUTION"
+      | "VERIFICATION"
+      | "COMPLETE"
+      | "BLOCKED"
+    mode: "PLANNING" | "EXECUTION" | "VERIFICATION"
+    task_json_version: number
+    artifacts?: {
+      task_json: string
+      task_md: string
+      implementation_plan: string
+      verification: string
+      resume: string
+      knowledge: string
+      exists: {
+        [key: string]: boolean
+      }
+    }
+    error?: string | null
+  }
+}
+
+export type SessionTaskBoundaryResponse = SessionTaskBoundaryResponses[keyof SessionTaskBoundaryResponses]
+
 export type SessionTodoData = {
   body?: never
   path: {
@@ -3750,6 +5760,20 @@ export type PermissionRespondResponses = {
 
 export type PermissionRespondResponse = PermissionRespondResponses[keyof PermissionRespondResponses]
 
+export type SessionToolOutputData = {
+  body?: never
+  path: {
+    sessionID: string
+    messageID: string
+    partID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/session/{sessionID}/tool-output/{messageID}/{partID}"
+}
+
 export type PermissionReplyData = {
   body?: {
     reply: "once" | "always" | "reject"
@@ -3983,6 +6007,503 @@ export type ProviderListResponses = {
 }
 
 export type ProviderListResponse = ProviderListResponses[keyof ProviderListResponses]
+
+export type ProviderSummaryData = {
+  body?: never
+  path: {
+    /**
+     * Provider ID
+     */
+    providerID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/provider/{providerID}/summary"
+}
+
+export type ProviderSummaryErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type ProviderSummaryError = ProviderSummaryErrors[keyof ProviderSummaryErrors]
+
+export type ProviderSummaryResponses = {
+  /**
+   * Provider summary
+   */
+  200: {
+    providerID: string
+    name: string
+    connected: boolean
+    defaultModel?: string
+    project: {
+      id: string
+      name?: string
+      worktree: string
+      directory: string
+    }
+    latestSession?: {
+      id: string
+      title: string
+      updated: number
+      shareURL?: string
+    }
+    usage: {
+      totalSessions: number
+      totalMessages: number
+      totalCost: number
+      totalTokens: {
+        input: number
+        output: number
+        reasoning: number
+        cache: {
+          read: number
+          write: number
+        }
+      }
+      days: number
+      lastUpdated?: number
+      topModels: Array<{
+        id: string
+        name: string
+        messages: number
+        cost: number
+        tokens: {
+          input: number
+          output: number
+          cache: {
+            read: number
+            write: number
+          }
+        }
+      }>
+    }
+    models: Array<{
+      id: string
+      name: string
+      context: number | null
+      output: number | null
+      status: string
+      releaseDate: string
+      default: boolean
+    }>
+  }
+}
+
+export type ProviderSummaryResponse = ProviderSummaryResponses[keyof ProviderSummaryResponses]
+
+export type ProviderUnpublishData = {
+  body?: {
+    sessionID?: string
+  }
+  path: {
+    providerID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/provider/{providerID}/publish"
+}
+
+export type ProviderUnpublishErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type ProviderUnpublishError = ProviderUnpublishErrors[keyof ProviderUnpublishErrors]
+
+export type ProviderUnpublishResponses = {
+  /**
+   * Unpublished session
+   */
+  200: boolean
+}
+
+export type ProviderUnpublishResponse = ProviderUnpublishResponses[keyof ProviderUnpublishResponses]
+
+export type ProviderPublishData = {
+  body?: {
+    sessionID?: string
+  }
+  path: {
+    providerID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/provider/{providerID}/publish"
+}
+
+export type ProviderPublishErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type ProviderPublishError = ProviderPublishErrors[keyof ProviderPublishErrors]
+
+export type ProviderPublishResponses = {
+  /**
+   * Published session
+   */
+  200: {
+    sessionID: string
+    shareURL: string
+  }
+}
+
+export type ProviderPublishResponse = ProviderPublishResponses[keyof ProviderPublishResponses]
+
+export type ProviderDeployData = {
+  body?: {
+    host: string
+    port?: number
+    user: string
+    password: string
+    path: string
+    publicPort?: number
+    environmentID?: string
+    release: {
+      id: string
+      releaseID?: string
+      sessionID?: string
+      title?: string
+      shareURL?: string
+      branch?: string
+      commit?: string
+    }
+    archive: {
+      file: string
+      name: string
+      count: number
+      root: string
+      size: number
+    }
+    runtime: {
+      pm: string
+      install: string
+      build?: string
+      start: string
+      detected?: string
+      supervisor: {
+        kind: "pm2"
+        name: string
+        file: string
+        start: string
+        stop: string
+        save: string
+        status: string
+      }
+    }
+    vars?: {
+      [key: string]: string
+    }
+  }
+  path: {
+    providerID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/provider/{providerID}/deploy"
+}
+
+export type ProviderDeployErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type ProviderDeployError = ProviderDeployErrors[keyof ProviderDeployErrors]
+
+export type ProviderDeployResponses = {
+  /**
+   * Remote deployment result
+   */
+  200: {
+    remote: {
+      id: string
+      releaseID?: string
+      sessionID?: string
+      title?: string
+      shareURL?: string
+      path: string
+      compose?: string
+      site?: string
+      archive?: string
+      host?: string
+      url?: string
+      publicPort?: number
+      branch?: string
+      commit?: string
+      createdAt: number
+      promotedAt?: number
+    }
+    promotion: {
+      layout: {
+        root: string
+        releases: string
+        current: string
+        shared: string
+      }
+      previous?: {
+        id: string
+        releaseID?: string
+        sessionID?: string
+        title?: string
+        shareURL?: string
+        path: string
+        compose?: string
+        site?: string
+        archive?: string
+        host?: string
+        url?: string
+        publicPort?: number
+        branch?: string
+        commit?: string
+        createdAt: number
+        promotedAt?: number
+      }
+      current: {
+        id: string
+        releaseID?: string
+        sessionID?: string
+        title?: string
+        shareURL?: string
+        path: string
+        compose?: string
+        site?: string
+        archive?: string
+        host?: string
+        url?: string
+        publicPort?: number
+        branch?: string
+        commit?: string
+        createdAt: number
+        promotedAt?: number
+      }
+    }
+    shareURL?: string
+    logs: Array<string>
+    supervisor?: {
+      ptyID?: string
+      pid?: number
+      name?: string
+      status?: "idle" | "starting" | "running" | "stopped" | "failed"
+    }
+  }
+}
+
+export type ProviderDeployResponse = ProviderDeployResponses[keyof ProviderDeployResponses]
+
+export type ProviderRollbackData = {
+  body?: {
+    host: string
+    port?: number
+    user: string
+    password: string
+    current: {
+      deployID?: string
+      releaseID?: string
+      promotion: {
+        layout: {
+          root: string
+          releases: string
+          current: string
+          shared: string
+        }
+        previous?: {
+          id: string
+          releaseID?: string
+          sessionID?: string
+          title?: string
+          shareURL?: string
+          path: string
+          compose?: string
+          site?: string
+          archive?: string
+          host?: string
+          url?: string
+          publicPort?: number
+          branch?: string
+          commit?: string
+          createdAt: number
+          promotedAt?: number
+        }
+        current: {
+          id: string
+          releaseID?: string
+          sessionID?: string
+          title?: string
+          shareURL?: string
+          path: string
+          compose?: string
+          site?: string
+          archive?: string
+          host?: string
+          url?: string
+          publicPort?: number
+          branch?: string
+          commit?: string
+          createdAt: number
+          promotedAt?: number
+        }
+      }
+      supervisor?: {
+        ptyID?: string
+        pid?: number
+        name?: string
+        status?: "idle" | "starting" | "running" | "stopped" | "failed"
+      }
+    }
+    target: {
+      deployID?: string
+      releaseID?: string
+      revisionID?: string
+      remote: {
+        id: string
+        releaseID?: string
+        sessionID?: string
+        title?: string
+        shareURL?: string
+        path: string
+        compose?: string
+        site?: string
+        archive?: string
+        host?: string
+        url?: string
+        publicPort?: number
+        branch?: string
+        commit?: string
+        createdAt: number
+        promotedAt?: number
+      }
+      supervisor?: {
+        ptyID?: string
+        pid?: number
+        name?: string
+        status?: "idle" | "starting" | "running" | "stopped" | "failed"
+      }
+    }
+    reason?: string
+  }
+  path: {
+    providerID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/provider/{providerID}/rollback"
+}
+
+export type ProviderRollbackErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type ProviderRollbackError = ProviderRollbackErrors[keyof ProviderRollbackErrors]
+
+export type ProviderRollbackResponses = {
+  /**
+   * Remote rollback result
+   */
+  200: {
+    remote: {
+      id: string
+      releaseID?: string
+      sessionID?: string
+      title?: string
+      shareURL?: string
+      path: string
+      compose?: string
+      site?: string
+      archive?: string
+      host?: string
+      url?: string
+      publicPort?: number
+      branch?: string
+      commit?: string
+      createdAt: number
+      promotedAt?: number
+    }
+    promotion: {
+      layout: {
+        root: string
+        releases: string
+        current: string
+        shared: string
+      }
+      previous?: {
+        id: string
+        releaseID?: string
+        sessionID?: string
+        title?: string
+        shareURL?: string
+        path: string
+        compose?: string
+        site?: string
+        archive?: string
+        host?: string
+        url?: string
+        publicPort?: number
+        branch?: string
+        commit?: string
+        createdAt: number
+        promotedAt?: number
+      }
+      current: {
+        id: string
+        releaseID?: string
+        sessionID?: string
+        title?: string
+        shareURL?: string
+        path: string
+        compose?: string
+        site?: string
+        archive?: string
+        host?: string
+        url?: string
+        publicPort?: number
+        branch?: string
+        commit?: string
+        createdAt: number
+        promotedAt?: number
+      }
+    }
+    logs: Array<string>
+    supervisor?: {
+      ptyID?: string
+      pid?: number
+      name?: string
+      status?: "idle" | "starting" | "running" | "stopped" | "failed"
+    }
+  }
+}
+
+export type ProviderRollbackResponse = ProviderRollbackResponses[keyof ProviderRollbackResponses]
 
 export type ProviderAuthData = {
   body?: never

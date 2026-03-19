@@ -21,38 +21,43 @@ export namespace SessionRevert {
   })
   export type RevertInput = z.infer<typeof RevertInput>
 
-  export async function revert(input: RevertInput) {
-    SessionPrompt.assertNotBusy(input.sessionID)
+  async function resolve(input: RevertInput) {
     const all = await Session.messages({ sessionID: input.sessionID })
     let lastUser: MessageV2.User | undefined
-    const session = await Session.get(input.sessionID)
-
     let revert: Session.Info["revert"]
     const patches: Snapshot.Patch[] = []
+
     for (const msg of all) {
       if (msg.info.role === "user") lastUser = msg.info
-      const remaining = []
+      const kept = []
       for (const part of msg.parts) {
         if (revert) {
-          if (part.type === "patch") {
-            patches.push(part)
-          }
+          if (part.type === "patch") patches.push(part)
           continue
         }
 
-        if (!revert) {
-          if ((msg.info.id === input.messageID && !input.partID) || part.id === input.partID) {
-            // if no useful parts left in message, same as reverting whole message
-            const partID = remaining.some((item) => ["text", "tool"].includes(item.type)) ? input.partID : undefined
-            revert = {
-              messageID: !partID && lastUser ? lastUser.id : msg.info.id,
-              partID,
-            }
+        if ((msg.info.id === input.messageID && !input.partID) || part.id === input.partID) {
+          const partID = kept.some((item) => ["text", "tool"].includes(item.type)) ? input.partID : undefined
+          revert = {
+            messageID: !partID && lastUser ? lastUser.id : msg.info.id,
+            partID,
           }
-          remaining.push(part)
         }
+        kept.push(part)
       }
     }
+
+    return {
+      all,
+      patches,
+      revert,
+    }
+  }
+
+  export async function revert(input: RevertInput) {
+    SessionPrompt.assertNotBusy(input.sessionID)
+    const session = await Session.get(input.sessionID)
+    const { all, patches, revert } = await resolve(input)
 
     if (revert) {
       const session = await Session.get(input.sessionID)
