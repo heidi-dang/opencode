@@ -17,6 +17,9 @@ import { Filesystem } from "../util/filesystem"
 import { Instance } from "../project/instance"
 import { Snapshot } from "@/snapshot"
 import { assertExternalDirectory } from "./external-directory"
+import { HeidiState } from "@/heidi/state"
+import { HeidiExec } from "@/heidi/exec"
+import { HeidiJail } from "@/heidi/jail"
 
 const MAX_DIAGNOSTICS_PER_FILE = 20
 
@@ -42,6 +45,11 @@ export const EditTool = Tool.define("edit", {
     replaceAll: z.boolean().optional().describe("Replace all occurrences of oldString (default false)"),
   }),
   async execute(params, ctx) {
+    const state = await HeidiState.ensure(ctx.sessionID, "")
+    if (state.fsm_state !== "EXECUTION" && state.fsm_state !== "VERIFICATION") {
+      throw new Error(`edit is only available in EXECUTION or VERIFICATION. Current state: ${state.fsm_state}`)
+    }
+
     if (!params.filePath) {
       throw new Error("filePath is required")
     }
@@ -51,16 +59,57 @@ export const EditTool = Tool.define("edit", {
     }
 
     const filePath = path.isAbsolute(params.filePath) ? params.filePath : path.join(Instance.directory, params.filePath)
+    HeidiJail.assert(filePath)
     await assertExternalDirectory(ctx, filePath)
 
     let diff = ""
     let contentOld = ""
     let contentNew = ""
-    await FileTime.withLock(filePath, async () => {
-      if (params.oldString === "") {
-        const existed = await Filesystem.exists(filePath)
-        contentNew = params.newString
-        diff = trimDiff(createTwoFilesPatch(filePath, filePath, contentOld, contentNew))
+    let filediff: Snapshot.FileDiff | undefined
+    const checkpoint = await HeidiExec.checkpoint(ctx.sessionID, `edit:${filePath}`, [filePath])
+    try {
+      await FileTime.withLock(filePath, async () => {
+        if (params.oldString === "") {
+          const existed = await Filesystem.exists(filePath)
+          contentNew = params.newString
+          diff = trimDiff(createTwoFilesPatch(filePath, filePath, contentOld, contentNew))
+          await ctx.ask({
+            permission: "edit",
+            patterns: [path.relative(Instance.worktree, filePath)],
+            always: ["*"],
+            metadata: {
+              filepath: filePath,
+              diff,
+            },
+          })
+          await Filesystem.write(filePath, params.newString)
+          await HeidiExec.changed(ctx.sessionID, [filePath])
+          await Bus.publish(File.Event.Edited, {
+            file: filePath,
+          })
+          await Bus.publish(FileWatcher.Event.Updated, {
+            file: filePath,
+            event: existed ? "change" : "add",
+          })
+          await FileTime.read(ctx.sessionID, filePath)
+          return
+        }
+
+        const stats = Filesystem.stat(filePath)
+        if (!stats) throw new Error(`File ${filePath} not found`)
+        if (stats.isDirectory()) throw new Error(`Path is a directory, not a file: ${filePath}`)
+        await FileTime.assert(ctx.sessionID, filePath)
+        contentOld = await Filesystem.readText(filePath)
+
+        const ending = detectLineEnding(contentOld)
+        const old = convertToLineEnding(normalizeLineEndings(params.oldString), ending)
+        const next = convertToLineEnding(normalizeLineEndings(params.newString), ending)
+
+        contentNew = replace(contentOld, old, next, params.replaceAll)
+
+        diff = trimDiff(
+          createTwoFilesPatch(filePath, filePath, normalizeLineEndings(contentOld), normalizeLineEndings(contentNew)),
+        )
         await ctx.ask({
           permission: "edit",
           patterns: [path.relative(Instance.worktree, filePath)],
@@ -70,77 +119,47 @@ export const EditTool = Tool.define("edit", {
             diff,
           },
         })
-        await Filesystem.write(filePath, params.newString)
+
+        await Filesystem.write(filePath, contentNew)
+        await HeidiExec.changed(ctx.sessionID, [filePath])
         await Bus.publish(File.Event.Edited, {
           file: filePath,
         })
         await Bus.publish(FileWatcher.Event.Updated, {
           file: filePath,
-          event: existed ? "change" : "add",
+          event: "change",
         })
+        contentNew = await Filesystem.readText(filePath)
+        diff = trimDiff(
+          createTwoFilesPatch(filePath, filePath, normalizeLineEndings(contentOld), normalizeLineEndings(contentNew)),
+        )
         await FileTime.read(ctx.sessionID, filePath)
-        return
+      })
+
+      filediff = {
+        file: filePath,
+        before: contentOld,
+        after: contentNew,
+        additions: 0,
+        deletions: 0,
+      }
+      for (const change of diffLines(contentOld, contentNew)) {
+        if (change.added) filediff.additions += change.count || 0
+        if (change.removed) filediff.deletions += change.count || 0
       }
 
-      const stats = Filesystem.stat(filePath)
-      if (!stats) throw new Error(`File ${filePath} not found`)
-      if (stats.isDirectory()) throw new Error(`Path is a directory, not a file: ${filePath}`)
-      await FileTime.assert(ctx.sessionID, filePath)
-      contentOld = await Filesystem.readText(filePath)
-
-      const ending = detectLineEnding(contentOld)
-      const old = convertToLineEnding(normalizeLineEndings(params.oldString), ending)
-      const next = convertToLineEnding(normalizeLineEndings(params.newString), ending)
-
-      contentNew = replace(contentOld, old, next, params.replaceAll)
-
-      diff = trimDiff(
-        createTwoFilesPatch(filePath, filePath, normalizeLineEndings(contentOld), normalizeLineEndings(contentNew)),
-      )
-      await ctx.ask({
-        permission: "edit",
-        patterns: [path.relative(Instance.worktree, filePath)],
-        always: ["*"],
+      ctx.metadata({
         metadata: {
-          filepath: filePath,
           diff,
+          filediff,
+          diagnostics: {},
+          checkpoint,
         },
       })
-
-      await Filesystem.write(filePath, contentNew)
-      await Bus.publish(File.Event.Edited, {
-        file: filePath,
-      })
-      await Bus.publish(FileWatcher.Event.Updated, {
-        file: filePath,
-        event: "change",
-      })
-      contentNew = await Filesystem.readText(filePath)
-      diff = trimDiff(
-        createTwoFilesPatch(filePath, filePath, normalizeLineEndings(contentOld), normalizeLineEndings(contentNew)),
-      )
-      await FileTime.read(ctx.sessionID, filePath)
-    })
-
-    const filediff: Snapshot.FileDiff = {
-      file: filePath,
-      before: contentOld,
-      after: contentNew,
-      additions: 0,
-      deletions: 0,
+    } catch (err) {
+      await HeidiExec.rollback(ctx.sessionID, checkpoint)
+      throw err
     }
-    for (const change of diffLines(contentOld, contentNew)) {
-      if (change.added) filediff.additions += change.count || 0
-      if (change.removed) filediff.deletions += change.count || 0
-    }
-
-    ctx.metadata({
-      metadata: {
-        diff,
-        filediff,
-        diagnostics: {},
-      },
-    })
 
     let output = "Edit applied successfully."
     await LSP.touchFile(filePath, true)

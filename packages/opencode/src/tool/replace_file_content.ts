@@ -6,6 +6,7 @@ import { Instance } from "@/project/instance"
 import { assertExternalDirectory } from "./external-directory"
 import { HeidiState } from "@/heidi/state"
 import { HeidiExec } from "@/heidi/exec"
+import { HeidiJail } from "@/heidi/jail"
 
 const Item = z.object({
   path: z.string(),
@@ -34,8 +35,8 @@ export const ReplaceFileContentTool = Tool.define("replace_file_content", {
   }),
   async execute(params, ctx) {
     const state = await HeidiState.ensure(ctx.sessionID, "")
-    if (state.fsm_state !== "EXECUTION") {
-      throw new Error(`replace_file_content is only available in EXECUTION. Current state: ${state.fsm_state}`)
+    if (state.fsm_state !== "EXECUTION" && state.fsm_state !== "VERIFICATION") {
+      throw new Error(`replace_file_content is only available in EXECUTION or VERIFICATION. Current state: ${state.fsm_state}`)
     }
 
     const edits =
@@ -56,6 +57,7 @@ export const ReplaceFileContentTool = Tool.define("replace_file_content", {
     const next = [] as { path: string; before: string; after: string }[]
     for (const item of edits) {
       const file = path.isAbsolute(item.path) ? item.path : path.join(Instance.directory, item.path)
+      HeidiJail.assert(file)
       await assertExternalDirectory(ctx, file)
       const before = await Filesystem.readText(file)
       if (item.anchor && !before.includes(item.anchor)) {
