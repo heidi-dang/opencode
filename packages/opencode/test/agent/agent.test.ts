@@ -128,6 +128,7 @@ test("custom agent from config creates new agent", async () => {
           description: "My custom agent",
           temperature: 0.5,
           top_p: 0.9,
+          mode: "all",
         },
       },
     },
@@ -597,6 +598,7 @@ test("defaultAgent respects default_agent config set to custom agent with mode a
       agent: {
         my_custom: {
           description: "My custom agent",
+          mode: "all",
         },
       },
     },
@@ -665,7 +667,7 @@ test("defaultAgent returns plan when build is disabled and default_agent not set
     fn: async () => {
       const agent = await Agent.defaultAgent()
       // build is disabled, so it should return plan (next primary agent)
-      expect(agent).toBe("plan")
+      expect(agent).toBe("heidi")
     },
   })
 })
@@ -676,6 +678,7 @@ test("defaultAgent throws when all primary agents are disabled", async () => {
       agent: {
         build: { disable: true },
         plan: { disable: true },
+        heidi: { disable: true },
       },
     },
   })

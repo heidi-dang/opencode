@@ -160,8 +160,8 @@ export namespace Config {
       )
 
       result.command = mergeDeep(result.command ?? {}, await loadCommand(dir))
-      result.agent = mergeDeep(result.agent, await loadAgent(dir))
-      result.agent = mergeDeep(result.agent, await loadMode(dir))
+      result.agent = mergeDeep(await loadAgent(dir), result.agent)
+      result.agent = mergeDeep(await loadMode(dir), result.agent)
       result.plugin.push(...(await loadPlugin(dir)))
     }
 
