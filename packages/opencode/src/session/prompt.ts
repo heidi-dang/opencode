@@ -85,10 +85,12 @@ export namespace SessionPrompt {
       | {
           mode: "read_only"
           files: []
+          reserved: string[]
         }
       | {
           mode: "exclusive_edit"
           files: string[]
+          reserved: string[]
         }
   }
 
@@ -146,13 +148,15 @@ export namespace SessionPrompt {
     const text = input.text.toLowerCase()
     const files = collectParallelFiles({ parts: input.parts })
     const edit = EDIT_TERMS.some((term) => text.includes(term))
-    if (edit && files.length > 0 && files.length <= 3) {
+    if (edit && files.length > 1 && files.length <= 4) {
+      const split = Math.max(1, Math.floor(files.length / 2))
       return {
         lane: "implementation",
         description: PARALLEL_IMPLEMENTATION_DESCRIPTION,
         ownership: {
           mode: "exclusive_edit",
-          files,
+          files: files.slice(0, split),
+          reserved: files.slice(split),
         },
       }
     }
@@ -162,6 +166,7 @@ export namespace SessionPrompt {
       ownership: {
         mode: "read_only",
         files: [],
+        reserved: files,
       },
     }
   }
@@ -172,6 +177,9 @@ export namespace SessionPrompt {
       input.task.ownership.mode === "exclusive_edit"
         ? `Research first, then you may edit only these exclusive files if needed: ${input.task.ownership.files.join(", ")}`
         : "Do read/search/research only. Do not edit shared files.",
+      input.task.ownership.reserved.length
+        ? `Heidi keeps ownership of these reserved files: ${input.task.ownership.reserved.join(", ")}`
+        : "Heidi currently has no reserved files for this split.",
       "Investigate the user's request below and return a structured report using these exact sections:",
       "## Summary",
       "## Files Read",
@@ -237,6 +245,11 @@ export namespace SessionPrompt {
             (line) => `- file: ${line.file || "unknown"} | action: ${line.action} | reason: ${line.reason}`,
           )
         : ["- None listed"]),
+      "",
+      "## Ownership Split",
+      ...(input.report.files.length
+        ? ["- Review Beast-owned and Heidi-reserved files before editing."]
+        : ["- No explicit split recorded"]),
       "",
       "## Beast Risks",
       ...(input.report.risks.length ? input.report.risks.map((line) => `- ${line}`) : ["- None listed"]),

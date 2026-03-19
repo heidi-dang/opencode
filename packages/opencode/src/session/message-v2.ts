@@ -217,6 +217,7 @@ export namespace MessageV2 {
       .object({
         mode: z.enum(["shared", "read_only", "exclusive_edit"]),
         files: z.array(z.string()),
+        reserved: z.array(z.string()).optional(),
       })
       .optional(),
     model: z
@@ -675,6 +676,11 @@ export namespace MessageV2 {
               userMessage.parts.push({
                 type: "text",
                 text: `This task had exclusive edit ownership for: ${part.ownership.files.join(", ")}`,
+              })
+            if (part.ownership?.reserved?.length)
+              userMessage.parts.push({
+                type: "text",
+                text: `Heidi reserved these files: ${part.ownership.reserved.join(", ")}`,
               })
           }
         }

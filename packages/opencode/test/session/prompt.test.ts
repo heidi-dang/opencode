@@ -239,6 +239,7 @@ describe("session.prompt parallel assist", () => {
         ownership: {
           mode: "read_only",
           files: [],
+          reserved: [],
         },
       },
     })
@@ -266,7 +267,8 @@ describe("session.prompt parallel assist", () => {
     expect(task.description).toBe(SessionPrompt.PARALLEL_IMPLEMENTATION_DESCRIPTION)
     expect(task.ownership).toEqual({
       mode: "exclusive_edit",
-      files: ["src/auth.ts", "src/token.ts"],
+      files: ["src/auth.ts"],
+      reserved: ["src/token.ts"],
     })
   })
 
@@ -280,6 +282,7 @@ describe("session.prompt parallel assist", () => {
     expect(task.ownership).toEqual({
       mode: "read_only",
       files: [],
+      reserved: [],
     })
   })
 
@@ -326,6 +329,7 @@ describe("session.prompt parallel assist", () => {
     expect(text).toContain("A Beast research lane completed")
     expect(text).toContain("## Beast Summary")
     expect(text).toContain("file: src/a.ts | action: edit | reason: refresh token before retry")
+    expect(text).toContain("## Ownership Split")
   })
 
   test("adds a beast research subtask for complex heidi prompts", async () => {
@@ -387,9 +391,11 @@ describe("session.prompt parallel assist", () => {
     expect(task.description).toBe(SessionPrompt.PARALLEL_IMPLEMENTATION_DESCRIPTION)
     expect(task.ownership).toEqual({
       mode: "exclusive_edit",
-      files: ["src/auth.ts", "src/token.ts"],
+      files: ["src/auth.ts"],
+      reserved: ["src/token.ts"],
     })
     expect(prompt).toContain("you may edit only these exclusive files")
-    expect(prompt).toContain("src/auth.ts, src/token.ts")
+    expect(prompt).toContain("src/auth.ts")
+    expect(prompt).toContain("Heidi keeps ownership of these reserved files: src/token.ts")
   })
 })

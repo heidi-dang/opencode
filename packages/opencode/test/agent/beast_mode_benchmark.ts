@@ -186,6 +186,7 @@ async function runBenchmarks() {
     { name: "Has lane metadata", pattern: /lane:\s*(z\.enum\(|"research")/ },
     { name: "Has ownership metadata", pattern: /ownership:\s*\{/ },
     { name: "Has auto exclusive assignment", pattern: /export function inferParallelTask/ },
+    { name: "Has reserved file split", pattern: /reserved:\s*/ },
     { name: "Has Beast report parser", pattern: /export function parseBeastReport/ },
     { name: "Has synthesis reminder", pattern: /export function buildSynthesisReminder/ },
     { name: "Has timing metadata", pattern: /duration_ms|timing:\s*\{/ },
