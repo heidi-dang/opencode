@@ -24,6 +24,15 @@
     "github-triage": false,
     "github-pr-search": false,
     "websearch": true,
-    "codesearch": true
+    "codesearch": true,
+    "repo_index_build": true,
+    "repo_index_query": true,
+    "repo_symbol_lookup": true,
+    "repo_related_code": true,
+    "py_index_repo": true,
+    "py_callgraph": true,
+    "py_find_owners": true,
+    "py_related_tests": true,
+    "py_rank_context": true
   },
 }

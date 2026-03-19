@@ -1,6 +1,6 @@
 ---
 mode: subagent
-model: xai/grok-4-1-fast
+model: github-copilot/gpt-5-mini
 color: "#9B59B6"
 description: Specialized in indexing the codebase and acting as the architectural brain for instant querying.
 permission:

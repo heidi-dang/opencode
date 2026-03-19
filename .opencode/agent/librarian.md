@@ -1,6 +1,6 @@
 ---
 mode: subagent
-model: xai/grok-4-1-fast
+model: github-copilot/gpt-5-mini
 color: "#1ABC9C"
 description: Post-pass memory extractor. Writes stable lessons from successful runs only.
 ---

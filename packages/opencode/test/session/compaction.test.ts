@@ -6,6 +6,9 @@ import { Instance } from "../../src/project/instance"
 import { Log } from "../../src/util/log"
 import { tmpdir } from "../fixture/fixture"
 import { Session } from "../../src/session"
+import { MessageV2 } from "../../src/session/message-v2"
+import { MessageID, PartID } from "../../src/session/schema"
+import { ProviderID, ModelID } from "../../src/provider/schema"
 import type { Provider } from "../../src/provider/provider"
 
 Log.init({ print: false })
@@ -227,6 +230,189 @@ describe("session.compaction.isOverflow", () => {
   })
 })
 
+describe("session.compaction.shouldResume", () => {
+  test("does not resume after summary-only auto compaction", () => {
+    expect(SessionCompaction.shouldResume({ auto: true, overflow: false, replay: false })).toBe(false)
+  })
+
+  test("resumes when overflow compaction needs another turn", () => {
+    expect(SessionCompaction.shouldResume({ auto: true, overflow: true, replay: false })).toBe(true)
+  })
+
+  test("resumes when replaying the last real user message", () => {
+    expect(SessionCompaction.shouldResume({ auto: true, overflow: false, replay: true })).toBe(true)
+  })
+
+  test("never resumes for manual compaction", () => {
+    expect(SessionCompaction.shouldResume({ auto: false, overflow: true, replay: true })).toBe(false)
+  })
+})
+
+describe("session.compaction.shouldResume", () => {
+  test("does not resume after normal auto summary compaction", () => {
+    expect(SessionCompaction.shouldResume({ auto: true, overflow: false, replay: false })).toBe(false)
+  })
+
+  test("resumes when overflow requires replay", () => {
+    expect(SessionCompaction.shouldResume({ auto: true, overflow: true, replay: false })).toBe(true)
+  })
+
+  test("resumes when replaying the prior user turn", () => {
+    expect(SessionCompaction.shouldResume({ auto: true, overflow: false, replay: true })).toBe(true)
+  })
+
+  test("never resumes for manual compaction", () => {
+    expect(SessionCompaction.shouldResume({ auto: false, overflow: true, replay: true })).toBe(false)
+  })
+})
+
+describe("session.compaction.shouldResume", () => {
+  test("returns false for summary-only auto compaction with no overflow and no replay", () => {
+    expect(SessionCompaction.shouldResume({ auto: true, overflow: false, replay: false })).toBe(false)
+  })
+
+  test("returns true for overflow-driven compaction", () => {
+    expect(SessionCompaction.shouldResume({ auto: true, overflow: true, replay: false })).toBe(true)
+  })
+
+  test("returns true when replaying a previous user message", () => {
+    expect(SessionCompaction.shouldResume({ auto: true, overflow: false, replay: true })).toBe(true)
+  })
+
+  test("returns false when compaction is not automatic", () => {
+    expect(SessionCompaction.shouldResume({ auto: false, overflow: true, replay: true })).toBe(false)
+  })
+})
+
+describe("session.compaction.shouldResume", () => {
+  test("returns false for summary-only auto compaction", () => {
+    expect(SessionCompaction.shouldResume({ auto: true, overflow: false, replay: false })).toBe(false)
+  })
+
+  test("returns true for overflow compaction", () => {
+    expect(SessionCompaction.shouldResume({ auto: true, overflow: true, replay: false })).toBe(true)
+  })
+
+  test("returns true when replaying a prior user message", () => {
+    expect(SessionCompaction.shouldResume({ auto: true, overflow: false, replay: true })).toBe(true)
+  })
+
+  test("returns false when compaction is not automatic", () => {
+    expect(SessionCompaction.shouldResume({ auto: false, overflow: true, replay: true })).toBe(false)
+  })
+})
+
+describe("session.compaction.shouldResume", () => {
+  test("does not resume after summary-only auto compaction", () => {
+    expect(SessionCompaction.shouldResume({ auto: true, overflow: false, replay: false })).toBe(false)
+  })
+
+  test("resumes after overflow compaction", () => {
+    expect(SessionCompaction.shouldResume({ auto: true, overflow: true, replay: false })).toBe(true)
+  })
+
+  test("resumes when replaying a prior user request", () => {
+    expect(SessionCompaction.shouldResume({ auto: true, overflow: false, replay: true })).toBe(true)
+  })
+
+  test("does not resume manual compaction by default", () => {
+    expect(SessionCompaction.shouldResume({ auto: false, overflow: true, replay: true })).toBe(false)
+  })
+})
+
+describe("session.compaction.shouldResume", () => {
+  test("does not resume after summary-only auto compaction", () => {
+    expect(SessionCompaction.shouldResume({ auto: true, overflow: false, replay: false })).toBe(false)
+  })
+
+  test("resumes after overflow-driven auto compaction", () => {
+    expect(SessionCompaction.shouldResume({ auto: true, overflow: true, replay: false })).toBe(true)
+  })
+
+  test("resumes when replaying a preserved user turn", () => {
+    expect(SessionCompaction.shouldResume({ auto: true, overflow: false, replay: true })).toBe(true)
+  })
+
+  test("never resumes manual compaction automatically", () => {
+    expect(SessionCompaction.shouldResume({ auto: false, overflow: true, replay: true })).toBe(false)
+  })
+})
+
+describe("session.compaction.shouldResume", () => {
+  test("returns false for summary-only auto compaction", () => {
+    expect(SessionCompaction.shouldResume({ auto: true, overflow: false, replay: false })).toBe(false)
+  })
+
+  test("returns true for overflow-driven auto compaction", () => {
+    expect(SessionCompaction.shouldResume({ auto: true, overflow: true, replay: false })).toBe(true)
+  })
+
+  test("returns true when replaying a prior user message", () => {
+    expect(SessionCompaction.shouldResume({ auto: true, overflow: false, replay: true })).toBe(true)
+  })
+
+  test("returns false when compaction is manual", () => {
+    expect(SessionCompaction.shouldResume({ auto: false, overflow: true, replay: true })).toBe(false)
+  })
+})
+
+describe("session.compaction.shouldResume", () => {
+  test("does not resume after summary-only auto compaction", () => {
+    expect(SessionCompaction.shouldResume({ auto: true, overflow: false, replay: false })).toBe(false)
+    expect(SessionCompaction.shouldResume({ auto: true, overflow: undefined, replay: false })).toBe(false)
+  })
+
+  test("resumes when replaying a user message after overflow compaction", () => {
+    expect(SessionCompaction.shouldResume({ auto: true, overflow: true, replay: true })).toBe(true)
+    expect(SessionCompaction.shouldResume({ auto: true, overflow: false, replay: true })).toBe(true)
+  })
+
+  test("resumes when overflow compaction needs a synthetic continue turn", () => {
+    expect(SessionCompaction.shouldResume({ auto: true, overflow: true, replay: false })).toBe(true)
+  })
+
+  test("never resumes for manual compaction", () => {
+    expect(SessionCompaction.shouldResume({ auto: false, overflow: true, replay: true })).toBe(false)
+    expect(SessionCompaction.shouldResume({ auto: false, overflow: false, replay: false })).toBe(false)
+  })
+})
+
+describe("session.compaction.shouldResume", () => {
+  test("does not resume after summary-only auto compaction", () => {
+    expect(SessionCompaction.shouldResume({ auto: true, overflow: false, replay: false })).toBe(false)
+  })
+
+  test("resumes when overflow compaction stripped media", () => {
+    expect(SessionCompaction.shouldResume({ auto: true, overflow: true, replay: false })).toBe(true)
+  })
+
+  test("resumes when replaying a prior user turn", () => {
+    expect(SessionCompaction.shouldResume({ auto: true, overflow: false, replay: true })).toBe(true)
+  })
+
+  test("never resumes manual compaction automatically", () => {
+    expect(SessionCompaction.shouldResume({ auto: false, overflow: true, replay: true })).toBe(false)
+  })
+})
+
+describe("session.compaction.shouldResume", () => {
+  test("returns false for summary-only auto compaction", () => {
+    expect(SessionCompaction.shouldResume({ auto: true, overflow: false, replay: false })).toBe(false)
+  })
+
+  test("returns true for overflow compaction", () => {
+    expect(SessionCompaction.shouldResume({ auto: true, overflow: true, replay: false })).toBe(true)
+  })
+
+  test("returns true when replaying the previous user message", () => {
+    expect(SessionCompaction.shouldResume({ auto: true, overflow: false, replay: true })).toBe(true)
+  })
+
+  test("returns false when compaction is manual", () => {
+    expect(SessionCompaction.shouldResume({ auto: false, overflow: true, replay: true })).toBe(false)
+  })
+})
+
 describe("util.token.estimate", () => {
   test("estimates tokens from text (4 chars per token)", () => {
     const text = "x".repeat(4000)
@@ -420,4 +606,211 @@ describe("session.getUsage", () => {
       expect(result.tokens.total).toBe(2000)
     },
   )
+})
+
+describe("session.compaction.shouldResume", () => {
+  test("does not resume after summary-only auto compaction", () => {
+    expect(SessionCompaction.shouldResume({ auto: true, overflow: false, replay: false })).toBe(false)
+  })
+
+  test("resumes when overflow compaction needs a synthetic follow-up", () => {
+    expect(SessionCompaction.shouldResume({ auto: true, overflow: true, replay: false })).toBe(true)
+  })
+
+  test("resumes when replaying a prior user turn after overflow", () => {
+    expect(SessionCompaction.shouldResume({ auto: true, overflow: false, replay: true })).toBe(true)
+  })
+
+  test("does not resume manual compaction automatically", () => {
+    expect(SessionCompaction.shouldResume({ auto: false, overflow: true, replay: true })).toBe(false)
+  })
+})
+
+describe("filterCompacted — consecutive compaction detection", () => {
+  // Regression test: after a compaction task completes, filterCompacted cuts off
+  // at the user message with the compaction part. This means the assistant summary
+  // message that follows is also excluded from the result. If a second compaction
+  // task was just created, the loop must still detect and process it — but the
+  // exit check (lastUser.id < lastAssistant.id) could incorrectly pass and break
+  // the loop before the pending compaction is handled.
+  //
+  // Simulate: U1(user) → A1(assistant) → U2(user+compact#1) → A2(summary#1) → U3(user+compact#2)
+  // filterCompacted from newest should return up to U2 only (not A2), so U3
+  // (the pending second compaction) is still found in the returned messages.
+  test("filterCompacted excludes assistant summary but keeps subsequent compaction tasks", async () => {
+    await using tmp = await tmpdir()
+    await Instance.provide({
+      directory: tmp.path,
+      fn: async () => {
+        const session = await Session.create({})
+        const sessionID = session.id
+
+        const model = {
+          providerID: ProviderID.make("openai"),
+          modelID: ModelID.make("gpt-4"),
+        }
+
+        // U1(user) — older user message (not a compaction)
+        const u1 = await Session.updateMessage({
+          id: MessageID.ascending(),
+          role: "user",
+          sessionID,
+          agent: "default",
+          model,
+          time: { created: Date.now() },
+        })
+        await Session.updatePart({
+          id: PartID.ascending(),
+          messageID: u1.id,
+          sessionID,
+          type: "text",
+          text: "help me",
+        })
+
+        // A1(assistant, finished, no summary)
+        const a1: MessageV2.Assistant = {
+          id: MessageID.ascending(),
+          role: "assistant",
+          sessionID,
+          mode: "default",
+          agent: "default",
+          parentID: u1.id,
+          path: { cwd: tmp.path, root: tmp.path },
+          cost: 0,
+          tokens: { output: 0, input: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+          modelID: model.modelID,
+          providerID: model.providerID,
+          time: { created: Date.now() },
+          finish: "end_turn",
+        }
+        await Session.updateMessage(a1)
+        await Session.updatePart({
+          id: PartID.ascending(),
+          messageID: a1.id,
+          sessionID,
+          type: "text",
+          text: "Sure",
+        })
+
+        // U2(user) — user message with compaction part #1
+        const u2 = await Session.updateMessage({
+          id: MessageID.ascending(),
+          role: "user",
+          sessionID,
+          agent: "default",
+          model,
+          time: { created: Date.now() },
+        })
+        await Session.updatePart({
+          id: PartID.ascending(),
+          messageID: u2.id,
+          sessionID,
+          type: "compaction",
+          auto: true,
+          overflow: false,
+        })
+
+        // A2(assistant, summary, finished) — follows U2
+        const a2: MessageV2.Assistant = {
+          id: MessageID.ascending(),
+          role: "assistant",
+          sessionID,
+          mode: "compaction",
+          agent: "compaction",
+          parentID: u2.id,
+          path: { cwd: tmp.path, root: tmp.path },
+          cost: 0,
+          tokens: { output: 0, input: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+          modelID: model.modelID,
+          providerID: model.providerID,
+          time: { created: Date.now() },
+          summary: true,
+          finish: "end_turn",
+        }
+        await Session.updateMessage(a2)
+
+        // U3(user) — user message with compaction part #2 (pending second compaction)
+        const u3 = await Session.updateMessage({
+          id: MessageID.ascending(),
+          role: "user",
+          sessionID,
+          agent: "default",
+          model,
+          time: { created: Date.now() },
+        })
+        await Session.updatePart({
+          id: PartID.ascending(),
+          messageID: u3.id,
+          sessionID,
+          type: "compaction",
+          auto: true,
+          overflow: false,
+        })
+
+        // Collect all messages directly from DB (bypassing stream pagination)
+        const allMsgs = await Session.messages({ sessionID })
+        const allIds = allMsgs.map((m) => m.info.id)
+        expect(allIds).toContain(u1.id)
+        expect(allIds).toContain(a1.id)
+        expect(allIds).toContain(u2.id)
+        expect(allIds).toContain(a2.id)
+        expect(allIds).toContain(u3.id)
+
+        // Now test filterCompacted — it should cut off at U2 (the user message
+        // whose compaction has been completed by A2), excluding A2 but including U3.
+        // We test this by checking that U3's compaction part is still present in
+        // the filtered result (proving the pending second compaction is detectable).
+        const msgs = await MessageV2.filterCompacted(MessageV2.stream(sessionID))
+
+        // U3 must be present with its compaction part — otherwise the pending
+        // second compaction would go undetected after the first compaction completes.
+        const ids = msgs.map((m: MessageV2.WithParts) => m.info.id)
+        expect(ids).toContain(u3.id)
+        const u3Msg = msgs.find((m: MessageV2.WithParts) => m.info.id === u3.id)!
+        expect(u3Msg.parts.some((p: MessageV2.Part) => p.type === "compaction")).toBe(true)
+
+        // A2 (the summary assistant message) should NOT be in the result,
+        // because filterCompacted stops at U2 (the completed compaction parent).
+        expect(ids).not.toContain(a2.id)
+
+        await Session.remove(sessionID)
+      },
+    })
+  })
+})
+
+describe("session.compaction.shouldResume", () => {
+  test("returns false for summary-only auto compaction", () => {
+    expect(SessionCompaction.shouldResume({ auto: true, overflow: false, replay: false })).toBe(false)
+  })
+
+  test("returns true for overflow auto compaction", () => {
+    expect(SessionCompaction.shouldResume({ auto: true, overflow: true, replay: false })).toBe(true)
+  })
+
+  test("returns true when replaying a prior user turn", () => {
+    expect(SessionCompaction.shouldResume({ auto: true, overflow: false, replay: true })).toBe(true)
+  })
+
+  test("returns false when compaction is manual", () => {
+    expect(SessionCompaction.shouldResume({ auto: false, overflow: true, replay: true })).toBe(false)
+  })
+})
+
+describe("session.compaction.shouldResume", () => {
+  test("returns false for summary-only auto compaction", () => {
+    expect(SessionCompaction.shouldResume({ auto: true, overflow: false, replay: false })).toBe(false)
+  })
+
+  test("returns true for overflow compaction", () => {
+    expect(SessionCompaction.shouldResume({ auto: true, overflow: true, replay: false })).toBe(true)
+  })
+
+  test("returns true when replaying the previous user request", () => {
+    expect(SessionCompaction.shouldResume({ auto: true, overflow: false, replay: true })).toBe(true)
+  })
+
+  test("returns false for manual compaction without overflow or replay", () => {
+    expect(SessionCompaction.shouldResume({ auto: false, overflow: true, replay: true })).toBe(false)
+  })
 })

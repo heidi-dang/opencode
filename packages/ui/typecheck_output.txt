@@ -1,0 +1,22 @@
+$ tsgo --noEmit
+src/components/file-ssr.tsx(95,11): error TS2345: Argument of type '{ collapsed?: boolean | undefined; disableVirtualizationBuffers?: boolean | undefined; preferredHighlighter?: HighlighterTypes | undefined; useCSSClasses?: boolean | undefined; ... 41 more ...; search?: FileSearchControl | undefined; }' is not assignable to parameter of type 'FileDiffOptions<T>'.
+  Types of property 'theme' are incompatible.
+    Type 'ThemeRegistration | ThemesType | DiffsThemeNames' is not assignable to type 'ThemesType | DiffsThemeNames | undefined'.
+      Type 'ThemeRegistration' is not assignable to type 'ThemesType | DiffsThemeNames | undefined'.
+src/components/file-ssr.tsx(105,11): error TS2345: Argument of type '{ collapsed?: boolean | undefined; disableVirtualizationBuffers?: boolean | undefined; preferredHighlighter?: HighlighterTypes | undefined; useCSSClasses?: boolean | undefined; ... 41 more ...; search?: FileSearchControl | undefined; }' is not assignable to parameter of type 'FileDiffOptions<T>'.
+  Types of property 'theme' are incompatible.
+    Type 'ThemeRegistration | ThemesType | DiffsThemeNames' is not assignable to type 'ThemesType | DiffsThemeNames | undefined'.
+      Type 'ThemeRegistration' is not assignable to type 'ThemesType | DiffsThemeNames | undefined'.
+src/components/file.tsx(858,36): error TS2345: Argument of type '{ collapsed?: boolean | undefined; disableVirtualizationBuffers?: boolean | undefined; preferredHighlighter?: HighlighterTypes | undefined; useCSSClasses?: boolean | undefined; ... 35 more ...; onLineSelectionEnd: (range: SelectedLineRange | null) => void; }' is not assignable to parameter of type 'FileOptions<T>'.
+  Types of property 'theme' are incompatible.
+    Type 'ThemeRegistration | ThemesType | DiffsThemeNames' is not assignable to type 'ThemesType | DiffsThemeNames | undefined'.
+      Type 'ThemeRegistration' is not assignable to type 'ThemesType | DiffsThemeNames | undefined'.
+src/components/file.tsx(859,31): error TS2345: Argument of type '{ collapsed?: boolean | undefined; disableVirtualizationBuffers?: boolean | undefined; preferredHighlighter?: HighlighterTypes | undefined; useCSSClasses?: boolean | undefined; ... 35 more ...; onLineSelectionEnd: (range: SelectedLineRange | null) => void; }' is not assignable to parameter of type 'FileOptions<T>'.
+  Types of property 'theme' are incompatible.
+    Type 'ThemeRegistration | ThemesType | DiffsThemeNames' is not assignable to type 'ThemesType | DiffsThemeNames | undefined'.
+      Type 'ThemeRegistration' is not assignable to type 'ThemesType | DiffsThemeNames | undefined'.
+src/components/file.tsx(1004,50): error TS2345: Argument of type '() => { collapsed?: boolean | undefined; disableVirtualizationBuffers?: boolean | undefined; preferredHighlighter?: HighlighterTypes | undefined; useCSSClasses?: boolean | undefined; ... 37 more ...; onLineSelectionEnd: (range: SelectedLineRange | null) => void; }' is not assignable to parameter of type 'EffectFunction<FileDiffOptions<T> | undefined, FileDiffOptions<T>>'.
+  Type '{ collapsed?: boolean | undefined; disableVirtualizationBuffers?: boolean | undefined; preferredHighlighter?: HighlighterTypes | undefined; useCSSClasses?: boolean | undefined; ... 37 more ...; onLineSelectionEnd: (range: SelectedLineRange | null) => void; }' is not assignable to type 'FileDiffOptions<T>'.
+    Types of property 'theme' are incompatible.
+      Type 'ThemeRegistration | ThemesType | DiffsThemeNames' is not assignable to type 'ThemesType | DiffsThemeNames | undefined'.
+        Type 'ThemeRegistration' is not assignable to type 'ThemesType | DiffsThemeNames | undefined'.

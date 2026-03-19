@@ -1,6 +1,6 @@
 ---
 mode: subagent
-model: xai/grok-4-1-fast
+model: github-copilot/gpt-5-mini
 color: "#8E44AD"
 description: Super-intelligent brain header. Orchestrates the loop, tunes stages, and manages emergency SWAT pivots.
 permission:

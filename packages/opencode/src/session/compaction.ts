@@ -19,6 +19,12 @@ import { ModelID, ProviderID } from "@/provider/schema"
 export namespace SessionCompaction {
   const log = Log.create({ service: "session.compaction" })
 
+  export function shouldResume(input: { auto: boolean; overflow?: boolean; replay: boolean }) {
+    if (!input.auto) return false
+    if (input.replay) return true
+    return input.overflow === true
+  }
+
   export const Event = {
     Compacted: BusEvent.define(
       "session.compacted",
@@ -233,7 +239,7 @@ When constructing the summary, try to stick to this template:
       return "stop"
     }
 
-    if (result === "continue" && input.auto) {
+    if (result === "continue" && shouldResume({ auto: input.auto, overflow: input.overflow, replay: !!replay })) {
       if (replay) {
         const original = replay.info as MessageV2.User
         const replayMsg = await Session.updateMessage({

@@ -119,7 +119,7 @@ export namespace ToolRegistry {
       CodeSearchTool,
       SkillTool,
       ApplyPatchTool,
-      ...(Flag.OPENCODE_EXPERIMENTAL_LSP_TOOL ? [LspTool] : []),
+      LspTool,
       ...(config.experimental?.batch_tool === true ? [BatchTool] : []),
       StepApprovalTool,
       RagSearchTool,

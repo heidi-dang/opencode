@@ -99,6 +99,7 @@ const sharedKeys = [
   "selectedLines",
   "commentedLines",
   "search",
+  "theme",
   "onLineSelected",
   "onLineSelectionEnd",
   "onLineNumberSelectionEnd",

@@ -1,6 +1,6 @@
 ---
 mode: subagent
-model: xai/grok-4-1-fast
+model: github-copilot/gpt-5-mini
 color: "#E74C3C"
 description: Escalation-only diagnostician. Reads evidence packs, returns ranked causes and next actions.
 permission:

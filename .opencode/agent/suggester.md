@@ -1,6 +1,6 @@
 ---
 mode: subagent
-model: xai/grok-4-1-fast
+model: github-copilot/gpt-5-mini
 color: "#F1C40F"
 description: Candidate task writer. Audits repo, triages issues, emits structured backlog items only.
 permission:

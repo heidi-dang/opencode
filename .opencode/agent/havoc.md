@@ -1,6 +1,6 @@
 ---
 mode: subagent
-model: xai/grok-4-1-fast
+model: github-copilot/gpt-5-mini
 color: "#C0392B"
 description: Specialized in Chaos Engineering, adversarial testing, and actively attempting to break newly written code.
 permission:
