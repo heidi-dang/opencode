@@ -1,0 +1,93 @@
+plan_id: heidi-10x
+objective: >
+  Elevate the reliability, trust, and evidence quality of the Heidi agent and toolchain by enforcing strict verification, plan-lock, browser proof, memory hygiene, and robust recovery mechanisms.
+
+assumptions:
+  - The codebase in src/heidi, src/tool, and test/heidi is the primary locus for agent logic, verification, and memory.
+  - Current browser verification is stubbed or incomplete.
+  - Plan-lock and evidence persistence are not strictly enforced.
+  - Resume/checkpoint/recovery logic exists but lacks rigorous reliability tests.
+  - Memory hygiene and trust controls are not comprehensive.
+
+risks:
+  - Evidence quality may be insufficient for strict completion gates.
+  - Plan-lock enforcement could be bypassed or drift-prone.
+  - Browser verification may remain superficial without executable proof.
+  - Memory hygiene lapses could undermine agent trust.
+  - Recovery logic may fail silently or lose state.
+
+tasks:
+  - id: T1
+    title: "Upgrade verification evidence and completion gate strictness"
+    wave: 1
+    dependencies: []
+    status: pending
+    suggested_agent: "GitHub Copilot"
+    summary: >
+      Refactor verification logic to require high-quality, persistent evidence for task completion; tighten completion gates to block on insufficient proof.
+    acceptance_criteria:
+      - Evidence artifacts are generated and persisted for all verification steps.
+      - Completion gates reject tasks without sufficient evidence.
+      - Tests cover edge cases for evidence validation.
+    validation: >
+      Run end-to-end tests; inspect evidence artifacts; attempt to bypass gates and confirm rejection.
+
+  - id: T2
+    title: "Enforce plan-lock and prevent drift"
+    wave: 1
+    dependencies: []
+    status: pending
+    suggested_agent: "GitHub Copilot"
+    summary: >
+      Implement strict plan-lock mechanisms to prevent unauthorized or accidental plan changes; monitor and alert on drift.
+    acceptance_criteria:
+      - Plan-lock is enforced at runtime and during edits.
+      - Drift detection triggers alerts and blocks execution.
+      - Tests simulate drift scenarios and verify enforcement.
+    validation: >
+      Attempt plan edits and drift; verify enforcement and alerting; review logs and test outcomes.
+
+  - id: T3
+    title: "Upgrade browser verification to executable proof with evidence persistence"
+    wave: 1
+    dependencies: []
+    status: pending
+    suggested_agent: "GitHub Copilot"
+    summary: >
+      Replace browser verification stubs with real executable verifiers; persist evidence of browser actions and results.
+    acceptance_criteria:
+      - Browser verifier executes real checks and persists results.
+      - Evidence is accessible and auditable.
+      - Tests validate browser proof and evidence storage.
+    validation: >
+      Run browser verification; inspect persisted evidence; audit logs and test results.
+
+  - id: T4
+    title: "Improve memory hygiene and trust controls"
+    wave: 1
+    dependencies: []
+    status: pending
+    suggested_agent: "GitHub Copilot"
+    summary: >
+      Audit and refactor memory management for hygiene; implement trust controls to prevent contamination and unauthorized access.
+    acceptance_criteria:
+      - Memory is sanitized and validated at checkpoints.
+      - Trust controls restrict access and log violations.
+      - Tests cover memory edge cases and trust breaches.
+    validation: >
+      Simulate memory contamination; verify hygiene and trust enforcement; review logs and test outcomes.
+
+  - id: T5
+    title: "Add reliability tests for resume, checkpoint, and recovery"
+    wave: 1
+    dependencies: []
+    status: pending
+    suggested_agent: "GitHub Copilot"
+    summary: >
+      Develop and run reliability tests for resume, checkpoint, and recovery logic; ensure robust state restoration and error handling.
+    acceptance_criteria:
+      - Resume, checkpoint, and recovery are tested under failure and edge conditions.
+      - State restoration is verified and logged.
+      - Tests cover all critical recovery scenarios.
+    validation: >
+      Run reliability tests; inspect state restoration logs; verify error handling and recovery outcomes.

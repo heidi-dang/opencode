@@ -44,6 +44,7 @@ async function pick(sessionID: SessionID, id?: string) {
 export namespace HeidiExec {
   export async function checkpoint(sessionID: SessionID, step: string, files: string[]) {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+      const step_id = typeof step === "string" && step.length > 0 ? step : "unknown"
     const worktree = Instance.worktree
 
     // Try Git-based checkpoint (hidden ref)
@@ -62,7 +63,7 @@ export namespace HeidiExec {
         await g(["update-ref", ref, sha])
         
         const state = await HeidiState.ensure(sessionID, "")
-        state.checkpoints.push({ id, step_id: step, files, created_at: now() })
+          state.checkpoints.push({ id, step_id, files, created_at: now() })
         state.resume.checkpoint_id = id
         await HeidiState.write(sessionID, state)
         return id
@@ -80,7 +81,7 @@ export namespace HeidiExec {
     )
     await Filesystem.writeJson(out, { id, step, files: snap, time: now() })
     const state = await HeidiState.ensure(sessionID, "")
-    state.checkpoints.push({ id, step_id: step, files, created_at: now() })
+      state.checkpoints.push({ id, step_id, files, created_at: now() })
     state.resume.checkpoint_id = id
     await HeidiState.write(sessionID, state)
     return id
@@ -147,7 +148,7 @@ export namespace HeidiExec {
 
   export async function commit(sessionID: SessionID) {
     const state = await HeidiState.read(sessionID)
-    state.resume.checkpoint_id = null
+    state.resume.checkpoint_id = checkpointId ?? null
     await HeidiState.write(sessionID, state)
     await HeidiState.updateResume(sessionID)
   }

@@ -42,6 +42,8 @@ export const TransparencyTool = Tool.define("transparency", {
         `Active Phase: ${currentPhase.name} [${currentPhase.status}]`,
         "",
         params.scope !== "transaction" ? `Long-term Memory: ${memory.length} items stored.` : "",
+        params.scope !== "transaction" && memory.length > 0 ? "Memory Items:" : "",
+        params.scope !== "transaction" && memory.length > 0 ? memory.slice(0, 5).map(m => `  - [${m.scope}] [${m.type}] [${m.trust ?? "unknown"}] ${m.key}: ${m.content}`).join("\n") : "",
         state?.resume?.checkpoint_id ? `Active Checkpoint: ${state.resume.checkpoint_id}` : "No active checkpoint.",
         state?.block_reason ? `Block Reason: ${state.block_reason}` : "",
       ].filter(Boolean).join("\n"),

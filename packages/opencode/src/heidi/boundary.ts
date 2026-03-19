@@ -181,6 +181,7 @@ export namespace HeidiBoundary {
 
     if (req.action === "begin_execution") {
       if (!state.plan.locked) throw new Error("Plan must be locked before execution")
+      await HeidiState.checkPlanDrift(req.task_id)
       move(state, "EXECUTION")
       state.last_successful_step = "begin_execution"
       state.next_transition = "EXECUTION->VERIFICATION"
@@ -188,7 +189,7 @@ export namespace HeidiBoundary {
     }
 
     if (req.action === "request_verification") {
-      await HeidiVerify.gate(req.task_id)
+      await HeidiVerify.preflight(req.task_id)
       move(state, "VERIFICATION")
       state.last_successful_step = "request_verification"
       state.next_transition = "VERIFICATION->COMPLETE"

@@ -13,8 +13,24 @@ export namespace HeidiMemory {
     key: string
     content: string
     scope?: "project" | "global"
+    trust?: "safe" | "unsafe" | "unknown"
   }
 
+  function detectUnsafe(content: string): "safe" | "unsafe" | "unknown" {
+    const unsafePatterns = [
+      /secret/i,
+      /password/i,
+      /token/i,
+      /api[_-]?key/i,
+      /PRIVATE[_-]?KEY/i,
+      /-----BEGIN/i,
+      /[A-Za-z0-9]{32,}/,
+    ]
+    for (const pat of unsafePatterns) {
+      if (pat.test(content)) return "unsafe"
+    }
+    return "safe"
+  }
   function projectFile() {
     return path.join(Instance.directory, ".opencode", "heidi", "memory.jsonl")
   }
@@ -23,17 +39,20 @@ export namespace HeidiMemory {
     return path.join(Global.Path.state, "heidi", "memory.jsonl")
   }
 
-  export async function add(sessionID: SessionID, item: Omit<Item, "timestamp" | "session_id">, scope: "project" | "global" = "project") {
+  export async function add(sessionID: SessionID, item: Omit<Item, "timestamp" | "session_id" | "trust">, scope: "project" | "global" = "project") {
+    const trust = detectUnsafe(item.content)
+    if (trust === "unsafe") {
+      throw new Error("Unsafe memory content detected; not stored.")
+    }
     const row: Item = {
       timestamp: new Date().toISOString(),
       session_id: sessionID,
       ...item,
+      trust,
     }
     const target = scope === "project" ? projectFile() : globalFile()
     const dir = path.dirname(target)
-    
     await fs.mkdir(dir, { recursive: true })
-    
     const line = JSON.stringify(row) + "\n"
     await fs.appendFile(target, line)
   }
@@ -51,6 +70,7 @@ export namespace HeidiMemory {
       for (const line of lines) {
         try {
           const item = JSON.parse(line) as Item
+          if (item.trust === "unsafe") continue
           if (item.key.toLowerCase().includes(text.toLowerCase()) || 
               item.content.toLowerCase().includes(text.toLowerCase()) || 
               item.type.toLowerCase().includes(text.toLowerCase())) {
@@ -70,7 +90,7 @@ export namespace HeidiMemory {
     return [
       "Here are some relevant long-term memories and patterns from previous sessions:",
       "<memory>",
-      ...recent.map(m => `  - [${m.scope}] [${m.type}] ${m.key}: ${m.content}`),
+      ...recent.map(m => `  - [${m.scope}] [${m.type}] [${m.trust ?? "unknown"}] ${m.key}: ${m.content}`),
       "</memory>",
     ].join("\n")
   }

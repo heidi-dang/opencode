@@ -67,7 +67,7 @@ export const TaskState = z.object({
   last_successful_step: z.string(),
   next_transition: z.string(),
   resume: z.object({
-    next_step: z.string(),
+    next_step: z.string().optional().nullable(),
     checkpoint_id: z.string().nullable(),
     failed_hypotheses: z.array(z.string()),
   }),
@@ -123,7 +123,7 @@ export const ResumeState = z.object({
   edited_files: z.array(z.string()),
   last_validations: z.array(z.string()),
   failed_hypotheses: z.array(z.string()),
-  next_step: z.string(),
+  next_step: z.string().optional(),
   checkpoint_ref: z.string().nullable(),
   narrative: z.string().optional(),
 })

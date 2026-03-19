@@ -8,6 +8,29 @@ import { HeidiExec } from "../../src/heidi/exec"
 import { Filesystem } from "../../src/util/filesystem"
 
 describe("heidi exec", () => {
+    test("rollback preserves usable resume metadata after failure", async () => {
+      await using tmp = await tmpdir({ git: true })
+      await Instance.provide({
+        directory: tmp.path,
+        fn: async () => {
+          const session = await Session.create({})
+          const file = path.join(tmp.path, "a.txt")
+          await Filesystem.write(file, "ok")
+          const checkpointId = await HeidiExec.checkpoint(session.id, undefined, [file])
+          await Filesystem.write(file, "bad")
+          await HeidiExec.cmd(session.id, {
+            cmd: "exit 1",
+            cwd: tmp.path,
+            profile: "app_local",
+            timeout: 1000,
+          })
+          // Resume metadata should reflect rollback
+          const state = await HeidiState.read(session.id)
+          expect(state.resume.checkpoint_id).toBe(checkpointId)
+          expect(await Filesystem.readText(file)).toBe("ok")
+        },
+      })
+    })
   test("denies read_only redirect writes", async () => {
     await using tmp = await tmpdir({ git: true })
     await Instance.provide({
@@ -40,7 +63,10 @@ describe("heidi exec", () => {
         const file = path.join(tmp.path, "a.txt")
         await Filesystem.write(file, "ok")
 
-        await HeidiExec.checkpoint(session.id, "s1", [file])
+        const checkpointId = await HeidiExec.checkpoint(session.id, undefined, [file])
+        expect(typeof checkpointId).toBe("string")
+        expect(checkpointId).not.toBeNull()
+        expect(checkpointId.length).toBeGreaterThan(0)
         await Filesystem.write(file, "bad")
 
         const result = await HeidiExec.cmd(session.id, {
@@ -52,6 +78,9 @@ describe("heidi exec", () => {
 
         expect(result.code).toBe(1)
         expect(await Filesystem.readText(file)).toBe("ok")
+        // Assert checkpoint_id in resume matches generated id
+        const state = await HeidiState.read(session.id)
+        expect(state.resume.checkpoint_id).toBe(checkpointId)
       },
     })
   })

@@ -43,7 +43,7 @@ export const MemoryTool = Tool.define("memory", {
       return {
         title: `Memory Search Results (${results.length})`,
         output: results.length > 0 
-          ? results.map(r => `[${r.timestamp}] [${r.scope}] [${r.type}] ${r.key}: ${r.content}`).join("\n---\n")
+          ? results.map(r => `[${r.timestamp}] [${r.scope}] [${r.type}] [${r.trust ?? "unknown"}] ${r.key}: ${r.content}`).join("\n---\n")
           : "No matching memories found.",
         metadata: { 
           count: results.length,

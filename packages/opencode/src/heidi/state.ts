@@ -212,6 +212,21 @@ export namespace HeidiState {
     await Filesystem.writeJson(verifyPath(sessionID), VerifyState.parse(verify))
   }
 
+  export async function readVerification(sessionID: SessionID) {
+    if (!(await Filesystem.exists(verifyPath(sessionID)))) return null
+    return VerifyState.parse(await Filesystem.readJson(verifyPath(sessionID)))
+  }
+  // Plan-lock drift detection
+  export async function checkPlanDrift(sessionID: SessionID) {
+    const state = await read(sessionID)
+    const plan = await Filesystem.readText(planPath(sessionID)).catch(() => "")
+    const hashNow = hash(plan)
+    if (state.plan.locked && state.plan.hash && hashNow !== state.plan.hash) {
+      throw new Error("plan-lock drift detected: plan has changed after lock")
+    }
+    return true
+  }
+
   export async function writeResume(sessionID: SessionID, resume: ResumeState) {
     await Filesystem.writeJson(resumePath(sessionID), ResumeState.parse(resume))
   }
@@ -220,6 +235,15 @@ export namespace HeidiState {
     const state = await read(sessionID)
     const done = state.checklist.filter((item) => item.status === "done").map((item) => item.id)
     const pending = state.checklist.filter((item) => item.status !== "done").map((item) => item.id)
+    let next_step = state.resume.next_step
+    // If checklist exists and all are done, clear next_step in both state and persisted task state
+    if (state.checklist.length > 0 && pending.length === 0) {
+      next_step = undefined
+      state.resume.next_step = undefined
+      // Persist cleared next_step in task state
+      await write(sessionID, state)
+    }
+    // If checklist is empty, preserve explicit next_step
     const resume: ResumeState = {
       run_id: state.run_id,
       task_id: state.task_id,
@@ -232,7 +256,7 @@ export namespace HeidiState {
       edited_files: state.changed_files,
       last_validations: state.verification_commands,
       failed_hypotheses: state.resume.failed_hypotheses,
-      next_step: state.resume.next_step,
+      next_step,
       checkpoint_ref: state.resume.checkpoint_id,
       narrative: `Heidi is in ${state.fsm_state} state (Mode: ${state.mode}). Completed ${done.length} items. Next transition: ${state.next_transition}. Last successful step: ${state.last_successful_step || "init"}.`,
     }
