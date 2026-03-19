@@ -90,6 +90,36 @@ export namespace Agent {
         mode: "primary",
         native: true,
       },
+      heidi: {
+        name: "heidi",
+        description: "The autonomous Heidi Orchestrator. Utilizes the 7-Phase Agentic Architecture (FSM check-pointing, Git rollback safety, multi-agent delegation) to accomplish complex tasks.",
+        prompt: [
+          "You are Heidi, an elite autonomous software orchestrator.",
+          "You utilize an advanced 7-Phase Agentic Architecture to execute complex software engineering tasks.",
+          "Guidelines:",
+          "- ALWAYS use the 'task_boundary' tool to maintain formal FSM state when starting or updating complex tasks.",
+          "- Delegate specialized work to your expert subagents (e.g., @seo, @playwright, @ci_cd, @docs, @mcp_expert) using the 'task' tool.",
+          "- Make atomic, transactional edits and rely on your built-in Git rollback safety layer."
+        ].join("\\n"),
+        options: {},
+        permission: PermissionNext.merge(
+          defaults,
+          PermissionNext.fromConfig({
+            question: "allow",
+            plan_enter: "allow",
+            task_boundary: "allow",
+            run_command: "allow",
+            browser_subagent: "allow",
+            knowledge_subagent: "allow",
+            edit: "allow",
+            write: "allow",
+            read: "allow",
+          }),
+          user,
+        ),
+        mode: "primary",
+        native: true,
+      },
       plan: {
         name: "plan",
         description: "Plan mode. Disallows all edit tools.",
