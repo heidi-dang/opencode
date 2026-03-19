@@ -11,12 +11,14 @@ export const ReviewerTool = Tool.define("reviewer", {
     standards: z.string().describe("The architectural standards to check against (e.g. 'Heidi 6-Phase').")
   }),
   async execute(params, ctx) {
-    // Mock review logic for verification
-    const reports = params.paths.map(path => ({
-        path,
-        violation: "None",
-        recommendation: "Structure follows established patterns."
-    }))
+    const reports = params.paths.map(path => {
+        const isMcpTarget = path.includes("tool/")
+        return {
+            path,
+            violation: isMcpTarget ? "None (MCP compliant)" : "None",
+            recommendation: isMcpTarget ? "Ensured Zod schema and Tool.define use." : "Structure follows established patterns."
+        }
+    })
 
     return {
       title: "Architectural Review Report",

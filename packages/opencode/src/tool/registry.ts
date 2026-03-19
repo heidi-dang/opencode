@@ -45,6 +45,7 @@ import { AdrTool } from "./adr"
 import { ReviewerTool } from "./reviewer"
 import { TestLinterTool } from "./test_linter"
 import { A11yTool } from "./a11y"
+import { TransparencyTool } from "./transparency"
 
 import { ApplyPatchTool } from "./apply_patch"
 import { Glob } from "../util/glob"
@@ -154,6 +155,7 @@ export namespace ToolRegistry {
       ReviewerTool,
       TestLinterTool,
       A11yTool,
+      TransparencyTool,
       ...(Flag.OPENCODE_EXPERIMENTAL_LSP_TOOL ? [LspTool] : []),
       ...(config.experimental?.batch_tool === true ? [BatchTool] : []),
       ...(Flag.OPENCODE_EXPERIMENTAL_PLAN_MODE && Flag.OPENCODE_CLIENT === "cli" ? [PlanExitTool] : []),
