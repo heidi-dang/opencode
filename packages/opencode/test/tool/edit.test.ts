@@ -7,6 +7,9 @@ import { tmpdir } from "../fixture/fixture"
 import { FileTime } from "../../src/file/time"
 import { SessionID, MessageID } from "../../src/session/schema"
 
+
+import { HeidiState } from "../../src/heidi/state"
+
 const ctx = {
   sessionID: SessionID.make("ses_test-edit-session"),
   messageID: MessageID.make(""),
@@ -18,12 +21,21 @@ const ctx = {
   ask: async () => {},
 }
 
+async function setExecutionState() {
+  const state = await HeidiState.ensure(ctx.sessionID, "test edit tool")
+  state.fsm_state = "EXECUTION"
+  await HeidiState.write(ctx.sessionID, state)
+}
+
 async function touch(file: string, time: number) {
   const date = new Date(time)
   await fs.utimes(file, date, date)
 }
 
 describe("tool.edit", () => {
+  beforeEach(async () => {
+    await setExecutionState()
+  })
   describe("creating new files", () => {
     test("creates new file when oldString is empty", async () => {
       await using tmp = await tmpdir()
