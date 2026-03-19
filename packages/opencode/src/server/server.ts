@@ -6,6 +6,7 @@ import { Hono } from "hono"
 import { cors } from "hono/cors"
 import { streamSSE } from "hono/streaming"
 import { proxy } from "hono/proxy"
+import path from "node:path"
 import { basicAuth } from "hono/basic-auth"
 import z from "zod"
 import { Provider } from "../provider/provider"
@@ -559,9 +560,31 @@ export namespace Server {
         },
       )
       .all("/*", async (c) => {
-        const path = c.req.path
+        const reqPath = c.req.path
+        const dir = Flag.OPENCODE_UI_DIR
+        if (dir) {
+          const file = reqPath === "/" ? "/index.html" : reqPath
+          const full = path.join(dir, file)
+          const f = Bun.file(full)
+          if (await f.exists()) {
+            return new Response(f, {
+              headers: {
+                "Content-Type": f.type,
+                "Cache-Control": "no-cache",
+              },
+            })
+          }
+          // SPA fallback: serve index.html for client-side routes
+          if (!path.extname(file)) {
+            const index = Bun.file(path.join(dir, "index.html"))
+            if (await index.exists())
+              return new Response(index, {
+                headers: { "Content-Type": "text/html", "Cache-Control": "no-cache" },
+              })
+          }
+        }
 
-        const response = await proxy(`https://app.opencode.ai${path}`, {
+        const response = await proxy(`https://app.opencode.ai${reqPath}`, {
           ...c.req,
           headers: {
             ...c.req.raw.headers,
