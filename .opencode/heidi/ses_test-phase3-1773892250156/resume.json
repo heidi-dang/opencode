@@ -1,0 +1,24 @@
+{
+  "run_id": "r1",
+  "task_id": "ses_test-phase3-1773892250156",
+  "fsm_state": "COMPLETE",
+  "objective": "Verify Phase 3",
+  "plan_ref": "p1",
+  "completed": [
+    "i1"
+  ],
+  "pending": [],
+  "touched_files": [
+    "/home/heidi/work/opencode-main/test_phase3.txt"
+  ],
+  "edited_files": [
+    "/home/heidi/work/opencode-main/test_phase3.txt"
+  ],
+  "last_validations": [
+    "bun build"
+  ],
+  "failed_hypotheses": [],
+  "next_step": "done",
+  "checkpoint_ref": "1773892250883-85wgkm",
+  "narrative": "Heidi is in COMPLETE state (Mode: VERIFICATION). Completed 1 items. Next transition: NONE. Last successful step: complete."
+}

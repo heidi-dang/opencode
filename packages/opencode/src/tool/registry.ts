@@ -39,6 +39,12 @@ import { GscIndexingTool } from "./gsc_indexing"
 import { IndexNowTool } from "./indexnow"
 import { MemoryTool } from "./memory"
 import { PatternTool } from "./pattern"
+import { ReasoningTool } from "./reasoning"
+import { BlueprintTool } from "./blueprint"
+import { AdrTool } from "./adr"
+import { ReviewerTool } from "./reviewer"
+import { TestLinterTool } from "./test_linter"
+import { A11yTool } from "./a11y"
 
 import { ApplyPatchTool } from "./apply_patch"
 import { Glob } from "../util/glob"
@@ -142,6 +148,12 @@ export namespace ToolRegistry {
       IndexNowTool,
       MemoryTool,
       PatternTool,
+      ReasoningTool,
+      BlueprintTool,
+      AdrTool,
+      ReviewerTool,
+      TestLinterTool,
+      A11yTool,
       ...(Flag.OPENCODE_EXPERIMENTAL_LSP_TOOL ? [LspTool] : []),
       ...(config.experimental?.batch_tool === true ? [BatchTool] : []),
       ...(Flag.OPENCODE_EXPERIMENTAL_PLAN_MODE && Flag.OPENCODE_CLIENT === "cli" ? [PlanExitTool] : []),
