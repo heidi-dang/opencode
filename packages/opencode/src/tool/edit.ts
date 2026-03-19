@@ -147,7 +147,6 @@ export const EditTool = Tool.define("edit", {
         if (change.added) filediff.additions += change.count || 0
         if (change.removed) filediff.deletions += change.count || 0
       }
-      }
 
       ctx.metadata({
         metadata: {
