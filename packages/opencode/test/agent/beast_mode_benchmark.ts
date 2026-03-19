@@ -119,9 +119,10 @@ async function runBenchmarks() {
   
   const agentChecks = [
     { name: "beast_mode definition exists", pattern: /beast_mode:/ },
-    { name: "Has name 'beast_mode'", pattern: /name:\s*"beast_mode"/ },
-    { name: "Has description", pattern: /description:\s*".*Beast Mode/ },
-    { name: "Has prompt", pattern: /prompt:\s*".*Beast Mode Agent/ },
+    { name: "Has name '4.1 Beast Mode v3.1'", pattern: /name:\s*"4\.1 Beast Mode v3\.1"/ },
+    { name: "Has GPT 4.1 description", pattern: /description:\s*"GPT 4\.1 as a top-notch coding agent\."/ },
+    { name: "Has GPT 4.1 model", pattern: /model:\s*\{[\s\S]*?providerID:\s*ProviderID\.make\("openai"\)[\s\S]*?modelID:\s*ModelID\.make\("gpt-4\.1"\)/ },
+    { name: "Has prompt", pattern: /prompt:\s*".*GPT 4\.1/ },
     { name: "Mode is subagent", pattern: /mode:\s*"subagent"/ },
     { name: "Native flag is true", pattern: /native:\s*true/ },
     { name: "Has permission config", pattern: /permission:\s*PermissionNext\.merge/ },
