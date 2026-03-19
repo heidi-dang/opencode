@@ -50,19 +50,29 @@ function hash(text: string) {
 
 function render(state: TaskState) {
   const out = [] as string[]
-  out.push(`# Task ${state.task_id}`)
+  out.push(`# Heidi Task: ${state.task_id}`)
   out.push("")
-  out.push(`- State: ${state.fsm_state}`)
-  out.push(`- Mode: ${state.mode}`)
-  out.push(`- Objective: ${state.objective.text}`)
-  out.push(`- Plan Locked: ${state.plan.locked ? "yes" : "no"}`)
-  out.push(`- Next: ${state.next_transition}`)
-  if (state.block_reason) out.push(`- Blocked: ${state.block_reason}`)
+  out.push(`> **Run ID**: \`${state.run_id}\``)
+  out.push(`> **Status**: \`${state.fsm_state}\` (${state.mode})`)
+  out.push(`> **Goal**: ${state.objective.text}`)
   out.push("")
-  out.push("## Checklist")
-  out.push(
-    ...state.checklist.map((item) => `- [${item.status === "done" ? "x" : " "}] ${item.label} (${item.category})`),
-  )
+  if (state.block_reason) {
+    out.push(`> [!WARNING]`)
+    out.push(`> **Blocked**: ${state.block_reason}`)
+    out.push("")
+  }
+  out.push(`### Progress`)
+  out.push(`- **Last Step**: ${state.last_successful_step || "None"}`)
+  out.push(`- **Next Transition**: ${state.next_transition}`)
+  out.push("")
+  out.push("### Checklist")
+  const categories = ["Modify", "New", "Delete", "Verify"]
+  for (const cat of categories) {
+    const items = state.checklist.filter((item) => item.category === cat)
+    if (items.length === 0) continue
+    out.push(`#### ${cat}`)
+    out.push(...items.map((item) => `- [${item.status === "done" ? "x" : item.status === "doing" ? "/" : " "}] ${item.label}`))
+  }
   return out.join("\n") + "\n"
 }
 
@@ -224,7 +234,7 @@ export namespace HeidiState {
       failed_hypotheses: state.resume.failed_hypotheses,
       next_step: state.resume.next_step,
       checkpoint_ref: state.resume.checkpoint_id,
-      narrative: `${state.fsm_state} -> ${state.next_transition} @ ${now()}`,
+      narrative: `Heidi is in ${state.fsm_state} state (Mode: ${state.mode}). Completed ${done.length} items. Next transition: ${state.next_transition}. Last successful step: ${state.last_successful_step || "init"}.`,
     }
     await writeResume(sessionID, resume)
   }
