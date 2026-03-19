@@ -1,14 +1,90 @@
 import { Hono } from "hono"
 import { describeRoute, validator, resolver } from "hono-openapi"
+import { HTTPException } from "hono/http-exception"
 import z from "zod"
 import { Config } from "../../config/config"
 import { Provider } from "../../provider/provider"
 import { ModelsDev } from "../../provider/models"
 import { ProviderAuth } from "../../provider/auth"
 import { ProviderID } from "../../provider/schema"
+import { Instance } from "../../project/instance"
+import { SessionStats, aggregateSessionStats } from "../../session/stats"
 import { mapValues } from "remeda"
 import { errors } from "../error"
 import { lazy } from "../../util/lazy"
+
+const ProviderSummary = z.object({
+  providerID: ProviderID.zod,
+  name: z.string(),
+  connected: z.boolean(),
+  defaultModel: z.string().optional(),
+  project: z.object({
+    id: z.string(),
+    name: z.string().optional(),
+    worktree: z.string(),
+    directory: z.string(),
+  }),
+  usage: z.object({
+    totalSessions: SessionStats.shape.totalSessions,
+    totalMessages: SessionStats.shape.totalMessages,
+    totalCost: SessionStats.shape.totalCost,
+    totalTokens: SessionStats.shape.totalTokens,
+    days: SessionStats.shape.days,
+    lastUpdated: z.number().optional(),
+    topModels: z.array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        messages: z.number(),
+        cost: z.number(),
+        tokens: z.object({
+          input: z.number(),
+          output: z.number(),
+          cache: z.object({
+            read: z.number(),
+            write: z.number(),
+          }),
+        }),
+      }),
+    ),
+  }),
+  models: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      context: z.number().nullable(),
+      output: z.number().nullable(),
+      status: z.string(),
+      releaseDate: z.string(),
+      default: z.boolean(),
+    }),
+  ),
+})
+
+async function providers() {
+  const config = await Config.get()
+  const disabled = new Set(config.disabled_providers ?? [])
+  const enabled = config.enabled_providers ? new Set(config.enabled_providers) : undefined
+
+  const allProviders = await ModelsDev.get()
+  const filteredProviders: Record<string, (typeof allProviders)[string]> = {}
+  for (const [key, value] of Object.entries(allProviders)) {
+    if ((enabled ? enabled.has(key) : true) && !disabled.has(key)) {
+      filteredProviders[key] = value
+    }
+  }
+
+  const connected = await Provider.list()
+  const all = Object.assign(
+    mapValues(filteredProviders, (x) => Provider.fromModelsDevProvider(x)),
+    connected,
+  )
+  return {
+    all: Object.values(all),
+    default: mapValues(all, (item) => Provider.sort(Object.values(item.models))[0].id),
+    connected: Object.keys(connected),
+  }
+}
 
 export const ProviderRoutes = lazy(() =>
   new Hono()
@@ -36,27 +112,91 @@ export const ProviderRoutes = lazy(() =>
         },
       }),
       async (c) => {
-        const config = await Config.get()
-        const disabled = new Set(config.disabled_providers ?? [])
-        const enabled = config.enabled_providers ? new Set(config.enabled_providers) : undefined
-
-        const allProviders = await ModelsDev.get()
-        const filteredProviders: Record<string, (typeof allProviders)[string]> = {}
-        for (const [key, value] of Object.entries(allProviders)) {
-          if ((enabled ? enabled.has(key) : true) && !disabled.has(key)) {
-            filteredProviders[key] = value
-          }
+        return c.json(await providers())
+      },
+    )
+    .get(
+      "/:providerID/summary",
+      describeRoute({
+        summary: "Get provider summary",
+        description: "Retrieve connection, model, project, and usage summary data for a specific provider.",
+        operationId: "provider.summary",
+        responses: {
+          200: {
+            description: "Provider summary",
+            content: {
+              "application/json": {
+                schema: resolver(ProviderSummary),
+              },
+            },
+          },
+          ...errors(404),
+        },
+      }),
+      validator(
+        "param",
+        z.object({
+          providerID: ProviderID.zod.meta({ description: "Provider ID" }),
+        }),
+      ),
+      async (c) => {
+        const providerID = c.req.valid("param").providerID
+        const data = await providers()
+        const item = data.all.find((provider) => provider.id === providerID)
+        if (!item) {
+          throw new HTTPException(404, { message: `Provider not found: ${providerID}` })
         }
 
-        const connected = await Provider.list()
-        const providers = Object.assign(
-          mapValues(filteredProviders, (x) => Provider.fromModelsDevProvider(x)),
-          connected,
-        )
+        const stats = await aggregateSessionStats({
+          projectID: Instance.project.id,
+          providerID,
+        })
+
+        const models = Provider.sort(Object.values(item.models)).map((model) => ({
+          id: model.id,
+          name: model.name,
+          context: model.limit.context ?? null,
+          output: model.limit.output ?? null,
+          status: model.status,
+          releaseDate: model.release_date,
+          default: data.default[item.id] === model.id,
+        }))
+
+        const topModels = Object.entries(stats.modelUsage)
+          .sort(([, a], [, b]) => b.messages - a.messages)
+          .slice(0, 5)
+          .map(([key, value]) => {
+            const id = key.startsWith(`${providerID}/`) ? key.slice(providerID.length + 1) : key
+            return {
+              id,
+              name: item.models[id]?.name ?? id,
+              messages: value.messages,
+              cost: value.cost,
+              tokens: value.tokens,
+            }
+          })
+
         return c.json({
-          all: Object.values(providers),
-          default: mapValues(providers, (item) => Provider.sort(Object.values(item.models))[0].id),
-          connected: Object.keys(connected),
+          providerID,
+          name: item.name,
+          connected: data.connected.includes(providerID),
+          defaultModel: data.default[item.id],
+          project: {
+            id: Instance.project.id,
+            name: Instance.project.name,
+            worktree: Instance.project.worktree,
+            directory: Instance.directory,
+          },
+          usage: {
+            totalSessions: stats.totalSessions,
+            totalMessages: stats.totalMessages,
+            totalCost: stats.totalCost,
+            totalTokens: stats.totalTokens,
+            days: stats.days,
+            lastUpdated: stats.totalSessions ? stats.dateRange.latest : undefined,
+            topModels,
+          },
+          models,
         })
       },
     )

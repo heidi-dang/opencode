@@ -87,6 +87,8 @@ import type {
   ProviderOauthAuthorizeResponses,
   ProviderOauthCallbackErrors,
   ProviderOauthCallbackResponses,
+  ProviderSummaryErrors,
+  ProviderSummaryResponses,
   PtyConnectErrors,
   PtyConnectResponses,
   PtyCreateErrors,
@@ -141,6 +143,10 @@ import type {
   SessionStatusResponses,
   SessionSummarizeErrors,
   SessionSummarizeResponses,
+  SessionTaskBoundaryErrors,
+  SessionTaskBoundaryResponses,
+  SessionTaskGetErrors,
+  SessionTaskGetResponses,
   SessionTodoErrors,
   SessionTodoResponses,
   SessionUnrevertErrors,
@@ -1244,6 +1250,96 @@ export class Worktree extends HeyApiClient {
   }
 }
 
+export class Task extends HeyApiClient {
+  /**
+   * Get Heidi task state
+   *
+   * Get canonical Heidi task state for this session.
+   */
+  public get<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<SessionTaskGetResponses, SessionTaskGetErrors, ThrowOnError>({
+      url: "/session/{sessionID}/task",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Apply task boundary action
+   *
+   * Mutate Heidi task state via task boundary contract.
+   */
+  public boundary<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      directory?: string
+      workspace?: string
+      run_id?: string
+      action?:
+        | "start"
+        | "set_mode"
+        | "mark_item"
+        | "lock_plan"
+        | "reopen_plan"
+        | "begin_execution"
+        | "request_verification"
+        | "block"
+        | "complete"
+      payload?: {
+        [key: string]: unknown
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "run_id" },
+            { in: "body", key: "action" },
+            { in: "body", key: "payload" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<SessionTaskBoundaryResponses, SessionTaskBoundaryErrors, ThrowOnError>(
+      {
+        url: "/session/{sessionID}/task/boundary",
+        ...options,
+        ...params,
+        headers: {
+          "Content-Type": "application/json",
+          ...options?.headers,
+          ...params.headers,
+        },
+      },
+    )
+  }
+}
+
 export class Session2 extends HeyApiClient {
   /**
    * List sessions
@@ -2186,6 +2282,45 @@ export class Session2 extends HeyApiClient {
       ...params,
     })
   }
+
+  /**
+   * Retrieve full tool output
+   */
+  public toolOutput<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      messageID: string
+      partID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "path", key: "messageID" },
+            { in: "path", key: "partID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<unknown, unknown, ThrowOnError>({
+      url: "/session/{sessionID}/tool-output/{messageID}/{partID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  private _task?: Task
+  get task(): Task {
+    return (this._task ??= new Task({ client: this.client }))
+  }
 }
 
 export class Part extends HeyApiClient {
@@ -2604,6 +2739,38 @@ export class Provider extends HeyApiClient {
     )
     return (options?.client ?? this.client).get<ProviderListResponses, unknown, ThrowOnError>({
       url: "/provider",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Get provider summary
+   *
+   * Retrieve connection, model, project, and usage summary data for a specific provider.
+   */
+  public summary<ThrowOnError extends boolean = false>(
+    parameters: {
+      providerID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "providerID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<ProviderSummaryResponses, ProviderSummaryErrors, ThrowOnError>({
+      url: "/provider/{providerID}/summary",
       ...options,
       ...params,
     })

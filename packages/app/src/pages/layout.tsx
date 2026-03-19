@@ -1007,6 +1007,17 @@ export default function Layout(props: ParentProps) {
         onSelect: () => openSettings(),
       },
       {
+        id: "copilot.open",
+        title: language.t("command.copilot.open"),
+        description: language.t("command.copilot.open.description"),
+        category: language.t("command.category.provider"),
+        disabled: !params.dir,
+        onSelect: () => {
+          if (!params.dir) return
+          navigate(`/${params.dir}/copilot`)
+        },
+      },
+      {
         id: "session.previous",
         title: language.t("command.session.previous"),
         category: language.t("command.category.session"),

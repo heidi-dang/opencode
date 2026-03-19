@@ -723,6 +723,23 @@ export type EventTodoUpdated = {
   }
 }
 
+export type EventTaskBoundaryUpdated = {
+  type: "task_boundary.updated"
+  properties: {
+    task_id: string
+    mode: "PLANNING" | "EXECUTION" | "VERIFICATION"
+    fsm_state:
+      | "IDLE"
+      | "DISCOVERY"
+      | "PLAN_DRAFT"
+      | "PLAN_LOCKED"
+      | "EXECUTION"
+      | "VERIFICATION"
+      | "COMPLETE"
+      | "BLOCKED"
+  }
+}
+
 export type EventTuiPromptAppend = {
   type: "tui.prompt.append"
   properties: {
@@ -983,6 +1000,7 @@ export type Event =
   | EventSessionIdle
   | EventSessionCompacted
   | EventTodoUpdated
+  | EventTaskBoundaryUpdated
   | EventTuiPromptAppend
   | EventTuiCommandExecute
   | EventTuiToastShow
@@ -2998,6 +3016,141 @@ export type SessionChildrenResponses = {
 
 export type SessionChildrenResponse = SessionChildrenResponses[keyof SessionChildrenResponses]
 
+export type SessionTaskGetData = {
+  body?: never
+  path: {
+    sessionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/session/{sessionID}/task"
+}
+
+export type SessionTaskGetErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type SessionTaskGetError = SessionTaskGetErrors[keyof SessionTaskGetErrors]
+
+export type SessionTaskGetResponses = {
+  /**
+   * Task state
+   */
+  200:
+    | {
+        ok: boolean
+        fsm_state:
+          | "IDLE"
+          | "DISCOVERY"
+          | "PLAN_DRAFT"
+          | "PLAN_LOCKED"
+          | "EXECUTION"
+          | "VERIFICATION"
+          | "COMPLETE"
+          | "BLOCKED"
+        mode: "PLANNING" | "EXECUTION" | "VERIFICATION"
+        task_json_version: number
+        artifacts?: {
+          task_json: string
+          task_md: string
+          implementation_plan: string
+          verification: string
+          resume: string
+          knowledge: string
+          exists: {
+            [key: string]: boolean
+          }
+        }
+        error?: string | null
+      }
+    | unknown
+}
+
+export type SessionTaskGetResponse = SessionTaskGetResponses[keyof SessionTaskGetResponses]
+
+export type SessionTaskBoundaryData = {
+  body?: {
+    run_id: string
+    action:
+      | "start"
+      | "set_mode"
+      | "mark_item"
+      | "lock_plan"
+      | "reopen_plan"
+      | "begin_execution"
+      | "request_verification"
+      | "block"
+      | "complete"
+    payload?: {
+      [key: string]: unknown
+    }
+  }
+  path: {
+    sessionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/session/{sessionID}/task/boundary"
+}
+
+export type SessionTaskBoundaryErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type SessionTaskBoundaryError = SessionTaskBoundaryErrors[keyof SessionTaskBoundaryErrors]
+
+export type SessionTaskBoundaryResponses = {
+  /**
+   * Boundary response
+   */
+  200: {
+    ok: boolean
+    fsm_state:
+      | "IDLE"
+      | "DISCOVERY"
+      | "PLAN_DRAFT"
+      | "PLAN_LOCKED"
+      | "EXECUTION"
+      | "VERIFICATION"
+      | "COMPLETE"
+      | "BLOCKED"
+    mode: "PLANNING" | "EXECUTION" | "VERIFICATION"
+    task_json_version: number
+    artifacts?: {
+      task_json: string
+      task_md: string
+      implementation_plan: string
+      verification: string
+      resume: string
+      knowledge: string
+      exists: {
+        [key: string]: boolean
+      }
+    }
+    error?: string | null
+  }
+}
+
+export type SessionTaskBoundaryResponse = SessionTaskBoundaryResponses[keyof SessionTaskBoundaryResponses]
+
 export type SessionTodoData = {
   body?: never
   path: {
@@ -3750,6 +3903,20 @@ export type PermissionRespondResponses = {
 
 export type PermissionRespondResponse = PermissionRespondResponses[keyof PermissionRespondResponses]
 
+export type SessionToolOutputData = {
+  body?: never
+  path: {
+    sessionID: string
+    messageID: string
+    partID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/session/{sessionID}/tool-output/{messageID}/{partID}"
+}
+
 export type PermissionReplyData = {
   body?: {
     reply: "once" | "always" | "reject"
@@ -3983,6 +4150,89 @@ export type ProviderListResponses = {
 }
 
 export type ProviderListResponse = ProviderListResponses[keyof ProviderListResponses]
+
+export type ProviderSummaryData = {
+  body?: never
+  path: {
+    /**
+     * Provider ID
+     */
+    providerID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/provider/{providerID}/summary"
+}
+
+export type ProviderSummaryErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type ProviderSummaryError = ProviderSummaryErrors[keyof ProviderSummaryErrors]
+
+export type ProviderSummaryResponses = {
+  /**
+   * Provider summary
+   */
+  200: {
+    providerID: string
+    name: string
+    connected: boolean
+    defaultModel?: string
+    project: {
+      id: string
+      name?: string
+      worktree: string
+      directory: string
+    }
+    usage: {
+      totalSessions: number
+      totalMessages: number
+      totalCost: number
+      totalTokens: {
+        input: number
+        output: number
+        reasoning: number
+        cache: {
+          read: number
+          write: number
+        }
+      }
+      days: number
+      lastUpdated?: number
+      topModels: Array<{
+        id: string
+        name: string
+        messages: number
+        cost: number
+        tokens: {
+          input: number
+          output: number
+          cache: {
+            read: number
+            write: number
+          }
+        }
+      }>
+    }
+    models: Array<{
+      id: string
+      name: string
+      context: number | null
+      output: number | null
+      status: string
+      releaseDate: string
+      default: boolean
+    }>
+  }
+}
+
+export type ProviderSummaryResponse = ProviderSummaryResponses[keyof ProviderSummaryResponses]
 
 export type ProviderAuthData = {
   body?: never
