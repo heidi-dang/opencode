@@ -10,7 +10,7 @@ export const TransparencyTool = Tool.define("transparency", {
     scope: z.enum(["memory", "transaction", "all"]).default("all")
   }),
   async execute(params, ctx) {
-    const memory = await HeidiMemory.state()
+    const memory = await HeidiMemory.query("", "both")
     
     return {
       title: "System Transparency Report",
