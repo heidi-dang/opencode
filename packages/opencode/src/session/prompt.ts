@@ -66,6 +66,8 @@ export namespace SessionPrompt {
   const log = Log.create({ service: "session.prompt" })
 
   export const PARALLEL_RESEARCH_DESCRIPTION = "Parallel research lane for Heidi"
+  export const PARALLEL_IMPLEMENTATION_DESCRIPTION = "Parallel implementation lane for Heidi"
+  const EDIT_TERMS = ["fix", "edit", "update", "implement", "change", "modify", "rename", "patch", "refactor"]
 
   export type BeastReport = {
     summary: string[]
@@ -74,6 +76,20 @@ export namespace SessionPrompt {
     changes: Array<{ file: string; action: string; reason: string }>
     risks: string[]
     questions: string[]
+  }
+
+  export type ParallelTask = {
+    lane: "research" | "implementation"
+    description: string
+    ownership:
+      | {
+          mode: "read_only"
+          files: []
+        }
+      | {
+          mode: "exclusive_edit"
+          files: string[]
+        }
   }
 
   export function shouldUseParallelAssist(input: {
@@ -107,10 +123,55 @@ export namespace SessionPrompt {
     return hits >= 2 || text.includes("3+ files") || text.includes("multiple files")
   }
 
-  export function buildParallelResearchPrompt(input: { text: string }) {
+  export function collectParallelFiles(input: {
+    parts: Array<{ type: string; mime?: string; filename?: string; url?: string }>
+  }) {
+    const files = input.parts
+      .filter((part) => part.type === "file" && part.mime !== "application/x-directory")
+      .map((part) => {
+        if (part.filename && !path.isAbsolute(part.filename)) return part.filename.replaceAll("\\", "/")
+        if (!part.url?.startsWith("file://")) return
+        const rel = path.relative(Instance.worktree, fileURLToPath(part.url)).replaceAll("\\", "/")
+        if (rel.startsWith("../") || rel === "..") return
+        return rel
+      })
+      .filter((part): part is string => Boolean(part))
+    return Array.from(new Set(files))
+  }
+
+  export function inferParallelTask(input: {
+    text: string
+    parts: Array<{ type: string; mime?: string; filename?: string; url?: string }>
+  }): ParallelTask {
+    const text = input.text.toLowerCase()
+    const files = collectParallelFiles({ parts: input.parts })
+    const edit = EDIT_TERMS.some((term) => text.includes(term))
+    if (edit && files.length > 0 && files.length <= 3) {
+      return {
+        lane: "implementation",
+        description: PARALLEL_IMPLEMENTATION_DESCRIPTION,
+        ownership: {
+          mode: "exclusive_edit",
+          files,
+        },
+      }
+    }
+    return {
+      lane: "research",
+      description: PARALLEL_RESEARCH_DESCRIPTION,
+      ownership: {
+        mode: "read_only",
+        files: [],
+      },
+    }
+  }
+
+  export function buildParallelResearchPrompt(input: { text: string; task: ParallelTask }) {
     return [
       "Work as Heidi's parallel research lane for Phase 1.",
-      "Do read/search/research only. Do not edit shared files.",
+      input.task.ownership.mode === "exclusive_edit"
+        ? `Research first, then you may edit only these exclusive files if needed: ${input.task.ownership.files.join(", ")}`
+        : "Do read/search/research only. Do not edit shared files.",
       "Investigate the user's request below and return a structured report using these exact sections:",
       "## Summary",
       "## Files Read",
@@ -204,6 +265,7 @@ export namespace SessionPrompt {
     if (!text) return []
     const beast = await Agent.get("beast_mode")
     if (!beast) return []
+    const task = inferParallelTask({ text, parts: input.parts })
     return [
       {
         id: PartID.ascending(),
@@ -211,13 +273,10 @@ export namespace SessionPrompt {
         sessionID: input.sessionID,
         type: "subtask" as const,
         agent: "beast_mode",
-        lane: "research",
-        ownership: {
-          mode: "read_only",
-          files: [],
-        },
-        description: PARALLEL_RESEARCH_DESCRIPTION,
-        prompt: buildParallelResearchPrompt({ text }),
+        lane: task.lane,
+        ownership: task.ownership,
+        description: task.description,
+        prompt: buildParallelResearchPrompt({ text, task }),
       },
     ]
   }

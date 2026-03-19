@@ -233,6 +233,14 @@ describe("session.prompt parallel assist", () => {
   test("builds a structured Beast research prompt", () => {
     const prompt = SessionPrompt.buildParallelResearchPrompt({
       text: "Debug the provider auth flow and summarize likely fixes.",
+      task: {
+        lane: "research",
+        description: SessionPrompt.PARALLEL_RESEARCH_DESCRIPTION,
+        ownership: {
+          mode: "read_only",
+          files: [],
+        },
+      },
     })
 
     expect(prompt).toContain("Heidi's parallel research lane")
@@ -242,6 +250,37 @@ describe("session.prompt parallel assist", () => {
     expect(prompt).toContain("## Recommended Changes")
     expect(prompt).toContain("## Risks")
     expect(prompt).toContain("## Open Questions")
+  })
+
+  test("assigns exclusive files for small explicit edit tasks", () => {
+    const task = SessionPrompt.inferParallelTask({
+      text: "Fix and update @src/auth.ts and @src/token.ts to handle refresh correctly.",
+      parts: [
+        { type: "text" },
+        { type: "file", filename: "src/auth.ts", mime: "text/plain" },
+        { type: "file", filename: "src/token.ts", mime: "text/plain" },
+      ],
+    })
+
+    expect(task.lane).toBe("implementation")
+    expect(task.description).toBe(SessionPrompt.PARALLEL_IMPLEMENTATION_DESCRIPTION)
+    expect(task.ownership).toEqual({
+      mode: "exclusive_edit",
+      files: ["src/auth.ts", "src/token.ts"],
+    })
+  })
+
+  test("keeps read-only lane when no explicit editable files exist", () => {
+    const task = SessionPrompt.inferParallelTask({
+      text: "Investigate provider bug across multiple files and summarize recommended changes.",
+      parts: [{ type: "text" }],
+    })
+
+    expect(task.lane).toBe("research")
+    expect(task.ownership).toEqual({
+      mode: "read_only",
+      files: [],
+    })
   })
 
   test("parses Beast report sections", () => {
@@ -327,5 +366,30 @@ describe("session.prompt parallel assist", () => {
         await Session.remove(session.id)
       },
     })
+  })
+
+  test("builds an implementation-lane beast prompt for exclusive-file assignments", () => {
+    const task = SessionPrompt.inferParallelTask({
+      text: "Fix and update @src/auth.ts and @src/token.ts for a provider bug across multiple files and research dependency behavior.",
+      parts: [
+        { type: "text" },
+        { type: "file", filename: "src/auth.ts", mime: "text/plain" },
+        { type: "file", filename: "src/token.ts", mime: "text/plain" },
+      ],
+    })
+
+    const prompt = SessionPrompt.buildParallelResearchPrompt({
+      text: "Fix the targeted auth files.",
+      task,
+    })
+
+    expect(task.lane).toBe("implementation")
+    expect(task.description).toBe(SessionPrompt.PARALLEL_IMPLEMENTATION_DESCRIPTION)
+    expect(task.ownership).toEqual({
+      mode: "exclusive_edit",
+      files: ["src/auth.ts", "src/token.ts"],
+    })
+    expect(prompt).toContain("you may edit only these exclusive files")
+    expect(prompt).toContain("src/auth.ts, src/token.ts")
   })
 })
