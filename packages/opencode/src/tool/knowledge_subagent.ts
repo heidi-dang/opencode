@@ -1,0 +1,36 @@
+import z from "zod"
+import { Tool } from "./tool"
+import { Filesystem } from "@/util/filesystem"
+import path from "path"
+import { Global } from "@/global"
+
+function file(taskID: string) {
+  return path.join(Global.Path.state, "heidi", taskID, "knowledge.jsonl")
+}
+
+export const KnowledgeSubagentTool = Tool.define("knowledge_subagent", {
+  description:
+    "Background task knowledge distiller. Appends approved, project-scoped knowledge items for retrieval support.",
+  parameters: z.object({
+    task_id: z.string(),
+    item: z.object({
+      kind: z.string(),
+      summary: z.string(),
+      source: z.string(),
+    }),
+  }),
+  async execute(params) {
+    const row = {
+      timestamp: new Date().toISOString(),
+      ...params.item,
+    }
+    const target = file(params.task_id)
+    const old = await Filesystem.readText(target).catch(() => "")
+    await Filesystem.write(target, old + JSON.stringify(row) + "\n")
+    return {
+      title: "knowledge updated",
+      metadata: row,
+      output: JSON.stringify(row, null, 2),
+    }
+  },
+})
