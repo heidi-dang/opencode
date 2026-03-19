@@ -125,7 +125,7 @@ export namespace Agent {
           user,
         ),
         options: {},
-        mode: "subagent",
+        mode: "all",
         native: true,
       },
       explore: {
@@ -157,7 +157,7 @@ export namespace Agent {
         description: `Fast agent specialized for exploring codebases. Use this when you need to quickly find files by patterns (eg. "src/components/**/*.tsx"), search code for keywords (eg. "API endpoints"), or answer questions about the codebase (eg. "how do API endpoints work?"). When calling this agent, specify the desired thoroughness level: "quick" for basic searches, "medium" for moderate exploration, or "very thorough" for comprehensive analysis across multiple locations and naming conventions.`,
         prompt: PROMPT_EXPLORE,
         options: {},
-        mode: "subagent",
+        mode: "all",
         native: true,
       },
       compaction: {
@@ -236,7 +236,7 @@ export namespace Agent {
           user,
         ),
         options: {},
-        mode: "subagent",
+        mode: "all",
         native: true,
       },
       playwright: {
@@ -269,7 +269,7 @@ export namespace Agent {
           user,
         ),
         options: {},
-        mode: "subagent",
+        mode: "all",
         native: true,
       },
       ci_cd: {
@@ -297,7 +297,7 @@ export namespace Agent {
           user,
         ),
         options: {},
-        mode: "subagent",
+        mode: "all",
         native: true,
       },
       docs: {
@@ -327,7 +327,7 @@ export namespace Agent {
           user,
         ),
         options: {},
-        mode: "subagent",
+        mode: "all",
         native: true,
       },
       mcp_expert: {
@@ -352,7 +352,7 @@ export namespace Agent {
           user,
         ),
         options: {},
-        mode: "subagent",
+        mode: "all",
         native: true,
       },
     }
