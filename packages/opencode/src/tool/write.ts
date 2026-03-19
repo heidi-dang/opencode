@@ -39,7 +39,8 @@ export const WriteTool = Tool.define("write", {
     const contentOld = exists ? await Filesystem.readText(filepath) : ""
     
     // Checkpoint
-    const checkpoint = await HeidiExec.checkpoint(ctx.sessionID, `write:${filepath}`, [filepath])
+    const transactionId = state.resume.checkpoint_id
+    const checkpoint = transactionId ?? (await HeidiExec.checkpoint(ctx.sessionID, `write:${filepath}`, [filepath]))
 
     const diff = trimDiff(createTwoFilesPatch(filepath, filepath, contentOld, params.content))
     await ctx.ask({
@@ -97,6 +98,12 @@ export const WriteTool = Tool.define("write", {
       }
     } catch (err) {
       await HeidiExec.rollback(ctx.sessionID, checkpoint)
+      if (!transactionId) {
+        // Only clear checkpoint if we created it
+        const s = await HeidiState.read(ctx.sessionID)
+        s.resume.checkpoint_id = null
+        await HeidiState.write(ctx.sessionID, s)
+      }
       throw err
     }
   },

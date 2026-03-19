@@ -4,6 +4,7 @@ import { Filesystem } from "@/util/filesystem"
 import { SessionID } from "@/session/schema"
 import { HeidiState } from "./state"
 import { Instance } from "@/project/instance"
+import { FileTime } from "../file/time"
 
 import { git } from "@/util/git"
 
@@ -88,8 +89,20 @@ export namespace HeidiExec {
     if (Instance.project.vcs === "git") {
       const check = await g(["rev-parse", "--verify", ref])
       if (check.exitCode === 0) {
+        // Find files that will be reverted
+        const diff = await g(["diff", "--name-only", ref, "HEAD"])
+        const files = diff.text().trim().split("\n").filter(Boolean)
+
         // Restore files from the hidden ref
         await g(["checkout", ref, "--", "."])
+
+        // Refresh file times
+        await Promise.all(
+          files.map((file: string) => {
+            const filepath = path.isAbsolute(file) ? file : path.join(worktree, file)
+            return FileTime.read(sessionID, filepath)
+          }),
+        )
         return
       }
     }
@@ -105,6 +118,7 @@ export namespace HeidiExec {
             return
           }
           await Filesystem.write(item.file, item.content)
+          await FileTime.read(sessionID, item.file)
         }),
       )
     }
@@ -115,6 +129,17 @@ export namespace HeidiExec {
     state.changed_files = Array.from(new Set([...state.changed_files, ...files]))
     state.active_files = files
     await HeidiState.write(sessionID, state)
+  }
+
+  export async function begin(sessionID: SessionID, name: string, files: string[]) {
+    return checkpoint(sessionID, `transaction:${name}`, files)
+  }
+
+  export async function commit(sessionID: SessionID) {
+    const state = await HeidiState.read(sessionID)
+    state.resume.checkpoint_id = null
+    await HeidiState.write(sessionID, state)
+    await HeidiState.updateResume(sessionID)
   }
 
   export async function cmd(

@@ -12,6 +12,8 @@ import { WebFetchTool } from "./webfetch"
 import { WriteTool } from "./write"
 import { InvalidTool } from "./invalid"
 import { SkillTool } from "./skill"
+import { VerifyTool } from "./verify"
+import { TransactionTool } from "./transaction"
 import type { Agent } from "../agent/agent"
 import { Tool } from "./tool"
 import { Instance } from "../project/instance"
@@ -128,6 +130,8 @@ export namespace ToolRegistry {
       BrowserSubagentTool,
       KnowledgeSubagentTool,
       ApplyPatchTool,
+      VerifyTool,
+      TransactionTool,
       ...(Flag.OPENCODE_EXPERIMENTAL_LSP_TOOL ? [LspTool] : []),
       ...(config.experimental?.batch_tool === true ? [BatchTool] : []),
       ...(Flag.OPENCODE_EXPERIMENTAL_PLAN_MODE && Flag.OPENCODE_CLIENT === "cli" ? [PlanExitTool] : []),

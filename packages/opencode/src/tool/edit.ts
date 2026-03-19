@@ -42,6 +42,8 @@ export const EditTool = Tool.define("edit", {
     filePath: z.string().describe("The absolute path to the file to modify"),
     oldString: z.string().describe("The text to replace"),
     newString: z.string().describe("The text to replace it with (must be different from oldString)"),
+    before: z.string().optional().describe("Optional context before oldString for precision"),
+    after: z.string().optional().describe("Optional context after oldString for precision"),
     replaceAll: z.boolean().optional().describe("Replace all occurrences of oldString (default false)"),
   }),
   async execute(params, ctx) {
@@ -66,7 +68,8 @@ export const EditTool = Tool.define("edit", {
     let contentOld = ""
     let contentNew = ""
     let filediff: Snapshot.FileDiff | undefined
-    const checkpoint = await HeidiExec.checkpoint(ctx.sessionID, `edit:${filePath}`, [filePath])
+    const transactionId = state.resume.checkpoint_id
+    const checkpoint = transactionId ?? (await HeidiExec.checkpoint(ctx.sessionID, `edit:${filePath}`, [filePath]))
     try {
       await FileTime.withLock(filePath, async () => {
         if (params.oldString === "") {
@@ -104,8 +107,11 @@ export const EditTool = Tool.define("edit", {
         const ending = detectLineEnding(contentOld)
         const old = convertToLineEnding(normalizeLineEndings(params.oldString), ending)
         const next = convertToLineEnding(normalizeLineEndings(params.newString), ending)
+        
+        const before = params.before ? convertToLineEnding(normalizeLineEndings(params.before), ending) : ""
+        const after = params.after ? convertToLineEnding(normalizeLineEndings(params.after), ending) : ""
 
-        contentNew = replace(contentOld, old, next, params.replaceAll)
+        contentNew = replace(contentOld, old, next, params.replaceAll, before, after)
 
         diff = trimDiff(
           createTwoFilesPatch(filePath, filePath, normalizeLineEndings(contentOld), normalizeLineEndings(contentNew)),
@@ -158,6 +164,12 @@ export const EditTool = Tool.define("edit", {
       })
     } catch (err) {
       await HeidiExec.rollback(ctx.sessionID, checkpoint)
+      if (!transactionId) {
+        // Only clear checkpoint if we created it
+        const s = await HeidiState.read(ctx.sessionID)
+        s.resume.checkpoint_id = null
+        await HeidiState.write(ctx.sessionID, s)
+      }
       throw err
     }
 
@@ -647,8 +659,16 @@ export function trimDiff(diff: string): string {
   return trimmedLines.join("\n")
 }
 
-export function replace(content: string, oldString: string, newString: string, replaceAll = false): string {
-  if (oldString === newString) {
+export function replace(
+  content: string, 
+  oldString: string, 
+  newString: string, 
+  replaceAll = false,
+  before = "",
+  after = ""
+): string {
+  const find = before + oldString + after
+  if (find === newString) {
     throw new Error("No changes to apply: oldString and newString are identical.")
   }
 
@@ -665,7 +685,7 @@ export function replace(content: string, oldString: string, newString: string, r
     ContextAwareReplacer,
     MultiOccurrenceReplacer,
   ]) {
-    for (const search of replacer(content, oldString)) {
+    for (const search of replacer(content, find)) {
       const index = content.indexOf(search)
       if (index === -1) continue
       notFound = false
@@ -674,7 +694,10 @@ export function replace(content: string, oldString: string, newString: string, r
       }
       const lastIndex = content.lastIndexOf(search)
       if (index !== lastIndex) continue
-      return content.substring(0, index) + newString + content.substring(index + search.length)
+      
+      const prefix = content.substring(0, index + before.length)
+      const suffix = content.substring(index + before.length + oldString.length)
+      return prefix + newString + suffix
     }
   }
 

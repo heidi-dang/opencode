@@ -15,11 +15,13 @@ const Item = z.object({
   anchor: z.string().optional(),
 })
 
-function region(content: string, anchor: string) {
+function region(content: string, anchor: string, search: string) {
   const idx = content.indexOf(anchor)
   if (idx < 0) return ""
-  const start = Math.max(0, idx - 200)
-  const end = Math.min(content.length, idx + anchor.length + 200)
+  // If search is also found, show the region around the match
+  const searchIdx = content.indexOf(search, Math.max(0, idx - 500))
+  const start = Math.max(0, (searchIdx >= 0 ? searchIdx : idx) - 200)
+  const end = Math.min(content.length, (searchIdx >= 0 ? searchIdx : idx) + (searchIdx >= 0 ? search.length : anchor.length) + 200)
   return content.slice(start, end)
 }
 
@@ -60,15 +62,43 @@ export const ReplaceFileContentTool = Tool.define("replace_file_content", {
       HeidiJail.assert(file)
       await assertExternalDirectory(ctx, file)
       const before = await Filesystem.readText(file)
-      if (item.anchor && !before.includes(item.anchor)) {
-        throw new Error(`Anchor mismatch for ${file}\n\n<region>${region(before, item.search_string)}</region>`)
+      let after = ""
+
+      if (item.anchor) {
+        const anchorIdx = before.indexOf(item.anchor)
+        if (anchorIdx < 0) {
+          throw new Error(`Anchor not found in ${file}`)
+        }
+        
+        // Find search_string within +/- 1000 chars of anchor
+        const searchRegionStart = Math.max(0, anchorIdx - 1000)
+        const searchRegionEnd = Math.min(before.length, anchorIdx + item.anchor.length + 1000)
+        const searchRegion = before.slice(searchRegionStart, searchRegionEnd)
+        
+        if (!searchRegion.includes(item.search_string)) {
+          throw new Error(`search_string not found near anchor in ${file}\n\n<context>\n${region(before, item.anchor, item.search_string)}\n</context>`)
+        }
+        
+        // Ensure uniqueness within the specific region
+        const firstMatch = searchRegion.indexOf(item.search_string)
+        const lastMatch = searchRegion.lastIndexOf(item.search_string)
+        if (firstMatch !== lastMatch) {
+          throw new Error(`Multiple matches for search_string found near anchor in ${file}. Provide more unique search_string or anchor.`)
+        }
+        
+        const absoluteIdx = searchRegionStart + firstMatch
+        after = before.substring(0, absoluteIdx) + item.replace_string + before.substring(absoluteIdx + item.search_string.length)
+      } else {
+        if (!before.includes(item.search_string)) {
+          throw new Error(`search_string not found in ${file}`)
+        }
+        const firstMatch = before.indexOf(item.search_string)
+        const lastMatch = before.lastIndexOf(item.search_string)
+        if (firstMatch !== lastMatch) {
+          throw new Error(`Multiple matches for search_string found in ${file}. Use an 'anchor' for precision.`)
+        }
+        after = before.replace(item.search_string, item.replace_string)
       }
-      if (!before.includes(item.search_string)) {
-        throw new Error(
-          `search_string not found for ${file}\n\n<region>${region(before, item.anchor ?? item.search_string)}</region>`,
-        )
-      }
-      const after = before.replace(item.search_string, item.replace_string)
       next.push({ path: file, before, after })
     }
 
