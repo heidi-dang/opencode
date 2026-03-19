@@ -83,17 +83,10 @@ describe("tool.write", () => {
       await Instance.provide({
         directory: tmp.path,
         fn: async () => {
-<<<<<<< HEAD
           const { Session } = await import("../../src/session")
           const { HeidiState } = await import("../../src/heidi/state")
           const session = await Session.create({})
           await withExecutionState(session, "test write new file")
-=======
-          const { Session } = await import("../../src/session")
-          const { HeidiState } = await import("../../src/heidi/state")
-          const session = await Session.create({})
-          await withExecutionState(session, "test write new file")
->>>>>>> 43e3028c4 (Heidi: Wave1 hardening — verification gate, plan-drift, memory hygiene, resume fixes, honesty prompt)
           const write = await WriteTool.init()
           const testCtx = { ...baseCtx, sessionID: session.id }
           const result = await write.execute(
@@ -147,10 +140,10 @@ describe("tool.write", () => {
       await Instance.provide({
         directory: tmp.path,
         fn: async () => {
+          const { Session } = await import("../../src/session")
           const { HeidiState } = await import("../../src/heidi/state")
-          const state = await HeidiState.ensure(ctx.sessionID, "")
-          state.fsm_state = "EXECUTION"
-          await HeidiState.write(ctx.sessionID, state)
+          const session = await Session.create({})
+          await withExecutionState(session, "test write exclusive ownership")
           const write = await WriteTool.init()
           await expect(
             write.execute(
@@ -159,7 +152,8 @@ describe("tool.write", () => {
                 content: "nope",
               },
               {
-                ...ctx,
+                ...baseCtx,
+                sessionID: session.id,
                 extra: {
                   ownership: {
                     mode: "exclusive_edit",
