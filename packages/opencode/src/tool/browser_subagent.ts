@@ -1,5 +1,8 @@
+
 import z from "zod"
 import { Tool } from "./tool"
+import { HeidiState } from "../heidi/state"
+import { Filesystem } from "../util/filesystem"
 
 export const BrowserSubagentTool = Tool.define("browser_subagent", {
   description:
@@ -9,25 +12,62 @@ export const BrowserSubagentTool = Tool.define("browser_subagent", {
     checks: z.array(z.string()).default([]),
   }),
   async execute(params, ctx) {
-    // Simulate browser check, persist evidence as artifact
-    const screenshot = `screenshot-${Date.now()}.png`
-    const consoleErrors = params.url.includes("fail") ? ["Error: test failure"] : []
-    const status = consoleErrors.length === 0 ? "pass" : "fail"
+    // Use direct imports for HeidiState and Filesystem
+    let html: string | null = null
+    let status: "pass" | "fail" = "fail"
+    let note = ""
+    const network_failures: string[] = []
+    const console_errors: string[] = []
+    let htmlFile: string | null = null
+    let httpStatus: number | null = null
+    let contentType: string | null = null
+    try {
+      const res = await fetch(params.url)
+      html = await res.text()
+      status = res.ok ? "pass" : "fail"
+      note = res.ok ? "Fetched HTML successfully." : `HTTP error: ${res.status}`
+      httpStatus = res.status
+      contentType = res.headers.get("content-type") || null
+      if (!res.ok) network_failures.push(`HTTP ${res.status}`)
+    } catch (err) {
+      const msg = typeof err === "object" && err && "message" in err ? (err as any).message : String(err)
+      network_failures.push(msg)
+      note = `Network error: ${msg}`
+    }
+    // Persist HTML as artifact if fetched
+    if (html) {
+      // Use deterministic artifact name: browser-evidence.html (overwrite per run)
+      htmlFile = `browser-evidence.html`
+      // Get Heidi task dir
+      const files = await HeidiState.files(ctx.sessionID)
+      const htmlPath = files.verification.replace(/verification.json$/, htmlFile)
+      await Filesystem.write(htmlPath, html)
+    }
+    // Prepare evidence
     const evidence = {
       required: true,
       status,
-      screenshots: [screenshot],
-      console_errors: consoleErrors,
-      network_failures: [],
-      url: params.url,
-      checks: params.checks,
-      note: status === "pass" ? "Browser check passed." : "Console error detected.",
+      http_status: httpStatus,
+      content_type: contentType,
+      screenshots: [],
+      html: htmlFile ? [htmlFile] : [],
+      console_errors,
+      network_failures,
     }
-    // Persist evidence as browser artifact
-    const { verification } = await ctx.HeidiState.files(ctx.sessionID)
-    const verify = await ctx.HeidiState.readVerification(ctx.sessionID) || {}
+    // Merge with existing verification.json
+    let verify = await HeidiState.readVerification(ctx.sessionID)
+    if (!verify) {
+      verify = {
+        task_id: ctx.sessionID,
+        status,
+        checks: [],
+        evidence: { changed_files: [], command_summary: [], before_after: "" },
+        warnings: [],
+        remediation: [],
+      }
+    }
     verify.browser = evidence
-    await ctx.HeidiState.writeVerification(ctx.sessionID, verify)
+    await HeidiState.writeVerification(ctx.sessionID, verify)
     return {
       title: "browser verifier",
       metadata: evidence,

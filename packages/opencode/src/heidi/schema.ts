@@ -105,6 +105,7 @@ export const VerifyState = z.object({
       required: z.boolean(),
       status: z.enum(["pass", "fail", "skipped"]),
       screenshots: z.array(z.string()),
+      html: z.array(z.string()).default([]),
       console_errors: z.array(z.string()),
       network_failures: z.array(z.string()),
     })

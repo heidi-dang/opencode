@@ -33,6 +33,57 @@ async function touch(file: string, time: number) {
 }
 
 describe("tool.edit", () => {
+  test("plan-lock drift blocks edit execution", async () => {
+    await using tmp = await tmpdir({ git: true })
+    await Instance.provide({
+      directory: tmp.path,
+      fn: async () => {
+        const { Session } = await import("../../src/session")
+        const { HeidiState } = await import("../../src/heidi/state")
+        const { Filesystem } = await import("../../src/util/filesystem")
+        const session = await Session.create({})
+        // Use real contract to lock plan and begin execution
+        const { HeidiBoundary } = await import("../../src/heidi/boundary")
+        await HeidiBoundary.apply({
+          run_id: "run-drift-3",
+          task_id: session.id,
+          action: "start",
+          payload: { objective: "test edit drift" },
+        })
+        await HeidiBoundary.apply({
+          run_id: "run-drift-3",
+          task_id: session.id,
+          action: "lock_plan",
+          payload: {},
+        })
+        await HeidiBoundary.apply({
+          run_id: "run-drift-3",
+          task_id: session.id,
+          action: "begin_execution",
+          payload: {},
+        })
+        // Mutate the plan file after lock
+        const planPath = HeidiState.plan(session.id)
+        const orig = await Filesystem.readText(planPath)
+        await Filesystem.write(planPath, orig + "\n# DRIFT\n")
+        const edit = await EditTool.init()
+        const driftCtx = {
+          ...ctx,
+          sessionID: session.id,
+        }
+        await expect(
+          edit.execute(
+            {
+              filePath: path.join(tmp.path, "drift.txt"),
+              oldString: "",
+              newString: "should fail",
+            },
+            driftCtx,
+          ),
+        ).rejects.toThrow(/drift/i)
+      },
+    })
+  })
   beforeEach(async () => {
     await setExecutionState()
   })
@@ -44,14 +95,21 @@ describe("tool.edit", () => {
       await Instance.provide({
         directory: tmp.path,
         fn: async () => {
+          const { Session } = await import("../../src/session")
+          const { HeidiState } = await import("../../src/heidi/state")
+          const session = await Session.create({})
+          const state = await HeidiState.ensure(session.id, "test edit new file")
+          state.fsm_state = "EXECUTION"
+          await HeidiState.write(session.id, state)
           const edit = await EditTool.init()
+          const testCtx = { ...ctx, sessionID: session.id }
           const result = await edit.execute(
             {
               filePath: filepath,
               oldString: "",
               newString: "new content",
             },
-            ctx,
+            testCtx,
           )
 
           expect(result.metadata.diff).toContain("new content")
@@ -69,14 +127,21 @@ describe("tool.edit", () => {
       await Instance.provide({
         directory: tmp.path,
         fn: async () => {
+          const { Session } = await import("../../src/session")
+          const { HeidiState } = await import("../../src/heidi/state")
+          const session = await Session.create({})
+          const state = await HeidiState.ensure(session.id, "test edit nested dir")
+          state.fsm_state = "EXECUTION"
+          await HeidiState.write(session.id, state)
           const edit = await EditTool.init()
+          const testCtx = { ...ctx, sessionID: session.id }
           await edit.execute(
             {
               filePath: filepath,
               oldString: "",
               newString: "nested file",
             },
-            ctx,
+            testCtx,
           )
 
           const content = await fs.readFile(filepath, "utf-8")
@@ -92,22 +157,27 @@ describe("tool.edit", () => {
       await Instance.provide({
         directory: tmp.path,
         fn: async () => {
+          const { Session } = await import("../../src/session")
+          const { HeidiState } = await import("../../src/heidi/state")
           const { Bus } = await import("../../src/bus")
           const { File } = await import("../../src/file")
           const { FileWatcher } = await import("../../src/file/watcher")
-
+          const session = await Session.create({})
+          const state = await HeidiState.ensure(session.id, "test edit add event")
+          state.fsm_state = "EXECUTION"
+          await HeidiState.write(session.id, state)
           const events: string[] = []
           const unsubEdited = Bus.subscribe(File.Event.Edited, () => events.push("edited"))
           const unsubUpdated = Bus.subscribe(FileWatcher.Event.Updated, () => events.push("updated"))
-
           const edit = await EditTool.init()
+          const testCtx = { ...ctx, sessionID: session.id }
           await edit.execute(
             {
               filePath: filepath,
               oldString: "",
               newString: "content",
             },
-            ctx,
+            testCtx,
           )
 
           expect(events).toContain("edited")

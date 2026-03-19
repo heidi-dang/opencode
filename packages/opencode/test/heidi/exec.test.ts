@@ -16,7 +16,7 @@ describe("heidi exec", () => {
           const session = await Session.create({})
           const file = path.join(tmp.path, "a.txt")
           await Filesystem.write(file, "ok")
-          const checkpointId = await HeidiExec.checkpoint(session.id, undefined, [file])
+            const checkpointId = await HeidiExec.checkpoint(session.id, [file], undefined)
           await Filesystem.write(file, "bad")
           await HeidiExec.cmd(session.id, {
             cmd: "exit 1",
@@ -63,7 +63,7 @@ describe("heidi exec", () => {
         const file = path.join(tmp.path, "a.txt")
         await Filesystem.write(file, "ok")
 
-        const checkpointId = await HeidiExec.checkpoint(session.id, undefined, [file])
+          const checkpointId = await HeidiExec.checkpoint(session.id, [file], undefined)
         expect(typeof checkpointId).toBe("string")
         expect(checkpointId).not.toBeNull()
         expect(checkpointId.length).toBeGreaterThan(0)

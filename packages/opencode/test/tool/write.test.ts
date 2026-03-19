@@ -6,8 +6,8 @@ import { Instance } from "../../src/project/instance"
 import { tmpdir } from "../fixture/fixture"
 import { SessionID, MessageID } from "../../src/session/schema"
 
-const ctx = {
-  sessionID: SessionID.make("ses_test-write-session"),
+
+const baseCtx = {
   messageID: MessageID.make(""),
   callID: "",
   agent: "build",
@@ -17,7 +17,64 @@ const ctx = {
   ask: async () => {},
 }
 
+async function withExecutionState(session: { id: string }, label = "test write") {
+  const { HeidiState } = await import("../../src/heidi/state")
+  const state = await HeidiState.ensure(session.id as SessionID, label)
+  state.fsm_state = "EXECUTION"
+  await HeidiState.write(session.id as SessionID, state)
+}
+
 describe("tool.write", () => {
+  test("plan-lock drift blocks write execution", async () => {
+    await using tmp = await tmpdir({ git: true })
+    await Instance.provide({
+      directory: tmp.path,
+      fn: async () => {
+        const { Session } = await import("../../src/session")
+        const { HeidiState } = await import("../../src/heidi/state")
+        const { Filesystem } = await import("../../src/util/filesystem")
+        const session = await Session.create({})
+        // Use real contract to lock plan and begin execution
+        const { HeidiBoundary } = await import("../../src/heidi/boundary")
+        await HeidiBoundary.apply({
+          run_id: "run-drift-2",
+          task_id: session.id,
+          action: "start",
+          payload: { objective: "test write drift" },
+        })
+        await HeidiBoundary.apply({
+          run_id: "run-drift-2",
+          task_id: session.id,
+          action: "lock_plan",
+          payload: {},
+        })
+        await HeidiBoundary.apply({
+          run_id: "run-drift-2",
+          task_id: session.id,
+          action: "begin_execution",
+          payload: {},
+        })
+        // Mutate the plan file after lock
+        const planPath = HeidiState.plan(session.id)
+        const orig = await Filesystem.readText(planPath)
+        await Filesystem.write(planPath, orig + "\n# DRIFT\n")
+        const write = await WriteTool.init()
+        const driftCtx = {
+          ...baseCtx,
+          sessionID: session.id,
+        }
+        await expect(
+          write.execute(
+            {
+              filePath: path.join(tmp.path, "drift.txt"),
+              content: "should fail",
+            },
+            driftCtx,
+          ),
+        ).rejects.toThrow(/drift/i)
+      },
+    })
+  })
   describe("new file creation", () => {
     test("writes content to new file", async () => {
       await using tmp = await tmpdir()
@@ -26,17 +83,25 @@ describe("tool.write", () => {
       await Instance.provide({
         directory: tmp.path,
         fn: async () => {
+<<<<<<< HEAD
           const { HeidiState } = await import("../../src/heidi/state")
           const state = await HeidiState.ensure(ctx.sessionID, "")
           state.fsm_state = "EXECUTION"
           await HeidiState.write(ctx.sessionID, state)
+=======
+          const { Session } = await import("../../src/session")
+          const { HeidiState } = await import("../../src/heidi/state")
+          const session = await Session.create({})
+          await withExecutionState(session, "test write new file")
+>>>>>>> 43e3028c4 (Heidi: Wave1 hardening — verification gate, plan-drift, memory hygiene, resume fixes, honesty prompt)
           const write = await WriteTool.init()
+          const testCtx = { ...baseCtx, sessionID: session.id }
           const result = await write.execute(
             {
               filePath: filepath,
               content: "Hello, World!",
             },
-            ctx,
+            testCtx,
           )
 
           expect(result.output).toContain("Wrote file successfully")
@@ -55,13 +120,18 @@ describe("tool.write", () => {
       await Instance.provide({
         directory: tmp.path,
         fn: async () => {
+          const { Session } = await import("../../src/session")
+          const { HeidiState } = await import("../../src/heidi/state")
+          const session = await Session.create({})
+          await withExecutionState(session, "test write nested dir")
           const write = await WriteTool.init()
+          const testCtx = { ...baseCtx, sessionID: session.id }
           await write.execute(
             {
               filePath: filepath,
               content: "nested content",
             },
-            ctx,
+            testCtx,
           )
 
           const content = await fs.readFile(filepath, "utf-8")
@@ -109,13 +179,18 @@ describe("tool.write", () => {
       await Instance.provide({
         directory: tmp.path,
         fn: async () => {
+          const { Session } = await import("../../src/session")
+          const { HeidiState } = await import("../../src/heidi/state")
+          const session = await Session.create({})
+          await withExecutionState(session, "test write relative path")
           const write = await WriteTool.init()
+          const testCtx = { ...baseCtx, sessionID: session.id }
           await write.execute(
             {
               filePath: "relative.txt",
               content: "relative content",
             },
-            ctx,
+            testCtx,
           )
 
           const content = await fs.readFile(path.join(tmp.path, "relative.txt"), "utf-8")
@@ -135,16 +210,20 @@ describe("tool.write", () => {
       await Instance.provide({
         directory: tmp.path,
         fn: async () => {
+          const { Session } = await import("../../src/session")
+          const { HeidiState } = await import("../../src/heidi/state")
           const { FileTime } = await import("../../src/file/time")
-          await FileTime.read(ctx.sessionID, filepath)
-
+          const session = await Session.create({})
+          await withExecutionState(session, "test write overwrite")
+          await FileTime.read(session.id, filepath)
           const write = await WriteTool.init()
+          const testCtx = { ...baseCtx, sessionID: session.id }
           const result = await write.execute(
             {
               filePath: filepath,
               content: "new content",
             },
-            ctx,
+            testCtx,
           )
 
           expect(result.output).toContain("Wrote file successfully")
@@ -164,16 +243,20 @@ describe("tool.write", () => {
       await Instance.provide({
         directory: tmp.path,
         fn: async () => {
+          const { Session } = await import("../../src/session")
+          const { HeidiState } = await import("../../src/heidi/state")
           const { FileTime } = await import("../../src/file/time")
-          await FileTime.read(ctx.sessionID, filepath)
-
+          const session = await Session.create({})
+          await withExecutionState(session, "test write diff")
+          await FileTime.read(session.id, filepath)
           const write = await WriteTool.init()
+          const testCtx = { ...baseCtx, sessionID: session.id }
           const result = await write.execute(
             {
               filePath: filepath,
               content: "new",
             },
-            ctx,
+            testCtx,
           )
 
           // Diff should be in metadata
@@ -192,13 +275,17 @@ describe("tool.write", () => {
       await Instance.provide({
         directory: tmp.path,
         fn: async () => {
+          const { Session } = await import("../../src/session")
+          const session = await Session.create({})
+          await withExecutionState(session, "test write sensitive")
           const write = await WriteTool.init()
+          const testCtx = { ...baseCtx, sessionID: session.id }
           await write.execute(
             {
               filePath: filepath,
               content: JSON.stringify({ secret: "data" }),
             },
-            ctx,
+            testCtx,
           )
 
           // On Unix systems, check permissions
@@ -211,30 +298,89 @@ describe("tool.write", () => {
       })
     })
   })
+    describe("file permissions", () => {
+      test("sets file permissions when writing sensitive data", async () => {
+        await using tmp = await tmpdir()
+        const filepath = path.join(tmp.path, "sensitive.json")
+
+        await Instance.provide({
+          directory: tmp.path,
+          fn: async () => {
+            const { Session } = await import("../../src/session")
+            const session = await Session.create({})
+            await withExecutionState(session, "test write sensitive")
+            const write = await WriteTool.init()
+            const testCtx = { ...baseCtx, sessionID: session.id }
+            await write.execute(
+              {
+                filePath: filepath,
+                content: JSON.stringify({ secret: "data" }),
+              },
+              testCtx,
+            )
+
+            // On Unix systems, check permissions
+            if (process.platform !== "win32") {
+              const stats = await fs.stat(filepath)
+              expect(stats.mode & 0o200).toBe(0o200)
+              expect(stats.mode & 0o002).toBe(0)
+            }
+          },
+        })
+      })
+    })
 
   describe("content types", () => {
     test("writes JSON content", async () => {
       await using tmp = await tmpdir()
       const filepath = path.join(tmp.path, "data.json")
       const data = { key: "value", nested: { array: [1, 2, 3] } }
-
       await Instance.provide({
         directory: tmp.path,
         fn: async () => {
+          const { Session } = await import("../../src/session")
+          const session = await Session.create({})
+          await withExecutionState(session, "test write json content")
           const write = await WriteTool.init()
+          const testCtx = { ...baseCtx, sessionID: session.id }
           await write.execute(
             {
               filePath: filepath,
               content: JSON.stringify(data, null, 2),
             },
-            ctx,
+            testCtx,
           )
-
           const content = await fs.readFile(filepath, "utf-8")
           expect(JSON.parse(content)).toEqual(data)
         },
       })
     })
+      test("writes JSON content", async () => {
+        await using tmp = await tmpdir()
+        const filepath = path.join(tmp.path, "data.json")
+        const data = { key: "value", nested: { array: [1, 2, 3] } }
+
+        await Instance.provide({
+          directory: tmp.path,
+          fn: async () => {
+            const { Session } = await import("../../src/session")
+            const session = await Session.create({})
+            await withExecutionState(session, "test write json content")
+            const write = await WriteTool.init()
+            const testCtx = { ...baseCtx, sessionID: session.id }
+            await write.execute(
+              {
+                filePath: filepath,
+                content: JSON.stringify(data, null, 2),
+              },
+              testCtx,
+            )
+
+            const content = await fs.readFile(filepath, "utf-8")
+            expect(JSON.parse(content)).toEqual(data)
+          },
+        })
+      })
 
     test("writes binary-safe content", async () => {
       await using tmp = await tmpdir()
@@ -244,13 +390,17 @@ describe("tool.write", () => {
       await Instance.provide({
         directory: tmp.path,
         fn: async () => {
+          const { Session } = await import("../../src/session")
+          const session = await Session.create({})
+          await withExecutionState(session, "test write binary content")
           const write = await WriteTool.init()
+          const testCtx = { ...baseCtx, sessionID: session.id }
           await write.execute(
             {
               filePath: filepath,
               content,
             },
-            ctx,
+            testCtx,
           )
 
           const buf = await fs.readFile(filepath)
@@ -266,13 +416,17 @@ describe("tool.write", () => {
       await Instance.provide({
         directory: tmp.path,
         fn: async () => {
+          const { Session } = await import("../../src/session")
+          const session = await Session.create({})
+          await withExecutionState(session, "test write empty content")
           const write = await WriteTool.init()
+          const testCtx = { ...baseCtx, sessionID: session.id }
           await write.execute(
             {
               filePath: filepath,
               content: "",
             },
-            ctx,
+            testCtx,
           )
 
           const content = await fs.readFile(filepath, "utf-8")
@@ -292,13 +446,17 @@ describe("tool.write", () => {
       await Instance.provide({
         directory: tmp.path,
         fn: async () => {
+          const { Session } = await import("../../src/session")
+          const session = await Session.create({})
+          await withExecutionState(session, "test write multiline content")
           const write = await WriteTool.init()
+          const testCtx = { ...baseCtx, sessionID: session.id }
           await write.execute(
             {
               filePath: filepath,
               content: lines,
             },
-            ctx,
+            testCtx,
           )
 
           const content = await fs.readFile(filepath, "utf-8")
@@ -315,13 +473,17 @@ describe("tool.write", () => {
       await Instance.provide({
         directory: tmp.path,
         fn: async () => {
+          const { Session } = await import("../../src/session")
+          const session = await Session.create({})
+          await withExecutionState(session, "test write crlf content")
           const write = await WriteTool.init()
+          const testCtx = { ...baseCtx, sessionID: session.id }
           await write.execute(
             {
               filePath: filepath,
               content,
             },
-            ctx,
+            testCtx,
           )
 
           const buf = await fs.readFile(filepath)
@@ -335,25 +497,25 @@ describe("tool.write", () => {
     test("throws error when OS denies write access", async () => {
       await using tmp = await tmpdir()
       const readonlyPath = path.join(tmp.path, "readonly.txt")
-
-      // Create a read-only file
       await fs.writeFile(readonlyPath, "test", "utf-8")
       await fs.chmod(readonlyPath, 0o444)
-
       await Instance.provide({
         directory: tmp.path,
         fn: async () => {
+          const { Session } = await import("../../src/session")
           const { FileTime } = await import("../../src/file/time")
-          await FileTime.read(ctx.sessionID, readonlyPath)
-
+          const session = await Session.create({})
+          await withExecutionState(session, "test write readonly")
+          await FileTime.read(session.id, readonlyPath)
           const write = await WriteTool.init()
+          const testCtx = { ...baseCtx, sessionID: session.id }
           await expect(
             write.execute(
               {
                 filePath: readonlyPath,
                 content: "new content",
               },
-              ctx,
+              testCtx,
             ),
           ).rejects.toThrow()
         },
@@ -366,19 +528,21 @@ describe("tool.write", () => {
       await using tmp = await tmpdir()
       const filepath = path.join(tmp.path, "src", "components", "Button.tsx")
       await fs.mkdir(path.dirname(filepath), { recursive: true })
-
       await Instance.provide({
         directory: tmp.path,
         fn: async () => {
+          const { Session } = await import("../../src/session")
+          const session = await Session.create({})
+          await withExecutionState(session, "test write title")
           const write = await WriteTool.init()
+          const testCtx = { ...baseCtx, sessionID: session.id }
           const result = await write.execute(
             {
               filePath: filepath,
               content: "export const Button = () => {}",
             },
-            ctx,
+            testCtx,
           )
-
           expect(result.title).toEndWith(path.join("src", "components", "Button.tsx"))
         },
       })

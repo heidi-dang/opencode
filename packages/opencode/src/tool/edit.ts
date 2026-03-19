@@ -59,6 +59,7 @@ export const EditTool = Tool.define("edit", {
     if (state.fsm_state !== "EXECUTION" && state.fsm_state !== "VERIFICATION") {
       throw new Error(`edit is only available in EXECUTION or VERIFICATION. Current state: ${state.fsm_state}`)
     }
+    await HeidiState.checkPlanDrift(ctx.sessionID)
 
     if (!params.filePath) {
       throw new Error("filePath is required")
@@ -78,7 +79,7 @@ export const EditTool = Tool.define("edit", {
     let contentNew = ""
     let filediff: Snapshot.FileDiff | undefined
     const transactionId = state.resume.checkpoint_id
-    const checkpoint = transactionId ?? (await HeidiExec.checkpoint(ctx.sessionID, `edit:${filePath}`, [filePath]))
+    const checkpoint = transactionId ?? (await HeidiExec.checkpoint(ctx.sessionID, [filePath], `edit:${filePath}`))
     try {
       await FileTime.withLock(filePath, async () => {
         if (params.oldString === "") {

@@ -243,7 +243,8 @@ export namespace HeidiState {
       // Persist cleared next_step in task state
       await write(sessionID, state)
     }
-    // If checklist is empty, preserve explicit next_step
+    // If checklist is empty, preserve explicit next_step, but normalize null to undefined
+    const normalized_next_step = typeof next_step === "string" ? next_step : undefined
     const resume: ResumeState = {
       run_id: state.run_id,
       task_id: state.task_id,
@@ -256,7 +257,7 @@ export namespace HeidiState {
       edited_files: state.changed_files,
       last_validations: state.verification_commands,
       failed_hypotheses: state.resume.failed_hypotheses,
-      next_step,
+      next_step: normalized_next_step,
       checkpoint_ref: state.resume.checkpoint_id,
       narrative: `Heidi is in ${state.fsm_state} state (Mode: ${state.mode}). Completed ${done.length} items. Next transition: ${state.next_transition}. Last successful step: ${state.last_successful_step || "init"}.`,
     }

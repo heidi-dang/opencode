@@ -38,6 +38,7 @@ export const WriteTool = Tool.define("write", {
     if (state.fsm_state !== "EXECUTION" && state.fsm_state !== "VERIFICATION") {
       throw new Error(`write is only available in EXECUTION or VERIFICATION. Current state: ${state.fsm_state}`)
     }
+    await HeidiState.checkPlanDrift(ctx.sessionID)
 
     const filepath = path.isAbsolute(params.filePath) ? params.filePath : path.join(Instance.directory, params.filePath)
     HeidiJail.assert(filepath)
@@ -49,7 +50,7 @@ export const WriteTool = Tool.define("write", {
 
     // Checkpoint
     const transactionId = state.resume.checkpoint_id
-    const checkpoint = transactionId ?? (await HeidiExec.checkpoint(ctx.sessionID, `write:${filepath}`, [filepath]))
+    const checkpoint = transactionId ?? (await HeidiExec.checkpoint(ctx.sessionID, [filepath], `write:${filepath}`))
 
     const diff = trimDiff(createTwoFilesPatch(filepath, filepath, contentOld, params.content))
     await ctx.ask({

@@ -20,6 +20,7 @@ export const RunCommandTool = Tool.define("run_command", {
     const state = await HeidiState.ensure(ctx.sessionID, "")
     const allowed = state.fsm_state === "EXECUTION" || state.fsm_state === "VERIFICATION"
     if (!allowed) throw new Error(`run_command unavailable in ${state.fsm_state}`)
+    await HeidiState.checkPlanDrift(ctx.sessionID)
 
     const cwd = params.cwd
       ? path.isAbsolute(params.cwd)

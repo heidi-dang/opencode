@@ -42,7 +42,7 @@ async function pick(sessionID: SessionID, id?: string) {
 }
 
 export namespace HeidiExec {
-  export async function checkpoint(sessionID: SessionID, step: string, files: string[]) {
+  export async function checkpoint(sessionID: SessionID, files: string[], step?: string) {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
       const step_id = typeof step === "string" && step.length > 0 ? step : "unknown"
     const worktree = Instance.worktree
@@ -143,12 +143,13 @@ export namespace HeidiExec {
   }
 
   export async function begin(sessionID: SessionID, name: string, files: string[]) {
-    return checkpoint(sessionID, `transaction:${name}`, files)
+    return checkpoint(sessionID, files, `transaction:${name}`)
   }
 
   export async function commit(sessionID: SessionID) {
     const state = await HeidiState.read(sessionID)
-    state.resume.checkpoint_id = checkpointId ?? null
+    // Only clear checkpoint if it was created in this commit
+    state.resume.checkpoint_id = null
     await HeidiState.write(sessionID, state)
     await HeidiState.updateResume(sessionID)
   }

@@ -103,7 +103,7 @@ export const ReplaceFileContentTool = Tool.define("replace_file_content", {
     }
 
     const files = next.map((item) => item.path)
-    const checkpoint = await HeidiExec.checkpoint(ctx.sessionID, "replace_file_content", files)
+    const checkpoint = await HeidiExec.checkpoint(ctx.sessionID, files, "replace_file_content")
     try {
       await Promise.all(next.map((item) => Filesystem.write(item.path, item.after)))
       await HeidiExec.changed(ctx.sessionID, files)
