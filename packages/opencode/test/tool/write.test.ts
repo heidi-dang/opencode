@@ -84,10 +84,10 @@ describe("tool.write", () => {
         directory: tmp.path,
         fn: async () => {
 <<<<<<< HEAD
+          const { Session } = await import("../../src/session")
           const { HeidiState } = await import("../../src/heidi/state")
-          const state = await HeidiState.ensure(ctx.sessionID, "")
-          state.fsm_state = "EXECUTION"
-          await HeidiState.write(ctx.sessionID, state)
+          const session = await Session.create({})
+          await withExecutionState(session, "test write new file")
 =======
           const { Session } = await import("../../src/session")
           const { HeidiState } = await import("../../src/heidi/state")
