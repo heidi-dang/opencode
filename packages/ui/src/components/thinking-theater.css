@@ -23,29 +23,56 @@
 
 /* ─── Keyframes ─── */
 @keyframes theater-gradient {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
 }
 
 @keyframes theater-scanline {
-  0% { transform: translateY(-100%); }
-  100% { transform: translateY(100%); }
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(100%);
+  }
 }
 
 @keyframes theater-chip-in {
-  0% { opacity: 0; transform: scale(0.7) translateY(6px); }
-  100% { opacity: 1; transform: scale(1) translateY(0); }
+  0% {
+    opacity: 0;
+    transform: scale(0.7) translateY(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 
 @keyframes theater-chip-out {
-  0% { opacity: 1; }
-  100% { opacity: 0; transform: scale(0.8) translateY(-4px); }
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.8) translateY(-4px);
+  }
 }
 
 @keyframes theater-text-up {
-  0% { opacity: 0; transform: translateY(8px); }
-  100% { opacity: 1; transform: translateY(0); }
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* ─── Theater container ─── */
@@ -78,12 +105,7 @@
     content: "";
     position: absolute;
     inset: 0;
-    background: linear-gradient(
-      180deg,
-      transparent 0%,
-      rgba(var(--phase-thinking), 0.03) 50%,
-      transparent 100%
-    );
+    background: linear-gradient(180deg, transparent 0%, rgba(var(--phase-thinking), 0.03) 50%, transparent 100%);
     height: 200%;
     animation: theater-scanline 6s linear infinite;
     pointer-events: none;
@@ -92,22 +114,70 @@
 
 /* Phase-specific backdrop colors */
 [data-component="thinking-theater"][data-phase="planning"] [data-slot="theater-backdrop"] {
-  background: linear-gradient(135deg, rgba(var(--phase-planning), 0.06), rgba(var(--phase-planning), 0.02), rgba(var(--phase-planning), 0.06));
+  background: linear-gradient(
+    135deg,
+    rgba(var(--phase-planning), 0.06),
+    rgba(var(--phase-planning), 0.02),
+    rgba(var(--phase-planning), 0.06)
+  );
   border-color: rgba(var(--phase-planning), 0.15);
-  &::after { background: linear-gradient(180deg, transparent, rgba(var(--phase-planning), 0.03), transparent); }
+  &::after {
+    background: linear-gradient(180deg, transparent, rgba(var(--phase-planning), 0.03), transparent);
+  }
 }
 
 [data-component="thinking-theater"][data-phase="editing"] [data-slot="theater-backdrop"] {
-  background: linear-gradient(135deg, rgba(var(--phase-editing), 0.06), rgba(var(--phase-editing), 0.02), rgba(var(--phase-editing), 0.06));
+  background: linear-gradient(
+    135deg,
+    rgba(var(--phase-editing), 0.06),
+    rgba(var(--phase-editing), 0.02),
+    rgba(var(--phase-editing), 0.06)
+  );
   border-color: rgba(var(--phase-editing), 0.15);
-  &::after { background: linear-gradient(180deg, transparent, rgba(var(--phase-editing), 0.03), transparent); }
+  &::after {
+    background: linear-gradient(180deg, transparent, rgba(var(--phase-editing), 0.03), transparent);
+  }
 }
 
-[data-component="thinking-theater"][data-phase="verifying"], [data-component="thinking-theater"][data-phase="testing"] {
+[data-component="thinking-theater"][data-phase="focused"] [data-slot="theater-backdrop"] {
+  background: linear-gradient(
+    135deg,
+    rgba(var(--phase-editing), 0.06),
+    rgba(var(--phase-editing), 0.02),
+    rgba(var(--phase-editing), 0.06)
+  );
+  border-color: rgba(var(--phase-editing), 0.16);
+  &::after {
+    background: linear-gradient(180deg, transparent, rgba(var(--phase-editing), 0.035), transparent);
+  }
+}
+
+[data-component="thinking-theater"][data-phase="warning"] [data-slot="theater-backdrop"] {
+  background: linear-gradient(
+    135deg,
+    rgba(var(--phase-testing), 0.07),
+    rgba(var(--phase-testing), 0.02),
+    rgba(var(--phase-testing), 0.06)
+  );
+  border-color: rgba(var(--phase-testing), 0.2);
+  &::after {
+    background: linear-gradient(180deg, transparent, rgba(var(--phase-testing), 0.04), transparent);
+  }
+}
+
+[data-component="thinking-theater"][data-phase="verifying"],
+[data-component="thinking-theater"][data-phase="testing"] {
   [data-slot="theater-backdrop"] {
-    background: linear-gradient(135deg, rgba(var(--phase-verifying), 0.06), rgba(var(--phase-verifying), 0.02), rgba(var(--phase-verifying), 0.06));
+    background: linear-gradient(
+      135deg,
+      rgba(var(--phase-verifying), 0.06),
+      rgba(var(--phase-verifying), 0.02),
+      rgba(var(--phase-verifying), 0.06)
+    );
     border-color: rgba(var(--phase-verifying), 0.15);
-    &::after { background: linear-gradient(180deg, transparent, rgba(var(--phase-verifying), 0.03), transparent); }
+    &::after {
+      background: linear-gradient(180deg, transparent, rgba(var(--phase-verifying), 0.03), transparent);
+    }
   }
 }
 
@@ -116,35 +186,42 @@
   position: relative;
   z-index: 1;
   display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 14px 18px;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
 }
 
 [data-slot="theater-orb"] {
   flex-shrink: 0;
+  width: 32px;
+  display: flex;
+  justify-content: center;
+  padding-top: 2px;
 }
 
-[data-slot="theater-text"] {
+[data-slot="theater-main"] {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
 }
 
 /* ─── Scene title ─── */
-[data-slot="theater-scene"] {
+[data-slot="theater-title"] {
   font-family: var(--font-family-sans);
-  font-size: 14px;
+  font-size: 15px;
   font-weight: var(--font-weight-medium);
   line-height: var(--line-height-large);
   color: var(--text-strong);
   animation: theater-text-up 0.4s ease-out;
 }
 
-/* ─── Subtext ─── */
+/* ─── Subtext row sits in same text column as title ─── */
 [data-slot="theater-subtext"] {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   font-family: var(--font-family-sans);
   font-size: 13px;
   font-weight: var(--font-weight-regular);
@@ -153,31 +230,29 @@
   animation: theater-text-up 0.5s ease-out;
 }
 
-/* ─── Reasoning heading (from model) ─── */
-[data-slot="theater-heading"] {
+[data-slot="theater-subhint"] {
   font-family: var(--font-family-sans);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: var(--font-weight-regular);
   line-height: var(--line-height-large);
   color: var(--text-weaker);
-  margin-top: 2px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-/* ─── Thought chips ─── */
+/* ─── Thought chips are always in a dedicated bottom row ─── */
 [data-slot="theater-chips"] {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
-  flex-shrink: 0;
+  margin-top: 2px;
+  align-items: center;
 }
 
 [data-slot="theater-chip"] {
   display: inline-flex;
   align-items: center;
-  padding: 2px 8px;
+  max-width: min(42vw, 220px);
+  min-height: 22px;
+  padding: 2px 9px;
   border-radius: 6px;
   font-family: var(--font-family-sans);
   font-size: 11px;
@@ -187,4 +262,53 @@
   border: 1px solid rgba(var(--phase-thinking), 0.12);
   animation: theater-chip-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) backwards;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+[data-slot="theater-strip"] {
+  height: 3px;
+  margin-top: 2px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    rgba(var(--phase-thinking), 0.08),
+    rgba(var(--phase-thinking), 0.28),
+    rgba(var(--phase-thinking), 0.08)
+  );
+  background-size: 220% 100%;
+  animation: theater-gradient 2.8s ease-in-out infinite;
+}
+
+@media (max-width: 540px) {
+  [data-slot="theater-content"] {
+    padding: 15px 14px;
+    gap: 10px;
+  }
+
+  [data-slot="theater-orb"] {
+    width: 30px;
+  }
+
+  [data-slot="theater-title"] {
+    font-size: 14px;
+  }
+
+  [data-slot="theater-subtext"] {
+    font-size: 12.5px;
+    line-height: 1.45;
+  }
+}
+
+@media (max-width: 430px) {
+  /* Mobile-specific chip row constraints:
+     keep chips at max two visual lines and prevent collisions with text lane. */
+  [data-slot="theater-chips"] {
+    max-height: 52px;
+    overflow: hidden;
+  }
+
+  [data-slot="theater-chip"] {
+    max-width: min(38vw, 150px);
+  }
 }

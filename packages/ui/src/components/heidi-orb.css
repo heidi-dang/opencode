@@ -1,167 +1,500 @@
-/* ─── Orb keyframes ─── */
+/* Orb animations for the Chibi Heidi identity. */
 @keyframes orb-breathe {
-  0%, 100% { transform: scale(1); opacity: 0.6; }
-  50% { transform: scale(1.15); opacity: 1; }
+  0%,
+  100% {
+    transform: scale(0.98);
+    filter: brightness(0.98);
+  }
+  50% {
+    transform: scale(1.03);
+    filter: brightness(1.06);
+  }
 }
 
 @keyframes orb-halo-pulse {
-  0%, 100% { transform: scale(1); opacity: 0; }
-  50% { transform: scale(1.8); opacity: 0.3; }
+  0%,
+  100% {
+    transform: scale(0.95);
+    opacity: 0.2;
+  }
+  50% {
+    transform: scale(1.12);
+    opacity: 0.42;
+  }
 }
 
-@keyframes orb-ring-spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+@keyframes orb-ring-drift {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes orb-blink {
+  0%,
+  46%,
+  100% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+  48%,
+  52% {
+    transform: scaleY(0.15);
+    opacity: 0.9;
+  }
 }
 
 @keyframes orb-success-bloom {
-  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(var(--phase-success), 0.4); }
-  50% { transform: scale(1.3); box-shadow: 0 0 20px 8px rgba(var(--phase-success), 0.3); }
-  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(var(--phase-success), 0); }
+  0% {
+    box-shadow: 0 0 0 0 rgba(var(--phase-success), 0.15);
+  }
+  35% {
+    box-shadow: 0 0 0 9px rgba(var(--phase-success), 0.22);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(var(--phase-success), 0);
+  }
 }
 
-@keyframes orb-blocked-shimmer {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 1; }
+@keyframes orb-relief-mouth {
+  0% {
+    width: var(--orb-relief-mouth-start-w);
+    height: var(--orb-relief-mouth-start-h);
+    border-bottom-width: var(--orb-relief-mouth-start-b);
+    border-radius: 0 0 var(--orb-relief-mouth-start-r) var(--orb-relief-mouth-start-r);
+  }
+  60% {
+    width: 8.4px;
+    height: 4.2px;
+    border-bottom-width: 1.8px;
+    border-radius: 0 0 10px 10px;
+  }
+  100% {
+    width: 8px;
+    height: 4px;
+    border-bottom-width: 1.6px;
+    border-radius: 0 0 8px 8px;
+  }
 }
 
-/* ─── Orb container ─── */
+@keyframes orb-relief-cheek {
+  0% {
+    opacity: var(--orb-relief-cheek-start-o);
+    transform: scale(0.9);
+  }
+  55% {
+    opacity: 0.95;
+    transform: scale(1.12);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes orb-relief-shine {
+  0% {
+    opacity: var(--orb-relief-shine-start-o);
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes orb-warn-shimmer {
+  0%,
+  100% {
+    filter: saturate(0.95);
+  }
+  50% {
+    filter: saturate(1.12);
+  }
+}
+
 [data-component="heidi-orb"] {
+  --orb-relief-time: 400ms;
+  --orb-relief-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --orb-relief-mouth-start-w: 4.6px;
+  --orb-relief-mouth-start-h: 1.6px;
+  --orb-relief-mouth-start-b: 1px;
+  --orb-relief-mouth-start-r: 2px;
+  --orb-relief-cheek-start-o: 0.08;
+  --orb-relief-shine-start-o: 0.45;
   position: relative;
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   flex-shrink: 0;
 }
 
-/* ─── Orb core ─── */
+[data-slot="orb-plate"] {
+  position: absolute;
+  inset: -2px;
+  border-radius: 999px;
+  background: radial-gradient(circle at 35% 25%, rgba(193, 175, 255, 0.2), rgba(95, 62, 230, 0.12));
+  border: 1px solid rgba(var(--phase-thinking), 0.25);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+[data-slot="orb-aura"] {
+  position: absolute;
+  inset: -6px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(var(--phase-thinking), 0.2), rgba(var(--phase-thinking), 0));
+  filter: blur(1.2px);
+  animation: orb-halo-pulse 3.8s ease-in-out infinite;
+}
+
 [data-slot="orb-core"] {
   position: absolute;
-  inset: 6px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(var(--phase-thinking), 0.9), rgba(var(--phase-thinking), 0.5));
-  animation: orb-breathe 3s ease-in-out infinite;
+  inset: 3px;
+  border-radius: 999px;
+  background: radial-gradient(
+    circle at 35% 28%,
+    rgba(255, 255, 255, 0.7),
+    rgba(220, 201, 255, 0.24) 25%,
+    rgba(136, 98, 255, 0.95) 62%,
+    rgba(76, 43, 205, 0.96)
+  );
+  box-shadow:
+    inset 0 -2px 6px rgba(47, 18, 145, 0.46),
+    inset 0 1px 2px rgba(255, 255, 255, 0.32);
+  animation: orb-breathe 3.4s ease-in-out infinite;
 }
 
-/* ─── Orb halo ─── */
 [data-slot="orb-halo"] {
   position: absolute;
-  inset: 2px;
-  border-radius: 50%;
-  background: rgba(var(--phase-thinking), 0.1);
-  animation: orb-halo-pulse 3s ease-in-out infinite;
+  inset: -1px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(var(--phase-thinking), 0.24), rgba(var(--phase-thinking), 0));
+  mix-blend-mode: screen;
 }
 
-/* ─── Orb ring ─── */
 [data-slot="orb-ring"] {
   position: absolute;
+  inset: -3px;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--phase-thinking), 0.15);
+  border-top-color: rgba(var(--phase-thinking), 0.45);
+  border-right-color: rgba(var(--phase-thinking), 0.28);
+  opacity: 0.42;
+  animation: orb-ring-drift 8s linear infinite;
+}
+
+[data-slot="orb-face"] {
+  position: absolute;
   inset: 0;
-  border-radius: 50%;
-  border: 1.5px solid transparent;
-  border-top-color: rgba(var(--phase-thinking), 0.3);
-  border-right-color: rgba(var(--phase-thinking), 0.1);
-  animation: orb-ring-spin 4s linear infinite;
-  opacity: 0;
 }
 
-/* ─── Phase: thinking ─── */
+[data-slot="orb-eye"] {
+  position: absolute;
+  top: 11px;
+  width: 2.8px;
+  height: 3.6px;
+  border-radius: 999px;
+  background: rgba(251, 247, 255, 0.95);
+  box-shadow: 0 0 2px rgba(255, 255, 255, 0.35);
+  animation: orb-blink 4.8s ease-in-out infinite;
+  transition:
+    transform 160ms ease,
+    width 160ms ease,
+    height 160ms ease,
+    top 160ms ease,
+    background-color 160ms ease;
+}
+
+[data-slot="orb-eye"][data-eye="left"] {
+  left: 9px;
+}
+
+[data-slot="orb-eye"][data-eye="right"] {
+  right: 9px;
+}
+
+[data-slot="orb-mouth"] {
+  position: absolute;
+  left: 50%;
+  top: 16px;
+  width: 7px;
+  height: 3px;
+  border-bottom: 1.6px solid rgba(255, 245, 255, 0.86);
+  border-radius: 0 0 8px 8px;
+  transform: translateX(-50%);
+  transition:
+    width 160ms ease,
+    height 160ms ease,
+    top 160ms ease,
+    border-bottom-width 160ms ease,
+    border-radius 160ms ease;
+}
+
+[data-slot="orb-cheek"] {
+  position: absolute;
+  top: 15px;
+  width: 4px;
+  height: 2px;
+  border-radius: 999px;
+  background: rgba(255, 183, 216, 0.5);
+  filter: blur(0.3px);
+  transition: opacity 160ms ease;
+}
+
+[data-slot="orb-cheek"][data-cheek="left"] {
+  left: 6px;
+}
+
+[data-slot="orb-cheek"][data-cheek="right"] {
+  right: 6px;
+}
+
+[data-slot="orb-shine"] {
+  position: absolute;
+  top: 5px;
+  left: 7px;
+  width: 8px;
+  height: 5px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.65), rgba(255, 255, 255, 0));
+  transform: rotate(-24deg);
+  transition: opacity 160ms ease;
+}
+
+/* Mood tuning:
+   - cute: friendly face details visible
+   - hard: reduce cute cues and tighten facial posture */
+[data-component="heidi-orb"][data-mood="cute"] {
+  [data-slot="orb-cheek"] {
+    opacity: 1;
+  }
+
+  [data-slot="orb-shine"] {
+    opacity: 1;
+  }
+
+  [data-slot="orb-mouth"] {
+    border-radius: 0 0 8px 8px;
+  }
+}
+
+[data-component="heidi-orb"][data-mood="hard"] {
+  [data-slot="orb-cheek"] {
+    opacity: 0.2;
+  }
+
+  [data-slot="orb-shine"] {
+    opacity: 0.7;
+  }
+
+  [data-slot="orb-eye"] {
+    top: 10px;
+    width: 3.1px;
+    height: 3.2px;
+    background: rgba(247, 244, 255, 0.98);
+    animation-duration: 8s;
+  }
+
+  [data-slot="orb-mouth"] {
+    top: 16px;
+    width: 5.5px;
+    height: 2px;
+    border-bottom-width: 1.2px;
+    border-radius: 0 0 3px 3px;
+  }
+}
+
+[data-component="heidi-orb"][data-mood="hardest"] {
+  [data-slot="orb-cheek"] {
+    opacity: 0.04;
+  }
+
+  [data-slot="orb-shine"] {
+    opacity: 0.5;
+  }
+
+  [data-slot="orb-eye"] {
+    top: 9.5px;
+    width: 3.2px;
+    height: 2.8px;
+    animation-duration: 10s;
+  }
+
+  [data-slot="orb-mouth"] {
+    top: 15.8px;
+    width: 4.6px;
+    height: 1.6px;
+    border-bottom-width: 1px;
+    border-radius: 0 0 2px 2px;
+  }
+}
+
+[data-component="heidi-orb"][data-phase="idle"] {
+  [data-slot="orb-aura"] {
+    opacity: 0.22;
+    animation-duration: 4.8s;
+  }
+
+  [data-slot="orb-ring"] {
+    opacity: 0.2;
+    animation-duration: 10s;
+  }
+}
+
 [data-component="heidi-orb"][data-phase="thinking"] {
-  [data-slot="orb-core"] {
-    background: radial-gradient(circle, rgba(var(--phase-thinking), 0.9), rgba(var(--phase-thinking), 0.4));
+  [data-slot="orb-aura"] {
+    opacity: 0.36;
+    animation-duration: 3.3s;
   }
-  [data-slot="orb-halo"] { animation-duration: 3s; }
-  [data-slot="orb-ring"] { opacity: 0.3; animation-duration: 6s; }
-}
 
-/* ─── Phase: planning ─── */
-[data-component="heidi-orb"][data-phase="planning"] {
-  [data-slot="orb-core"] {
-    background: radial-gradient(circle, rgba(var(--phase-planning), 0.9), rgba(var(--phase-planning), 0.4));
-    animation-duration: 2.5s;
-  }
-  [data-slot="orb-halo"] {
-    background: rgba(var(--phase-planning), 0.1);
-    animation-duration: 2.5s;
-  }
   [data-slot="orb-ring"] {
     opacity: 0.5;
-    border-top-color: rgba(var(--phase-planning), 0.5);
-    border-right-color: rgba(var(--phase-planning), 0.2);
-    animation-duration: 3s;
+    animation-duration: 7s;
+  }
+
+  [data-slot="orb-eye"] {
+    animation-duration: 4.2s;
   }
 }
 
-/* ─── Phase: editing ─── */
-[data-component="heidi-orb"][data-phase="editing"] {
-  [data-slot="orb-core"] {
-    background: radial-gradient(circle, rgba(var(--phase-editing), 0.9), rgba(var(--phase-editing), 0.4));
-    animation-duration: 1.8s;
+[data-component="heidi-orb"][data-phase="focused"] {
+  [data-slot="orb-aura"] {
+    opacity: 0.46;
+    animation-duration: 2.8s;
   }
-  [data-slot="orb-halo"] {
-    background: rgba(var(--phase-editing), 0.1);
-    animation-duration: 1.8s;
-  }
+
   [data-slot="orb-ring"] {
-    opacity: 0.4;
-    border-top-color: rgba(var(--phase-editing), 0.4);
-    animation-duration: 2s;
+    opacity: 0.72;
+    animation-duration: 4.8s;
+  }
+
+  [data-slot="orb-mouth"] {
+    width: 6px;
   }
 }
 
-/* ─── Phase: testing ─── */
+[data-component="heidi-orb"][data-phase="warning"] {
+  [data-slot="orb-aura"] {
+    background: radial-gradient(circle, rgba(var(--phase-testing), 0.2), rgba(var(--phase-testing), 0));
+    opacity: 0.34;
+    animation-duration: 2.6s;
+  }
+
+  [data-slot="orb-core"] {
+    filter: hue-rotate(18deg);
+    animation:
+      orb-breathe 3s ease-in-out infinite,
+      orb-warn-shimmer 2.2s ease-in-out infinite;
+  }
+
+  [data-slot="orb-ring"] {
+    border-color: rgba(var(--phase-testing), 0.22);
+    border-top-color: rgba(var(--phase-testing), 0.7);
+    border-right-color: rgba(var(--phase-testing), 0.32);
+    opacity: 0.66;
+  }
+
+  [data-slot="orb-mouth"] {
+    width: 6px;
+    border-bottom-width: 1.2px;
+  }
+}
+
+[data-component="heidi-orb"][data-phase="planning"],
+[data-component="heidi-orb"][data-phase="editing"] {
+  [data-slot="orb-aura"] {
+    opacity: 0.4;
+  }
+}
+
+[data-component="heidi-orb"][data-phase="verifying"],
 [data-component="heidi-orb"][data-phase="testing"] {
   [data-slot="orb-core"] {
-    background: radial-gradient(circle, rgba(var(--phase-testing), 0.9), rgba(var(--phase-testing), 0.4));
-    animation-duration: 2s;
+    filter: saturate(1.06) brightness(1.05);
   }
-  [data-slot="orb-halo"] {
-    background: rgba(var(--phase-testing), 0.1);
-    animation-duration: 2s;
+
+  [data-slot="orb-ring"] {
+    border-color: rgba(var(--phase-verifying), 0.22);
+    border-top-color: rgba(var(--phase-verifying), 0.62);
+    border-right-color: rgba(var(--phase-verifying), 0.38);
+    opacity: 0.72;
+    animation-duration: 5.5s;
   }
-  [data-slot="orb-ring"] { opacity: 0.3; border-top-color: rgba(var(--phase-testing), 0.4); }
+
+  [data-slot="orb-mouth"] {
+    width: 6px;
+    border-bottom-width: 1.3px;
+  }
 }
 
-/* ─── Phase: verifying ─── */
-[data-component="heidi-orb"][data-phase="verifying"] {
-  [data-slot="orb-core"] {
-    background: radial-gradient(circle, rgba(var(--phase-verifying), 0.9), rgba(var(--phase-verifying), 0.4));
-    animation-duration: 2.2s;
-  }
-  [data-slot="orb-halo"] {
-    background: rgba(var(--phase-verifying), 0.12);
-    animation-duration: 2.2s;
-  }
-  [data-slot="orb-ring"] { opacity: 0.5; border-top-color: rgba(var(--phase-verifying), 0.5); }
-}
-
-/* ─── Phase: success ─── */
 [data-component="heidi-orb"][data-phase="success"] {
   [data-slot="orb-core"] {
-    background: radial-gradient(circle, rgba(var(--phase-success), 1), rgba(var(--phase-success), 0.6));
-    animation: orb-success-bloom 1s ease-out forwards;
+    animation:
+      orb-breathe 3.2s ease-in-out infinite,
+      orb-success-bloom 1s ease-out 1;
   }
-  [data-slot="orb-halo"] { animation: none; opacity: 0; }
-  [data-slot="orb-ring"] { animation: none; opacity: 0; }
+
+  [data-slot="orb-ring"] {
+    border-color: rgba(var(--phase-success), 0.24);
+    border-top-color: rgba(var(--phase-success), 0.7);
+    border-right-color: rgba(var(--phase-success), 0.42);
+    opacity: 0.68;
+  }
+
+  [data-slot="orb-mouth"] {
+    width: 8px;
+    height: 4px;
+    animation: orb-relief-mouth var(--orb-relief-time) var(--orb-relief-ease) 1;
+  }
+
+  [data-slot="orb-cheek"] {
+    animation: orb-relief-cheek var(--orb-relief-time) var(--orb-relief-ease) 1;
+  }
+
+  [data-slot="orb-shine"] {
+    animation: orb-relief-shine var(--orb-relief-time) var(--orb-relief-ease) 1;
+  }
 }
 
-/* ─── Phase: blocked ─── */
+/* Continuity tiers for success transition based on prior state. */
+[data-component="heidi-orb"][data-phase="success"][data-relief="soft"] {
+  --orb-relief-time: 300ms;
+  --orb-relief-mouth-start-w: 6.8px;
+  --orb-relief-mouth-start-h: 2.8px;
+  --orb-relief-mouth-start-b: 1.4px;
+  --orb-relief-mouth-start-r: 6px;
+  --orb-relief-cheek-start-o: 0.5;
+  --orb-relief-shine-start-o: 0.75;
+}
+
+[data-component="heidi-orb"][data-phase="success"][data-relief="mid"] {
+  --orb-relief-time: 380ms;
+  --orb-relief-mouth-start-w: 5.5px;
+  --orb-relief-mouth-start-h: 2px;
+  --orb-relief-mouth-start-b: 1.2px;
+  --orb-relief-mouth-start-r: 3px;
+  --orb-relief-cheek-start-o: 0.22;
+  --orb-relief-shine-start-o: 0.62;
+}
+
+[data-component="heidi-orb"][data-phase="success"][data-relief="deep"] {
+  --orb-relief-time: 460ms;
+  --orb-relief-mouth-start-w: 4.6px;
+  --orb-relief-mouth-start-h: 1.6px;
+  --orb-relief-mouth-start-b: 1px;
+  --orb-relief-mouth-start-r: 2px;
+  --orb-relief-cheek-start-o: 0.04;
+  --orb-relief-shine-start-o: 0.5;
+}
+
 [data-component="heidi-orb"][data-phase="blocked"] {
-  [data-slot="orb-core"] {
-    background: radial-gradient(circle, rgba(var(--phase-blocked), 0.9), rgba(var(--phase-blocked), 0.4));
-    animation: orb-blocked-shimmer 1.5s ease-in-out infinite;
+  [data-slot="orb-aura"] {
+    opacity: 0.26;
   }
-  [data-slot="orb-halo"] {
-    background: rgba(var(--phase-blocked), 0.1);
-    animation-duration: 1.5s;
-  }
-  [data-slot="orb-ring"] { opacity: 0; }
-}
 
-/* ─── Phase: idle ─── */
-[data-component="heidi-orb"][data-phase="idle"] {
-  [data-slot="orb-core"] {
-    opacity: 0.3;
-    animation: orb-breathe 5s ease-in-out infinite;
+  [data-slot="orb-ring"] {
+    opacity: 0.52;
   }
-  [data-slot="orb-halo"] { animation: none; opacity: 0; }
-  [data-slot="orb-ring"] { animation: none; opacity: 0; }
 }

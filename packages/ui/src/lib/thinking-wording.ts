@@ -64,11 +64,22 @@ export const THOUGHT_CHIPS = [
   "Rollback plan",
 ]
 
-export type Phase = "thinking" | "planning" | "editing" | "testing" | "verifying" | "success" | "blocked" | "idle"
+export type Phase =
+  | "thinking"
+  | "planning"
+  | "editing"
+  | "testing"
+  | "focused"
+  | "verifying"
+  | "success"
+  | "blocked"
+  | "warning"
+  | "idle"
 
 export function scenes(phase: Phase) {
   if (phase === "planning") return PLANNING_SCENES
   if (phase === "editing") return EDITING_SCENES
-  if (phase === "verifying" || phase === "testing") return VERIFYING_SCENES
+  if (phase === "verifying" || phase === "testing" || phase === "focused" || phase === "warning")
+    return VERIFYING_SCENES
   return THINKING_SCENES
 }

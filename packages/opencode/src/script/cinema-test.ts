@@ -1,6 +1,6 @@
 import { HeidiState } from "../heidi/state"
 import { HeidiBoundary } from "../heidi/boundary"
-import { SessionID } from "../../session/schema"
+import { SessionID } from "../session/schema"
 
 /**
  * Stress tests the Heidi Cinema UI layers and transitions.
@@ -15,7 +15,7 @@ async function test() {
   await HeidiBoundary.apply({
     action: "start",
     payload: { objective: "Stress test the 4-layer UI stack with a complex refactor" },
-    task_id: sessionID
+    task_id: sessionID,
   })
 
   const state = await HeidiState.read(sessionID)
@@ -24,7 +24,7 @@ async function test() {
   // 2. Planning
   console.log("Phase 2: Planning")
   // (In real life, Heidi would write a plan and lock it)
-  
+
   console.log("✅ Stress test session prepared. Open the UI and check 'ses_cinema_stress'.")
 }
 

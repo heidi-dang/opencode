@@ -322,11 +322,13 @@ export function SessionTurn(
   const working = createMemo(() => status().type !== "idle" && active())
   const showReasoningSummaries = createMemo(() => props.showReasoningSummaries ?? true)
 
-  // Derive Heidi phase from session status for the presence orb
+  // Orb state/animation mapping.
+  // We keep runtime tool heuristics lightweight but map to stable visual states
+  // so the theater stays readable and calm on mobile.
   const orbPhase = createMemo(() => {
     const s = status()
     if (s.type === "idle") return "idle" as const
-    if (s.type === "retry") return "blocked" as const
+    if (s.type === "retry") return "warning" as const
     // Check last tool activity to infer phase
     const msgs = assistantMessages()
     const last = msgs.at(-1)
@@ -337,12 +339,12 @@ export function SessionTurn(
     const name = tool.tool
     if (name === "bash" || name === "run_command") {
       const cmd = String((tool as any).state?.input?.command ?? "")
-      if (cmd.includes("typecheck") || cmd.includes("test")) return "testing" as const
-      return "editing" as const
+      if (cmd.includes("typecheck") || cmd.includes("test")) return "verifying" as const
+      return "focused" as const
     }
-    if (name === "edit" || name === "write" || name === "apply_patch") return "editing" as const
+    if (name === "edit" || name === "write" || name === "apply_patch") return "focused" as const
     if (name === "verify" || name === "request_verification") return "verifying" as const
-    if (name === "task_boundary") return "planning" as const
+    if (name === "task_boundary") return "focused" as const
     if (name === "read" || name === "glob" || name === "grep" || name === "list") return "thinking" as const
     return "thinking" as const
   })
@@ -441,10 +443,7 @@ export function SessionTurn(
                 </div>
               </Show>
               <Show when={showThinking()}>
-                <ThinkingTheater
-                  phase={orbPhase()}
-                  heading={reasoningHeading()}
-                />
+                <ThinkingTheater phase={orbPhase()} heading={reasoningHeading()} />
               </Show>
               <SessionRetry status={status()} show={active()} />
               <Show when={edited() > 0 && !working()}>
