@@ -43,13 +43,30 @@ export function BasicTool(props: BasicToolProps) {
   const [state, setState] = createStore({
     open: props.defaultOpen ?? false,
     ready: props.defaultOpen ?? false,
+    pop: undefined as string | undefined,
   })
   const open = () => state.open
   const ready = () => state.ready
   const pending = () => props.status === "pending" || props.status === "running"
 
-  let frame: number | undefined
+  // Capture status transitions for "Heidi Aura" pops
+  let lastStatus = props.status
+  createEffect(() => {
+    const current = props.status
+    if (lastStatus !== current) {
+      if ((lastStatus === "pending" || lastStatus === "running") && current && current !== "pending" && current !== "running") {
+        // Status changed from active to completed/error/warning
+        const type = current === "completed" ? "success" : current === "error" ? "error" : current === "warning" ? "warning" : undefined
+        if (type) {
+          setState("pop", type)
+          setTimeout(() => setState("pop", undefined), 600)
+        }
+      }
+      lastStatus = current
+    }
+  })
 
+  let frame: number | undefined
   const cancel = () => {
     if (frame === undefined) return
     cancelAnimationFrame(frame)
@@ -123,7 +140,13 @@ export function BasicTool(props: BasicToolProps) {
   }
 
   return (
-    <Collapsible open={open()} onOpenChange={handleOpenChange} class="tool-collapsible">
+    <Collapsible
+      open={open()}
+      onOpenChange={handleOpenChange}
+      class="tool-collapsible"
+      data-status={props.status}
+      data-pop={state.pop}
+    >
       <Collapsible.Trigger>
         <div data-component="tool-trigger">
           <div data-slot="basic-tool-tool-trigger-content">
