@@ -1,4 +1,3 @@
-
 import z from "zod"
 import { Tool } from "./tool"
 import { HeidiState } from "../heidi/state"
@@ -12,6 +11,7 @@ export const BrowserSubagentTool = Tool.define("browser_subagent", {
     checks: z.array(z.string()).default([]),
   }),
   async execute(params, ctx) {
+    await HeidiState.ensure(ctx.sessionID, "browser verification")
     // Use direct imports for HeidiState and Filesystem
     let html: string | null = null
     let status: "pass" | "fail" = "fail"

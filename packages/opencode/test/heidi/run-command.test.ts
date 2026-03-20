@@ -21,6 +21,33 @@ describe("run_command", () => {
           action: "start",
           payload: { objective: "test run_command drift" },
         })
+        const planPath = HeidiState.plan(session.id)
+        await (
+          await import("../../src/util/filesystem")
+        ).Filesystem.write(
+          planPath,
+          [
+            "# Implementation Plan",
+            "",
+            "## Task goal",
+            "test run_command drift",
+            "",
+            "## Background and discovered repo facts",
+            "None",
+            "",
+            "## Scope",
+            "None",
+            "",
+            "## Files to modify",
+            "- src/a.ts",
+            "",
+            "## Change strategy by component",
+            "None",
+            "",
+            "## Verification plan",
+            "- bun test",
+          ].join("\n"),
+        )
         await HeidiBoundary.apply({
           run_id: "run-drift-1",
           task_id: session.id,
@@ -34,7 +61,6 @@ describe("run_command", () => {
           payload: {},
         })
         // Mutate the plan file after lock
-        const planPath = HeidiState.plan(session.id)
         const orig = await (await import("../../src/util/filesystem")).Filesystem.readText(planPath)
         await (await import("../../src/util/filesystem")).Filesystem.write(planPath, orig + "\n# DRIFT\n")
         const tool = await RunCommandTool.init()
@@ -48,9 +74,9 @@ describe("run_command", () => {
           metadata: () => {},
           ask: async () => {},
         }
-        await expect(
-          tool.execute({ command: "echo ok", profile: "app_local", timeout: 1000 }, ctx),
-        ).rejects.toThrow(/drift/i)
+        await expect(tool.execute({ command: "echo ok", profile: "app_local", timeout: 1000 }, ctx)).rejects.toThrow(
+          /drift/i,
+        )
       },
     })
   })

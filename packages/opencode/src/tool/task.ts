@@ -69,190 +69,191 @@ export const TaskTool = Tool.define("task", async (ctx) => {
     parameters,
     async execute(params: z.infer<typeof parameters>, ctx) {
       const config = await Config.get()
-
-      // Skip permission check when user explicitly invoked via @ or command subtask
-      if (!ctx.extra?.bypassAgentCheck) {
-        await ctx.ask({
-          permission: "task",
-          patterns: [params.subagent_type],
-          always: ["*"],
-          metadata: {
-            description: params.description,
-            subagent_type: params.subagent_type,
-          },
-        })
-      }
-
-      const agent = await Agent.resolve(params.subagent_type)
-      if (!agent) throw new Error(`Unknown agent type: ${params.subagent_type} is not a valid agent type`)
-
-      const hasTaskPermission = agent.permission.some((rule) => rule.permission === "task")
-
-      const session = await iife(async () => {
-        if (params.task_id) {
-          const found = await Session.get(SessionID.make(params.task_id)).catch((err) => {
-            HeidiTelemetry.warn(ctx.sessionID, "task.session_get", err)
-            return null
-          })
-          if (found) return found
-        }
-
-        return await Session.create({
-          parentID: ctx.sessionID,
-          title: params.description + ` (@${agent.name} subagent)`,
-          permission: [
-            {
-              permission: "doom_loop",
-              pattern: "*",
-              action: "deny",
-            },
-            {
-              permission: "todowrite",
-              pattern: "*",
-              action: "deny",
-            },
-            {
-              permission: "todoread",
-              pattern: "*",
-              action: "deny",
-            },
-            ...(hasTaskPermission
-              ? []
-              : [
-                  {
-                    permission: "task" as const,
-                    pattern: "*" as const,
-                    action: "deny" as const,
-                  },
-                ]),
-            ...(config.experimental?.primary_tools?.map((t) => ({
-              pattern: "*",
-              action: "allow" as const,
-              permission: t,
-            })) ?? []),
-          ],
-        })
-      })
-      const model = await iife(async () => {
-        if (agent.model) return agent.model
-        try {
-          const msg = await MessageV2.get({ sessionID: ctx.sessionID, messageID: ctx.messageID })
-          if (msg.info.role === "assistant") {
-            return {
-              modelID: msg.info.modelID,
-              providerID: msg.info.providerID,
-            }
-          }
-        } catch (e) {}
-        const def = await Provider.defaultModel()
-        return { modelID: def.modelID, providerID: def.providerID }
-      })
-
-      ctx.metadata({
-        title: params.description,
-        metadata: {
-          sessionId: session.id,
-          model,
-          lane: params.lane,
-          ownership: params.ownership,
-        },
-      })
-
-      // Fix 6: acquire file locks for exclusive_edit ownership
-      const owned = params.ownership?.mode === "exclusive_edit" ? params.ownership.files : []
+      const owned =
+        params.ownership?.mode === "exclusive_edit"
+          ? params.ownership.files.map((file) => file.replaceAll("\\", "/"))
+          : []
       if (owned.length) {
         const conflicts = acquireLocks(owned)
         if (conflicts.length)
           throw new Error(`File lock conflict: ${conflicts.join(", ")} already being edited by another subagent`)
       }
+      let locked = owned.length > 0
 
-      const messageID = MessageID.ascending()
+      try {
+        // Skip permission check when user explicitly invoked via @ or command subtask
+        if (!ctx.extra?.bypassAgentCheck) {
+          await ctx.ask({
+            permission: "task",
+            patterns: [params.subagent_type],
+            always: ["*"],
+            metadata: {
+              description: params.description,
+              subagent_type: params.subagent_type,
+            },
+          })
+        }
 
-      function cancel() {
-        SessionPrompt.cancel(session.id)
-      }
-      ctx.abort?.addEventListener("abort", cancel)
-      using _ = defer(() => ctx.abort?.removeEventListener("abort", cancel))
-      const promptParts = await SessionPrompt.resolvePromptParts(params.prompt)
+        const agent = await Agent.resolve(params.subagent_type)
+        if (!agent) throw new Error(`Unknown agent type: ${params.subagent_type} is not a valid agent type`)
 
-      // Weakness 1 fix: inject autonomy preamble so subagents never stall on interactive prompts
-      const autonomy = [
-        "CRITICAL: You are operating as an autonomous subagent inside the Heidi orchestrator.",
-        "You MUST NOT ask the user clarifying questions or wait for interactive confirmation.",
-        "You MUST NOT use phrases like 'say generate to begin' or 'let me know when ready'.",
-        "Analyze the provided context and execute your task immediately and completely.",
-        "If information is missing, make the most reasonable assumption and proceed.",
-      ].join("\n")
-      promptParts.unshift({ type: "text", text: autonomy })
+        const hasTaskPermission = agent.permission.some((rule) => rule.permission === "task")
 
-      // Weakness 4 fix: enrich subagent prompt with structured context from Heidi's session
-      const history = ctx.messages ?? []
-      const relevant = history.filter((m) => m.info.role === "user" || m.info.role === "assistant")
-      // Fix 5: adaptive depth — 3 for short conversations, up to 6 for longer ones
-      const depth = Math.min(6, Math.max(3, Math.ceil(relevant.length * 0.15)))
-      const recent = relevant
-        .slice(-depth)
-        .flatMap((m) => m.parts.filter((p) => p.type === "text").map((p) => (p as any).text))
-        .filter(Boolean)
-        .join("\n---\n")
-      if (recent) {
-        const envelope = [
-          "<context_from_heidi>",
-          `Agent: ${params.subagent_type}`,
-          `Task: ${params.description}`,
-          `Lane: ${params.lane ?? "default"}`,
-          `Recent conversation context:\n${recent}`,
-          "</context_from_heidi>",
-        ].join("\n")
-        promptParts.unshift({ type: "text", text: envelope })
-      }
+        const session = await iife(async () => {
+          if (params.task_id) {
+            const found = await Session.get(SessionID.make(params.task_id)).catch((err) => {
+              HeidiTelemetry.warn(ctx.sessionID, "task.session_get", err)
+              return null
+            })
+            if (found) return found
+          }
 
-      const started = Date.now()
-      const result = await SessionPrompt.prompt({
-        messageID,
-        sessionID: session.id,
-        model: {
-          modelID: model.modelID,
-          providerID: model.providerID,
-        },
-        agent: agent.name,
-        tools: {
-          todowrite: false,
-          todoread: false,
-          ...(hasTaskPermission ? {} : { task: false }),
-          ...Object.fromEntries((config.experimental?.primary_tools ?? []).map((t) => [t, false])),
-        },
-        parts: promptParts,
-      })
+          return await Session.create({
+            parentID: ctx.sessionID,
+            title: params.description + ` (@${agent.name} subagent)`,
+            permission: [
+              {
+                permission: "doom_loop",
+                pattern: "*",
+                action: "deny",
+              },
+              {
+                permission: "todowrite",
+                pattern: "*",
+                action: "deny",
+              },
+              {
+                permission: "todoread",
+                pattern: "*",
+                action: "deny",
+              },
+              ...(hasTaskPermission
+                ? []
+                : [
+                    {
+                      permission: "task" as const,
+                      pattern: "*" as const,
+                      action: "deny" as const,
+                    },
+                  ]),
+              ...(config.experimental?.primary_tools?.map((t) => ({
+                pattern: "*",
+                action: "allow" as const,
+                permission: t,
+              })) ?? []),
+            ],
+          })
+        })
+        const model = await iife(async () => {
+          if (agent.model) return agent.model
+          try {
+            const msg = await MessageV2.get({ sessionID: ctx.sessionID, messageID: ctx.messageID })
+            if (msg.info.role === "assistant") {
+              return {
+                modelID: msg.info.modelID,
+                providerID: msg.info.providerID,
+              }
+            }
+          } catch {}
+          const def = await Provider.defaultModel()
+          return { modelID: def.modelID, providerID: def.providerID }
+        })
 
-      const text = result.parts.findLast((x) => x.type === "text")?.text ?? ""
-      const finished = Date.now()
-
-      // Fix 6: release file locks after subagent completes
-      if (owned.length) releaseLocks(owned)
-
-      const output = [
-        `task_id: ${session.id} (for resuming to continue this task if needed)`,
-        "",
-        "<task_result>",
-        text,
-        "</task_result>",
-      ].join("\n")
-
-      return {
-        title: params.description,
-        metadata: {
-          sessionId: session.id,
-          model,
-          lane: params.lane,
-          ownership: params.ownership,
-          timing: {
-            start: started,
-            end: finished,
-            duration_ms: finished - started,
+        ctx.metadata({
+          title: params.description,
+          metadata: {
+            sessionId: session.id,
+            model,
+            lane: params.lane,
+            ownership: params.ownership,
           },
-        },
-        output,
+        })
+
+        const messageID = MessageID.ascending()
+
+        function cancel() {
+          SessionPrompt.cancel(session.id)
+        }
+        ctx.abort?.addEventListener("abort", cancel)
+        using _ = defer(() => ctx.abort?.removeEventListener("abort", cancel))
+        const promptParts = await SessionPrompt.resolvePromptParts(params.prompt)
+
+        const autonomy = [
+          "CRITICAL: You are operating as an autonomous subagent inside the Heidi orchestrator.",
+          "You MUST NOT ask the user clarifying questions or wait for interactive confirmation.",
+          "You MUST NOT use phrases like 'say generate to begin' or 'let me know when ready'.",
+          "Analyze the provided context and execute your task immediately and completely.",
+          "If information is missing, make the most reasonable assumption and proceed.",
+        ].join("\n")
+        promptParts.unshift({ type: "text", text: autonomy })
+
+        const history = ctx.messages ?? []
+        const relevant = history.filter((m) => m.info.role === "user" || m.info.role === "assistant")
+        const depth = Math.min(6, Math.max(3, Math.ceil(relevant.length * 0.15)))
+        const recent = relevant
+          .slice(-depth)
+          .flatMap((m) => m.parts.filter((p) => p.type === "text").map((p) => (p as any).text))
+          .filter(Boolean)
+          .join("\n---\n")
+        if (recent) {
+          const envelope = [
+            "<context_from_heidi>",
+            `Agent: ${params.subagent_type}`,
+            `Task: ${params.description}`,
+            `Lane: ${params.lane ?? "default"}`,
+            `Recent conversation context:\n${recent}`,
+            "</context_from_heidi>",
+          ].join("\n")
+          promptParts.unshift({ type: "text", text: envelope })
+        }
+
+        const started = Date.now()
+        const result = await SessionPrompt.prompt({
+          messageID,
+          sessionID: session.id,
+          model: {
+            modelID: model.modelID,
+            providerID: model.providerID,
+          },
+          agent: agent.name,
+          tools: {
+            todowrite: false,
+            todoread: false,
+            ...(hasTaskPermission ? {} : { task: false }),
+            ...Object.fromEntries((config.experimental?.primary_tools ?? []).map((t) => [t, false])),
+          },
+          parts: promptParts,
+        })
+
+        const text = result.parts.findLast((x) => x.type === "text")?.text ?? ""
+        const finished = Date.now()
+
+        const output = [
+          `task_id: ${session.id} (for resuming to continue this task if needed)`,
+          "",
+          "<task_result>",
+          text,
+          "</task_result>",
+        ].join("\n")
+
+        return {
+          title: params.description,
+          metadata: {
+            sessionId: session.id,
+            model,
+            lane: params.lane,
+            ownership: params.ownership,
+            timing: {
+              start: started,
+              end: finished,
+              duration_ms: finished - started,
+            },
+          },
+          output,
+        }
+      } finally {
+        if (locked) releaseLocks(owned)
+        locked = false
       }
     },
   }
