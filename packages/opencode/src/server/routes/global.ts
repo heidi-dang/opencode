@@ -13,10 +13,17 @@ import { Config } from "../../config/config"
 import { errors } from "../error"
 import { Flag } from "@/flag/flag"
 import { ServerStats } from "../stats"
+import { HeidiHealth, HeidiHealthSummary } from "@/heidi/health"
 
 const log = Log.create({ service: "server" })
 
 export const GlobalDisposedEvent = BusEvent.define("global.disposed", z.object({}))
+
+const HealthInfo = z.object({
+  healthy: z.literal(true),
+  version: z.string(),
+  heidi: HeidiHealthSummary,
+})
 
 export const GlobalRoutes = lazy(() =>
   new Hono()
@@ -31,14 +38,14 @@ export const GlobalRoutes = lazy(() =>
             description: "Health information",
             content: {
               "application/json": {
-                schema: resolver(z.object({ healthy: z.literal(true), version: z.string() })),
+                schema: resolver(HealthInfo),
               },
             },
           },
         },
       }),
       async (c) => {
-        return c.json({ healthy: true, version: Installation.VERSION })
+        return c.json({ healthy: true, version: Installation.VERSION, heidi: HeidiHealth.summary() })
       },
     )
     .get(

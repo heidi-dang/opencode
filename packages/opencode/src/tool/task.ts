@@ -13,19 +13,116 @@ import { defer } from "@/util/defer"
 import { Config } from "../config/config"
 import { PermissionNext } from "@/permission"
 import { HeidiTelemetry } from "@/heidi/telemetry"
+import { HeidiHealth } from "../heidi/health"
+import { setTimeout as sleep } from "node:timers/promises"
 
-// Fix 6: file lock registry to prevent concurrent subagent edits on the same file
-const locks = new Set<string>()
+const DEFAULT_TIMEOUT_MS = 5 * 60 * 1000
+const DEFAULT_MAX_ITERATIONS = 8
+const POLL_MS = 25
+const locks = new Map<string, { sessionID: string }>()
 
-export function acquireLocks(files: string[]) {
-  const conflicts = files.filter((f) => locks.has(f))
+function guardValue(key: string, fallback: number) {
+  const value = Number.parseInt(process.env[key] ?? "", 10)
+  if (!Number.isFinite(value) || value <= 0) return fallback
+  return value
+}
+
+function timeoutMs() {
+  return guardValue("OPENCODE_TASK_TIMEOUT_MS", DEFAULT_TIMEOUT_MS)
+}
+
+function maxIterations() {
+  return guardValue("OPENCODE_TASK_MAX_ITERATIONS", DEFAULT_MAX_ITERATIONS)
+}
+
+function unique(files: string[]) {
+  return Array.from(new Set(files))
+}
+
+export function acquireLocks(sessionID: string, files: string[]) {
+  const conflicts = unique(files)
+    .map((file) => {
+      const owner = locks.get(file)
+      if (!owner || owner.sessionID === sessionID) return
+      return { file, sessionId: owner.sessionID }
+    })
+    .filter((item): item is { file: string; sessionId: string } => Boolean(item))
+
   if (conflicts.length) return conflicts
-  for (const f of files) locks.add(f)
+
+  for (const file of unique(files)) {
+    locks.set(file, { sessionID })
+  }
   return []
 }
 
-export function releaseLocks(files: string[]) {
-  for (const f of files) locks.delete(f)
+export function releaseLocks(sessionID: string, files: string[]) {
+  for (const file of unique(files)) {
+    if (locks.get(file)?.sessionID !== sessionID) continue
+    locks.delete(file)
+  }
+}
+
+async function assistantCount(sessionID: string) {
+  let count = 0
+  for await (const item of MessageV2.stream(SessionID.make(sessionID))) {
+    if (item.info.role === "assistant") count++
+  }
+  return count
+}
+
+async function watchIterations(input: { sessionID: string; limit: number; signal: AbortSignal }) {
+  while (!input.signal.aborted) {
+    const count = await assistantCount(input.sessionID)
+    if (count >= input.limit) return count
+    await sleep(POLL_MS, undefined, { signal: input.signal }).catch((error) => {
+      if (error instanceof DOMException && error.name === "AbortError") return
+      throw error
+    })
+  }
+}
+
+function output(sessionID: string, text: string) {
+  return [
+    `task_id: ${sessionID} (for resuming to continue this task if needed)`,
+    "",
+    "<task_result>",
+    text,
+    "</task_result>",
+  ].join("\n")
+}
+
+function result(input: {
+  sessionID: string
+  title: string
+  model: { modelID: string; providerID: string }
+  lane?: "research" | "implementation" | "review"
+  ownership?: z.infer<typeof parameters>['ownership']
+  started: number
+  text: string
+  status: "completed" | "timeout" | "conflict" | "max_iterations"
+  reason?: string
+  guard: Record<string, unknown>
+}) {
+  const finished = Date.now()
+  return {
+    title: input.title,
+    metadata: {
+      sessionId: input.sessionID,
+      model: input.model,
+      lane: input.lane,
+      ownership: input.ownership,
+      status: input.status,
+      ...(input.reason ? { reason: input.reason } : {}),
+      guard: input.guard,
+      timing: {
+        start: input.started,
+        end: finished,
+        duration_ms: finished - input.started,
+      },
+    },
+    output: output(input.sessionID, input.text),
+  }
 }
 
 const parameters = z.object({
@@ -69,6 +166,10 @@ export const TaskTool = Tool.define("task", async (ctx) => {
     parameters,
     async execute(params: z.infer<typeof parameters>, ctx) {
       const config = await Config.get()
+      const guard = {
+        timeout_ms: timeoutMs(),
+        max_iterations: maxIterations(),
+      }
 
       // Skip permission check when user explicitly invoked via @ or command subtask
       if (!ctx.extra?.bypassAgentCheck) {
@@ -155,16 +256,38 @@ export const TaskTool = Tool.define("task", async (ctx) => {
           model,
           lane: params.lane,
           ownership: params.ownership,
+          guard,
         },
       })
 
-      // Fix 6: acquire file locks for exclusive_edit ownership
-      const owned = params.ownership?.mode === "exclusive_edit" ? params.ownership.files : []
+      const started = Date.now()
+      const owned = params.ownership?.mode === "exclusive_edit" ? unique(params.ownership.files) : []
       if (owned.length) {
-        const conflicts = acquireLocks(owned)
-        if (conflicts.length)
-          throw new Error(`File lock conflict: ${conflicts.join(", ")} already being edited by another subagent`)
+        const conflicts = acquireLocks(session.id, owned)
+        if (conflicts.length) {
+          HeidiHealth.conflict()
+          return result({
+            sessionID: session.id,
+            title: params.description,
+            model,
+            lane: params.lane,
+            ownership: params.ownership,
+            started,
+            status: "conflict",
+            reason: "ownership_conflict",
+            guard: {
+              ...guard,
+              triggered: "ownership_conflict",
+              conflicts,
+              child_cancelled: false,
+            },
+            text: `Subagent did not start because these files are already owned by another active task: ${conflicts.map((item) => item.file).join(", ")}.`,
+          })
+        }
       }
+      using _locks = defer(() => {
+        if (owned.length) releaseLocks(session.id, owned)
+      })
 
       const messageID = MessageID.ascending()
 
@@ -207,8 +330,8 @@ export const TaskTool = Tool.define("task", async (ctx) => {
         promptParts.unshift({ type: "text", text: envelope })
       }
 
-      const started = Date.now()
-      const result = await SessionPrompt.prompt({
+      const watch = new AbortController()
+      const prompt = SessionPrompt.prompt({
         messageID,
         sessionID: session.id,
         model: {
@@ -223,36 +346,90 @@ export const TaskTool = Tool.define("task", async (ctx) => {
           ...Object.fromEntries((config.experimental?.primary_tools ?? []).map((t) => [t, false])),
         },
         parts: promptParts,
+      }).then(
+        (result) => ({ type: "result" as const, result }),
+        (error) => ({ type: "error" as const, error }),
+      )
+
+      const timeout = new Promise<{ type: "timeout" }>((resolve) => {
+        const id = setTimeout(() => resolve({ type: "timeout" }), guard.timeout_ms)
+        watch.signal.addEventListener("abort", () => clearTimeout(id), { once: true })
       })
 
-      const text = result.parts.findLast((x) => x.type === "text")?.text ?? ""
-      const finished = Date.now()
+      const iterations = watchIterations({
+        sessionID: session.id,
+        limit: guard.max_iterations,
+        signal: watch.signal,
+      }).then((count) => ({ type: "max_iterations" as const, count }))
 
-      // Fix 6: release file locks after subagent completes
-      if (owned.length) releaseLocks(owned)
+      HeidiHealth.subagentStart()
+      try {
+        const outcome = await Promise.race([prompt, timeout, iterations])
+        watch.abort()
 
-      const output = [
-        `task_id: ${session.id} (for resuming to continue this task if needed)`,
-        "",
-        "<task_result>",
-        text,
-        "</task_result>",
-      ].join("\n")
+        if (outcome.type === "timeout") {
+          HeidiHealth.timeout()
+          SessionPrompt.cancel(session.id)
+          return result({
+            sessionID: session.id,
+            title: params.description,
+            model,
+            lane: params.lane,
+            ownership: params.ownership,
+            started,
+            status: "timeout",
+            reason: "subagent_timeout",
+            guard: {
+              ...guard,
+              triggered: "timeout",
+              child_cancelled: true,
+            },
+            text: `Subagent timed out after ${guard.timeout_ms}ms and the child session was cancelled.`,
+          })
+        }
 
-      return {
-        title: params.description,
-        metadata: {
-          sessionId: session.id,
+        if (outcome.type === "max_iterations") {
+          SessionPrompt.cancel(session.id)
+          return result({
+            sessionID: session.id,
+            title: params.description,
+            model,
+            lane: params.lane,
+            ownership: params.ownership,
+            started,
+            status: "max_iterations",
+            reason: "subagent_max_iterations",
+            guard: {
+              ...guard,
+              triggered: "max_iterations",
+              iterations: outcome.count,
+              child_cancelled: true,
+            },
+            text: `Subagent was stopped after hitting the max iteration guard (${guard.max_iterations} assistant iterations).`,
+          })
+        }
+
+        if (outcome.type === "error") throw outcome.error
+
+        const text = outcome.result.parts.findLast((x) => x.type === "text")?.text ?? ""
+        return result({
+          sessionID: session.id,
+          title: params.description,
           model,
           lane: params.lane,
           ownership: params.ownership,
-          timing: {
-            start: started,
-            end: finished,
-            duration_ms: finished - started,
+          started,
+          status: "completed",
+          guard: {
+            ...guard,
+            triggered: null,
+            child_cancelled: false,
           },
-        },
-        output,
+          text,
+        })
+      } finally {
+        watch.abort()
+        HeidiHealth.subagentStop()
       }
     },
   }

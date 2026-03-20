@@ -6,6 +6,49 @@ import path from "path"
 import { SessionID } from "@/session/schema"
 import { HeidiTelemetry } from "./telemetry"
 
+type Trust = "safe" | "unsafe" | "unknown"
+
+type Rule = {
+  name: string
+  patterns: RegExp[]
+}
+
+export const HeidiMemoryRules = {
+  unsafe: [
+    {
+      name: "credentials",
+      patterns: [
+        /\b(password|passphrase|secret)\b\s*(?:=|:)\s*\S+/i,
+        /\b(password|passphrase|secret)\b.{0,24}\b(is|are)\b.{0,24}\S+/i,
+        /\b(api[_ -]?key|aws[_ -]?access[_ -]?key|private[_ -]?key)\b\s*(?:=|:)\s*\S+/i,
+        /\btoken\b\s*(?:=|:)\s*\S+/i,
+      ],
+    },
+    {
+      name: "keys",
+      patterns: [/-----BEGIN [A-Z ]*PRIVATE KEY-----/i],
+    },
+    {
+      name: "auth",
+      patterns: [/\bbearer\s+[A-Za-z0-9._-]{20,}\b/i, /\bsk[_-]?[A-Za-z0-9_-]{20,}\b/i],
+    },
+    {
+      name: "blob",
+      patterns: [/[A-Za-z0-9+/]{40,}[A-Za-z0-9+/=\s]{10,}[A-Za-z0-9+/]{40,}/],
+    },
+  ],
+  unknown: [
+    {
+      name: "entropy",
+      patterns: [/\b[A-Za-z0-9]{32,}\b/],
+    },
+  ],
+} satisfies Record<Exclude<Trust, "safe">, Rule[]>
+
+function match(content: string, rules: Rule[]) {
+  return rules.filter((group) => group.patterns.some((pattern) => pattern.test(content))).map((group) => group.name)
+}
+
 export namespace HeidiMemory {
   export type Item = {
     timestamp: string
@@ -17,28 +60,16 @@ export namespace HeidiMemory {
     trust?: "safe" | "unsafe" | "unknown"
   }
 
-  function detectUnsafe(content: string): "safe" | "unsafe" | "unknown" {
-    const unsafePatterns = [
-      /secret/i,
-      /password/i,
-      /token/i,
-      /api[_-]?key/i,
-      /PRIVATE[_-]?KEY/i,
-      /-----BEGIN/i,
-      /aws[_-]?access[_-]?key/i,
-      /bearer\s+[a-zA-Z0-9_\-]{20,}/i,
-      /sk[_-]?[a-zA-Z0-9_\-]{20,}/i,
-      /[A-Za-z0-9+/]{40,}[A-Za-z0-9+/=\s]{10,}[A-Za-z0-9+/]{40,}/,
-    ]
-    const unknownPatterns = [/[A-Za-z0-9]{32,}/]
-    for (const pat of unsafePatterns) {
-      if (pat.test(content)) return "unsafe"
-    }
-    for (const pat of unknownPatterns) {
-      if (pat.test(content)) return "unknown"
-    }
-    return "safe"
+  export function inspect(content: string): { trust: Trust; groups: string[] } {
+    const unsafe = match(content, HeidiMemoryRules.unsafe)
+    if (unsafe.length) return { trust: "unsafe", groups: unsafe }
+
+    const unknown = match(content, HeidiMemoryRules.unknown)
+    if (unknown.length) return { trust: "unknown", groups: unknown }
+
+    return { trust: "safe", groups: [] }
   }
+
   function projectFile() {
     return path.join(Instance.directory, ".opencode", "heidi", "memory.jsonl")
   }
@@ -52,7 +83,7 @@ export namespace HeidiMemory {
     item: Omit<Item, "timestamp" | "session_id" | "trust">,
     scope: "project" | "global" = "project",
   ) {
-    const trust = detectUnsafe(item.content)
+    const trust = inspect(item.content).trust
     if (trust === "unsafe") {
       throw new Error("Unsafe memory content detected; not stored.")
     }

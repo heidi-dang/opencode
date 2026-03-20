@@ -9,6 +9,7 @@ import { FileTime } from "../file/time"
 import { git } from "@/util/git"
 
 import { HeidiJail } from "./jail"
+import { HeidiHealth } from "./health"
 
 const Profile = ["read_only", "build", "test", "format", "git_safe", "app_local"] as const
 
@@ -63,9 +64,10 @@ export namespace HeidiExec {
         await g(["update-ref", ref, sha])
         
         const state = await HeidiState.ensure(sessionID, "")
-          state.checkpoints.push({ id, step_id, files, created_at: now() })
+        state.checkpoints.push({ id, step_id, files, created_at: now() })
         state.resume.checkpoint_id = id
         await HeidiState.write(sessionID, state)
+        HeidiHealth.checkpoint()
         return id
       }
     }
@@ -81,9 +83,10 @@ export namespace HeidiExec {
     )
     await Filesystem.writeJson(out, { id, step, files: snap, time: now() })
     const state = await HeidiState.ensure(sessionID, "")
-      state.checkpoints.push({ id, step_id, files, created_at: now() })
+    state.checkpoints.push({ id, step_id, files, created_at: now() })
     state.resume.checkpoint_id = id
     await HeidiState.write(sessionID, state)
+    HeidiHealth.checkpoint()
     return id
   }
 
@@ -104,8 +107,8 @@ export namespace HeidiExec {
 
         // Restore files from the hidden ref
         await g(["checkout", ref, "--", "."])
-        // Remove files that were added after the checkpoint
-        await g(["clean", "-fd"])
+        // Remove files that were added after the checkpoint without deleting Heidi state artifacts.
+        await g(["clean", "-fd", "-e", ".opencode/"])
 
         // Refresh file times
         await Promise.all(
@@ -114,6 +117,7 @@ export namespace HeidiExec {
             return FileTime.read(sessionID, filepath)
           }),
         )
+        HeidiHealth.rollback()
         return
       }
     }
@@ -132,6 +136,7 @@ export namespace HeidiExec {
           await FileTime.read(sessionID, item.file)
         }),
       )
+      HeidiHealth.rollback()
     }
   }
 
@@ -193,6 +198,7 @@ export namespace HeidiExec {
     })
     const code = proc.exitCode ?? 1
     if (code !== 0) {
+      HeidiHealth.commandFailure()
       const checkpoint = state.resume.checkpoint_id
       if (checkpoint) {
         await rollback(sessionID, checkpoint)

@@ -317,8 +317,8 @@ export namespace HeidiBoundary {
           move(state, "PLAN_LOCKED")
         }
       }
-      if (state.fsm_state !== "PLAN_LOCKED") {
-        throw new Error(`begin_execution requires PLAN_LOCKED. Current state: ${state.fsm_state}`)
+      if (state.fsm_state !== "PLAN_LOCKED" && state.fsm_state !== "VERIFICATION") {
+        throw new Error(`begin_execution requires PLAN_LOCKED or VERIFICATION. Current state: ${state.fsm_state}`)
       }
       await HeidiState.checkPlanDrift(req.task_id).catch(() => {})
       move(state, "EXECUTION")
@@ -336,6 +336,7 @@ export namespace HeidiBoundary {
     }
 
     if (req.action === "block") {
+      if (!state.objective.text.trim()) state.objective.text = req.payload.reason
       state.block_reason = req.payload.reason
       move(state, "BLOCKED")
       state.last_successful_step = "block"

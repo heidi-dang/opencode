@@ -1982,6 +1982,15 @@ export type GlobalHealthResponses = {
   200: {
     healthy: true
     version: string
+    heidi: {
+      checkpoint_count: number
+      rollback_count: number
+      command_failure_count: number
+      active_subagents: number
+      last_timeout_at: string | null
+      last_conflict_at: string | null
+      last_rollback_at: string | null
+    }
   }
 }
 
