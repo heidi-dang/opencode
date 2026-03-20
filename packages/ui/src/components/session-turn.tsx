@@ -5,7 +5,7 @@ import { useFileComponent } from "../context/file"
 
 import { Binary } from "@opencode-ai/util/binary"
 import { getDirectory, getFilename } from "@opencode-ai/util/path"
-import { createEffect, createMemo, createSignal, For, on, ParentProps, Show } from "solid-js"
+import { createEffect, createMemo, createSignal, For, on, onCleanup, ParentProps, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Dynamic } from "solid-js/web"
 import { AssistantParts, Message, MessageDivider, PART_MAPPING, type UserActions } from "./message-part"
@@ -15,10 +15,8 @@ import { StickyAccordionHeader } from "./sticky-accordion-header"
 import { Collapsible } from "./collapsible"
 import { DiffChanges } from "./diff-changes"
 import { Icon } from "./icon"
-import { TextShimmer } from "./text-shimmer"
-import { ThinkingTheater } from "./thinking-theater"
+import { ThinkingTheater, type LiveActivity } from "./thinking-theater"
 import { SessionRetry } from "./session-retry"
-import { TextReveal } from "./text-reveal"
 import { createAutoScroll } from "../hooks"
 import { useI18n } from "../context/i18n"
 
@@ -137,6 +135,59 @@ function heading(text: string) {
     const value = clean(strong[1])
     if (value) return value
   }
+}
+
+function kind(name: string): LiveActivity["kind"] {
+  if (name === "bash" || name === "run_command" || name === "create_and_run_task" || name === "test_failure") {
+    return "command"
+  }
+  if (name === "verify" || name === "request_verification" || name === "browser_subagent") return "verify"
+  if (name === "task" || name === "knowledge_subagent" || name === "reviewer") return "subagent"
+  return "tool"
+}
+
+function alias(name: string) {
+  if (name === "run_command") return "run command"
+  if (name === "task_boundary") return "task boundary"
+  if (name === "request_verification") return "verify"
+  if (name === "apply_patch") return "apply patch"
+  return name.replaceAll("_", " ")
+}
+
+function cmd(input: { [key: string]: unknown }) {
+  const value =
+    typeof input.command === "string"
+      ? input.command
+      : typeof input.test_command === "string"
+        ? input.test_command
+        : undefined
+  if (!value) return
+  const text = value.replace(/\s+/g, " ").trim()
+  if (!text) return
+  if (text.length <= 84) return text
+  return `${text.slice(0, 83)}…`
+}
+
+function label(part: PartType & { type: "tool" }, kind: LiveActivity["kind"]) {
+  if (kind === "command") {
+    const text = cmd(part.state.input)
+    if (text) return text
+  }
+  if (kind === "subagent" && part.tool === "task") {
+    const type = part.state.input.subagent_type
+    if (typeof type === "string" && type.trim()) return type.trim()
+  }
+  return alias(part.tool)
+}
+
+function prio(name: string, kind: LiveActivity["kind"], status: LiveActivity["status"]) {
+  const done = status === "running" ? 0 : 10
+  if (kind === "command") return done + 0
+  if (kind === "verify") return done + 1
+  if (name === "edit" || name === "write" || name === "apply_patch" || name === "replace_file_content") return done + 2
+  if (kind === "subagent") return done + 3
+  if (name === "read" || name === "glob" || name === "grep" || name === "list") return done + 4
+  return done + 5
 }
 
 export function SessionTurn(
@@ -281,6 +332,22 @@ export function SessionTurn(
     { equals: same },
   )
 
+  const turnUsage = createMemo(
+    () => {
+      const msgs = assistantMessages()
+      let tokens = 0
+      let cost = 0
+      let provider = ""
+      for (const msg of msgs) {
+        tokens += msg.tokens?.total ?? 0
+        cost += msg.cost ?? 0
+        if (!provider && msg.providerID) provider = msg.providerID
+      }
+      return { tokens, cost, provider }
+    },
+    { tokens: 0, cost: 0, provider: "" },
+  )
+
   const interrupted = createMemo(() => assistantMessages().some((m) => m.error?.name === "MessageAbortedError"))
   const divider = createMemo(() => {
     if (compaction()) return i18n.t("ui.messagePart.compaction")
@@ -321,6 +388,7 @@ export function SessionTurn(
   })
   const working = createMemo(() => status().type !== "idle" && active())
   const showReasoningSummaries = createMemo(() => props.showReasoningSummaries ?? true)
+  const [tick, setTick] = createSignal(0)
 
   // Orb state/animation mapping.
   // We keep runtime tool heuristics lightweight but map to stable visual states
@@ -347,6 +415,81 @@ export function SessionTurn(
     if (name === "task_boundary") return "focused" as const
     if (name === "read" || name === "glob" || name === "grep" || name === "list") return "thinking" as const
     return "thinking" as const
+  })
+
+  const acts = createMemo(() => {
+    tick()
+    const now = Date.now()
+    const ttl = 900
+    const tools = assistantMessages()
+      .flatMap((msg) => list(data.store.part?.[msg.id], emptyParts))
+      .filter((part): part is PartType & { type: "tool" } => part.type === "tool")
+
+    const events = tools
+      .map((part): LiveActivity | undefined => {
+        const status =
+          part.state.status === "error"
+            ? ("error" as const)
+            : part.state.status === "completed"
+              ? ("completed" as const)
+              : ("running" as const)
+        const start = "time" in part.state && typeof part.state.time.start === "number" ? part.state.time.start : now
+        const end =
+          "time" in part.state && "end" in part.state.time && typeof part.state.time.end === "number"
+            ? part.state.time.end
+            : undefined
+        if (status !== "running" && typeof end === "number" && now - end > ttl) return
+        const type = kind(part.tool)
+        return {
+          id: part.callID || part.id,
+          kind: type,
+          label: label(part, type),
+          status,
+          start_time: start,
+          end_time: end,
+          priority: prio(part.tool, type, status),
+          source_event_id: part.id,
+        }
+      })
+      .filter((item): item is LiveActivity => item !== undefined)
+
+    const map = new Map<string, LiveActivity>()
+    events.forEach((item) => {
+      const prev = map.get(item.id)
+      if (!prev) {
+        map.set(item.id, item)
+        return
+      }
+      const rank = (x: LiveActivity) => {
+        if (x.status === "running") return 0
+        if (x.status === "error") return 1
+        return 2
+      }
+      if (rank(item) < rank(prev)) {
+        map.set(item.id, item)
+        return
+      }
+      if (item.start_time >= prev.start_time) map.set(item.id, item)
+    })
+
+    return [...map.values()].sort((a, b) => {
+      if (a.priority !== b.priority) return a.priority - b.priority
+      if (a.start_time !== b.start_time) return b.start_time - a.start_time
+      return a.id.localeCompare(b.id)
+    })
+  })
+
+  // Event-driven finishing window: completed/error chips stay briefly for exit motion,
+  // then disappear without polling.
+  createEffect(() => {
+    const now = Date.now()
+    const due = acts()
+      .filter((item) => item.status !== "running" && typeof item.end_time === "number")
+      .map((item) => item.end_time! + 900 - now)
+      .filter((ms) => ms > 0)
+    if (!due.length) return
+    const timer = setTimeout(() => setTick((i) => i + 1), Math.min(...due))
+    onCleanup(() => clearTimeout(timer))
   })
 
   const assistantCopyPartID = createMemo(() => {
@@ -443,7 +586,12 @@ export function SessionTurn(
                 </div>
               </Show>
               <Show when={showThinking()}>
-                <ThinkingTheater phase={orbPhase()} heading={reasoningHeading()} />
+                <ThinkingTheater
+                  phase={orbPhase()}
+                  heading={reasoningHeading()}
+                  activities={acts()}
+                  usage={turnUsage()}
+                />
               </Show>
               <SessionRetry status={status()} show={active()} />
               <Show when={edited() > 0 && !working()}>

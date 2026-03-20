@@ -9,11 +9,15 @@ if str(ROOT) not in sys.path:
   sys.path.insert(0, str(ROOT))
 
 from doctor_checks.thinking_card_mobile_polish import run as run_thinking_card_mobile_polish
+from doctor_checks.live_activity_chips import run as run_live_activity_chips
+from doctor_checks.live_usage_stats import run as run_live_usage_stats
 
 
 def main() -> int:
   checks = [
     run_thinking_card_mobile_polish(),
+    run_live_activity_chips(),
+    run_live_usage_stats(),
   ]
   ok = all(item[0] for item in checks)
 
