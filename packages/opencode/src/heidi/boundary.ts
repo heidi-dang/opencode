@@ -209,6 +209,14 @@ export namespace HeidiBoundary {
       if (!req.payload.objective.trim()) {
         throw new Error("Cannot start a task with an empty objective.")
       }
+      if (state.fsm_state === "COMPLETE") {
+        // Transparently reset for a fresh task run
+        state.checklist = []
+        state.plan.locked = false
+        state.objective.locked = false
+        state.plan.amendments = []
+        state.last_successful_step = "restart"
+      }
       state.run_id = req.run_id || state.run_id || Identifier.ascending("tool")
       state.objective.text = req.payload.objective
       state.telemetry = { tool_calls_count: 1, started_at: new Date().toISOString() }
