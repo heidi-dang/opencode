@@ -215,7 +215,8 @@ export const SessionRoutes = lazy(() =>
       ),
       validator(
         "json",
-        HeidiBoundary.Input.omit({ task_id: true }).extend({
+        HeidiBoundary.Input.omit({ task_id: true, run_id: true }).extend({
+          run_id: z.string().optional(),
           payload: z.record(z.string(), z.any()).default({}),
         }),
       ),

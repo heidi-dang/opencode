@@ -706,3 +706,16 @@ test("heidi prompt includes Phase 1 parallel assist contract", async () => {
     },
   })
 })
+
+test("resolve supports canonical key and display name for beast mode", async () => {
+  await using tmp = await tmpdir()
+  await Instance.provide({
+    directory: tmp.path,
+    fn: async () => {
+      const byKey = await Agent.resolve("beast_mode")
+      const byName = await Agent.resolve("4.1 Beast Mode v3.1")
+      expect(byKey?.name).toBe("4.1 Beast Mode v3.1")
+      expect(byName?.name).toBe("4.1 Beast Mode v3.1")
+    },
+  })
+})

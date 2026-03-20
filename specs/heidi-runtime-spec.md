@@ -356,10 +356,16 @@ Plan lock requirements:
 ```json
 {
   "type": "object",
-  "required": ["run_id", "task_id", "action"],
+  "required": ["action"],
   "properties": {
-    "run_id": { "type": "string" },
-    "task_id": { "type": "string" },
+    "run_id": {
+      "type": "string",
+      "description": "Optional. Auto-derived from persisted state if omitted. When supplied, must match the current run_id in task state."
+    },
+    "task_id": {
+      "type": "string",
+      "description": "Optional. Always derived from the caller's session ID. Callers MUST NOT supply a cross-session task_id — the server enforces binding to the current session."
+    },
     "action": {
       "type": "string",
       "enum": [
@@ -379,6 +385,8 @@ Plan lock requirements:
   "additionalProperties": false
 }
 ```
+
+> **Auto-fill contract:** The server derives `task_id` from the caller's session ID and `run_id` from persisted state. The model/tool should not supply either — the server fills both. The HTTP route (`POST /session/{sessionID}/task/boundary`) omits `task_id` from the request body entirely and injects it from the URL path.
 
 ### 7.2 Response schema
 

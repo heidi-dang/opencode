@@ -1,4 +1,3 @@
-
 import { describe, expect, test } from "bun:test"
 import { tmpdir } from "../fixture/fixture"
 import { Instance } from "../../src/project/instance"
@@ -6,6 +5,8 @@ import { Session } from "../../src/session"
 import { HeidiBoundary } from "../../src/heidi/boundary"
 import { HeidiState } from "../../src/heidi/state"
 import { Filesystem } from "../../src/util/filesystem"
+import { TaskBoundaryTool } from "../../src/tool/task_boundary"
+import { MessageID } from "../../src/session/schema"
 
 describe("heidi boundary", () => {
   test("valid lifecycle writes artifacts", async () => {
@@ -58,7 +59,7 @@ describe("heidi boundary", () => {
               command: "echo ok",
               exit_code: 0,
               duration_ms: 10,
-              log_ref: "log1.txt"
+              log_ref: "log1.txt",
             },
           ],
           evidence: {
@@ -81,8 +82,8 @@ describe("heidi boundary", () => {
               line: 1,
               rule_id: "R1",
               message: "no remediation needed",
-              next_action: "none"
-            }
+              next_action: "none",
+            },
           ],
         })
         const result = await HeidiBoundary.apply({
@@ -99,7 +100,7 @@ describe("heidi boundary", () => {
                   command: "echo ok",
                   exit_code: 0,
                   duration_ms: 10,
-                  log_ref: "log1.txt"
+                  log_ref: "log1.txt",
                 },
               ],
               evidence: {
@@ -122,8 +123,8 @@ describe("heidi boundary", () => {
                   line: 1,
                   rule_id: "R1",
                   message: "no remediation needed",
-                  next_action: "none"
-                }
+                  next_action: "none",
+                },
               ],
             },
           },
@@ -185,6 +186,37 @@ describe("heidi boundary", () => {
             payload: {},
           }),
         ).rejects.toThrow(/drift/i)
+      },
+    })
+  })
+
+  test("task boundary tool fills missing ids from context", async () => {
+    await using tmp = await tmpdir({ git: true })
+    await Instance.provide({
+      directory: tmp.path,
+      fn: async () => {
+        const session = await Session.create({})
+        const tool = await TaskBoundaryTool.init()
+        await tool.execute(
+          {
+            action: "start",
+            payload: { objective: "Auto fill ids" },
+          },
+          {
+            sessionID: session.id,
+            messageID: MessageID.make("msg_test-task-boundary"),
+            callID: "call_test-task-boundary",
+            agent: "heidi",
+            abort: AbortSignal.any([]),
+            messages: [],
+            metadata: () => {},
+            ask: async () => {},
+          },
+        )
+        const state = await HeidiState.read(session.id)
+        expect(state.task_id).toBe(session.id)
+        expect(state.run_id).toMatch(/^tool_/)
+        expect(state.fsm_state).toBe("DISCOVERY")
       },
     })
   })

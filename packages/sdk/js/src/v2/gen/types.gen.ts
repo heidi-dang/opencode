@@ -4976,7 +4976,7 @@ export type SessionTaskGetResponse = SessionTaskGetResponses[keyof SessionTaskGe
 
 export type SessionTaskBoundaryData = {
   body?: {
-    run_id: string
+    run_id?: string
     action:
       | "start"
       | "set_mode"

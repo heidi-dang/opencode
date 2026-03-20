@@ -44,7 +44,7 @@ const StateMode: Record<z.infer<typeof FsmState>, z.infer<typeof Mode>> = {
 }
 
 const Request = z.object({
-  run_id: z.string(),
+  run_id: z.string().optional(),
   task_id: SessionID.zod,
   action: z.enum([
     "start",

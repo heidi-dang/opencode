@@ -55,12 +55,20 @@ function Empty(props: { title: string; copy: string; action?: string; onAction?:
   return (
     <div class="flex h-full min-h-32 flex-col items-center justify-center px-4 py-6 text-center sm:min-h-48 sm:px-6 sm:py-10">
       <div class="mx-auto h-9 w-9 rounded-xl border border-white/8 bg-white/5 grid place-items-center mb-3 sm:h-12 sm:w-12 sm:rounded-2xl sm:mb-4">
-        <svg class="h-4 w-4 text-white/30 sm:h-5 sm:w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+        <svg
+          class="h-4 w-4 text-white/30 sm:h-5 sm:w-5"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          stroke-width="1.5"
+        >
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
         </svg>
       </div>
       <div class="text-13-medium text-white/80 sm:text-15-medium">{props.title}</div>
-      <div class="mt-1 max-w-[260px] text-12-regular leading-[1.5] text-white/40 sm:mt-1.5 sm:max-w-sm sm:text-13-regular">{props.copy}</div>
+      <div class="mt-1 max-w-[260px] text-12-regular leading-[1.5] text-white/40 sm:mt-1.5 sm:max-w-sm sm:text-13-regular">
+        {props.copy}
+      </div>
       <Show when={props.action && props.onAction}>
         <button
           type="button"
@@ -75,11 +83,7 @@ function Empty(props: { title: string; copy: string; action?: string; onAction?:
   )
 }
 
-function EnvSelect(props: {
-  environments: EnvItem[]
-  value: string
-  onChange: (id: string) => void
-}) {
+function EnvSelect(props: { environments: EnvItem[]; value: string; onChange: (id: string) => void }) {
   return (
     <Select
       options={props.environments}
@@ -111,7 +115,11 @@ function DeployHistory(props: {
     <div class="mt-3 flex max-h-60 flex-col gap-2 overflow-y-auto">
       <Show
         when={props.deploys.length}
-        fallback={<div class="rounded-xl border border-white/6 bg-white/3 px-3 py-2.5 text-12-regular text-white/40">No deploys recorded.</div>}
+        fallback={
+          <div class="rounded-xl border border-white/6 bg-white/3 px-3 py-2.5 text-12-regular text-white/40">
+            No deploys recorded.
+          </div>
+        }
       >
         <For each={props.deploys}>
           {(item) => (
@@ -119,9 +127,16 @@ function DeployHistory(props: {
               <div class="flex items-center justify-between gap-2">
                 <div class="min-w-0">
                   <div class="truncate text-12-medium text-white/70">{item.host}</div>
-                  <div class="text-[10px] uppercase tracking-[0.1em] text-white/30">{props.environments[item.environmentID ?? ""] || "manual"}</div>
+                  <div class="text-[10px] uppercase tracking-[0.1em] text-white/30">
+                    {props.environments[item.environmentID ?? ""] || "manual"}
+                  </div>
                 </div>
-                <Button size="small" variant="ghost" onClick={() => props.onRollback(item.id, item.environmentID)} disabled={item.status === "running"}>
+                <Button
+                  size="small"
+                  variant="ghost"
+                  onClick={() => props.onRollback(item.id, item.environmentID)}
+                  disabled={item.status === "running"}
+                >
                   Rollback
                 </Button>
               </div>
@@ -149,7 +164,11 @@ function ReleaseHistory(props: {
     <div class="mt-3 flex max-h-60 flex-col gap-2 overflow-y-auto">
       <Show
         when={props.releases.length}
-        fallback={<div class="rounded-xl border border-white/6 bg-white/3 px-3 py-2.5 text-12-regular text-white/40">No releases recorded.</div>}
+        fallback={
+          <div class="rounded-xl border border-white/6 bg-white/3 px-3 py-2.5 text-12-regular text-white/40">
+            No releases recorded.
+          </div>
+        }
       >
         <For each={props.releases}>
           {(item) => (
@@ -157,7 +176,9 @@ function ReleaseHistory(props: {
               <div class="flex items-center justify-between gap-2">
                 <div class="min-w-0">
                   <div class="truncate text-12-medium text-white/70">{item.title}</div>
-                  <div class="text-[10px] uppercase tracking-[0.1em] text-white/30">{props.environments[item.environmentID ?? ""] || "shared"}</div>
+                  <div class="text-[10px] uppercase tracking-[0.1em] text-white/30">
+                    {props.environments[item.environmentID ?? ""] || "shared"}
+                  </div>
                 </div>
                 <Button size="small" variant="ghost" onClick={() => props.onRollback(item.id, item.environmentID)}>
                   Rollback
@@ -638,8 +659,10 @@ export default function CopilotPage() {
   /* ── render ──────────────────────────── */
 
   return (
-    <main data-page="copilot-builder" class="flex h-full min-h-0 flex-col overflow-hidden bg-[#0a0e16]">
-
+    <main
+      data-page="copilot-builder"
+      class="flex h-full min-h-0 w-full self-stretch flex-col overflow-hidden bg-[#0a0e16]"
+    >
       {/* ─── top bar ─────────────────────── */}
       <header class="z-20 shrink-0 border-b border-white/6 bg-[#0d1117]/95 backdrop-blur-lg">
         <div class="flex h-11 items-center justify-between gap-2 px-2 sm:h-14 sm:gap-3 sm:px-5">
@@ -656,8 +679,16 @@ export default function CopilotPage() {
             </button>
             <div class="min-w-0">
               <div class="flex items-center gap-1.5">
-                <div class="h-1.5 w-1.5 shrink-0 rounded-full sm:h-2 sm:w-2" classList={{ "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.5)]": connected(), "bg-white/20": !connected() }} />
-                <h1 class="truncate text-12-medium text-white/90 sm:text-15-medium">{builder.data()?.title ?? app()}</h1>
+                <div
+                  class="h-1.5 w-1.5 shrink-0 rounded-full sm:h-2 sm:w-2"
+                  classList={{
+                    "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.5)]": connected(),
+                    "bg-white/20": !connected(),
+                  }}
+                />
+                <h1 class="truncate text-12-medium text-white/90 sm:text-15-medium">
+                  {builder.data()?.title ?? app()}
+                </h1>
               </div>
               <div class="hidden text-[10px] uppercase tracking-[0.16em] text-white/30 sm:block sm:text-11-medium">
                 Copilot Builder Studio
@@ -737,10 +768,7 @@ export default function CopilotPage() {
                   <Show
                     when={thread().length}
                     fallback={
-                      <Empty
-                        title="Ready for prompts"
-                        copy="Type below to start. Messages stream in real time."
-                      />
+                      <Empty title="Ready for prompts" copy="Type below to start. Messages stream in real time." />
                     }
                   >
                     <div class="flex flex-col gap-2 sm:gap-3">
@@ -773,12 +801,15 @@ export default function CopilotPage() {
                                 <span class="text-[9px] text-white/20 sm:text-[10px]">{item.time}</span>
                               </div>
                               <div class="whitespace-pre-wrap break-words text-12-regular leading-[1.6] sm:text-13-regular sm:leading-[1.7]">
-                                {item.body || (item.busy ? (
-                                  <span class="inline-flex items-center gap-1 text-white/40">
-                                    <span class="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-sky-400" />
-                                    Working…
-                                  </span>
-                                ) : "No text content.")}
+                                {item.body ||
+                                  (item.busy ? (
+                                    <span class="inline-flex items-center gap-1 text-white/40">
+                                      <span class="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-sky-400" />
+                                      Working…
+                                    </span>
+                                  ) : (
+                                    "No text content."
+                                  ))}
                               </div>
                             </div>
                           </div>
@@ -835,7 +866,13 @@ export default function CopilotPage() {
                         }}
                         title="Attach context data"
                       >
-                        <svg class="h-4 w-4 sm:h-4.5 sm:w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <svg
+                          class="h-4 w-4 sm:h-4.5 sm:w-4.5"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          stroke-width="2"
+                        >
                           <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                         </svg>
                       </button>
@@ -856,13 +893,20 @@ export default function CopilotPage() {
                         type="button"
                         class="grid h-7 w-7 shrink-0 place-items-center rounded-lg transition-all duration-200 disabled:opacity-30 sm:h-8 sm:w-8 sm:rounded-xl"
                         classList={{
-                          "bg-sky-500 text-white shadow-[0_0_12px_rgba(56,189,248,0.3)] hover:bg-sky-400": promptReady() && !store.buildPending,
+                          "bg-sky-500 text-white shadow-[0_0_12px_rgba(56,189,248,0.3)] hover:bg-sky-400":
+                            promptReady() && !store.buildPending,
                           "bg-white/10 text-white/30": !promptReady() || store.buildPending,
                         }}
                         disabled={!connected() || !promptReady() || store.buildPending}
                         onClick={buildRun}
                       >
-                        <svg class="h-3.5 w-3.5 sm:h-4 sm:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                        <svg
+                          class="h-3.5 w-3.5 sm:h-4 sm:w-4"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          stroke-width="2.5"
+                        >
                           <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 10.5L12 3m0 0l7.5 7.5M12 3v18" />
                         </svg>
                       </button>
@@ -880,10 +924,20 @@ export default function CopilotPage() {
                 <div class="flex items-center justify-between">
                   <div class="text-13-medium text-white/70">Builder state</div>
                   <div class="flex gap-1.5">
-                    <Button size="small" variant="ghost" onClick={() => share() ? unpublish() : publish()} disabled={!sessionID() || store.publishPending}>
+                    <Button
+                      size="small"
+                      variant="ghost"
+                      onClick={() => (share() ? unpublish() : publish())}
+                      disabled={!sessionID() || store.publishPending}
+                    >
                       {store.publishPending ? "…" : share() ? "Unpublish" : "Publish"}
                     </Button>
-                    <Button size="small" variant="ghost" onClick={deployRun} disabled={store.deployPending || !store.environment || (!sessionID() && !releases()[0]?.id)}>
+                    <Button
+                      size="small"
+                      variant="ghost"
+                      onClick={deployRun}
+                      disabled={store.deployPending || !store.environment || (!sessionID() && !releases()[0]?.id)}
+                    >
                       {store.deployPending ? "…" : "Deploy"}
                     </Button>
                   </div>
@@ -891,7 +945,6 @@ export default function CopilotPage() {
               </div>
               <div class="min-h-0 flex-1 overflow-y-auto px-4 py-4">
                 <div class="flex flex-col gap-4">
-
                   {/* system instructions */}
                   <div class="rounded-xl border border-white/6 bg-white/3 px-3 py-3">
                     <div class="text-12-medium text-white/60 mb-2">System Instructions</div>
@@ -969,11 +1022,16 @@ export default function CopilotPage() {
                       <div class="text-11-regular text-white/30">{diff().length}</div>
                     </div>
                     <div class="mt-2 flex max-h-52 flex-col gap-1.5 overflow-y-auto">
-                      <Show when={diff().length} fallback={<div class="text-11-regular text-white/25">No changes yet</div>}>
+                      <Show
+                        when={diff().length}
+                        fallback={<div class="text-11-regular text-white/25">No changes yet</div>}
+                      >
                         <For each={diff().slice(0, 15)}>
                           {(item) => (
                             <div class="flex items-center justify-between gap-2 rounded-lg bg-white/[0.02] px-2 py-1.5">
-                              <div class="min-w-0 truncate text-11-medium text-white/60">{item.file.split("/").at(-1)}</div>
+                              <div class="min-w-0 truncate text-11-medium text-white/60">
+                                {item.file.split("/").at(-1)}
+                              </div>
                               <div class="shrink-0 text-[10px] text-white/25">
                                 <span class="text-emerald-400/60">+{item.additions}</span>{" "}
                                 <span class="text-red-400/60">-{item.deletions}</span>
@@ -1002,7 +1060,11 @@ export default function CopilotPage() {
                   {/* release history */}
                   <div class="rounded-xl border border-white/6 bg-white/3 px-3 py-3">
                     <div class="text-12-medium text-white/60">Release history</div>
-                    <ReleaseHistory releases={releases()} onRollback={rollbackRelease} environments={environmentMap()} />
+                    <ReleaseHistory
+                      releases={releases()}
+                      onRollback={rollbackRelease}
+                      environments={environmentMap()}
+                    />
                   </div>
 
                   {/* deploy history */}
@@ -1035,10 +1097,20 @@ export default function CopilotPage() {
                     <div class="truncate text-12-medium text-white/60">{preview()?.url || "No preview"}</div>
                   </div>
                   <div class="flex gap-1.5">
-                    <Button size="small" variant="secondary" disabled={store.previewPending} onClick={preview()?.ptyID ? previewStop : previewStart}>
+                    <Button
+                      size="small"
+                      variant="secondary"
+                      disabled={store.previewPending}
+                      onClick={preview()?.ptyID ? previewStop : previewStart}
+                    >
                       {store.previewPending ? "…" : preview()?.ptyID ? "Stop" : "Start"}
                     </Button>
-                    <Button size="small" variant="ghost" disabled={!previewReady()} onClick={() => preview()?.url && window.open(preview()!.url!, "_blank", "noopener,noreferrer")}>
+                    <Button
+                      size="small"
+                      variant="ghost"
+                      disabled={!previewReady()}
+                      onClick={() => preview()?.url && window.open(preview()!.url!, "_blank", "noopener,noreferrer")}
+                    >
                       Open ↗
                     </Button>
                   </div>
@@ -1057,7 +1129,11 @@ export default function CopilotPage() {
                     />
                   }
                 >
-                  <iframe title="builder-preview" src={preview()?.url} class="h-full min-h-0 w-full border-0 bg-white" />
+                  <iframe
+                    title="builder-preview"
+                    src={preview()?.url}
+                    class="h-full min-h-0 w-full border-0 bg-white"
+                  />
                 </Show>
               </div>
             </section>
@@ -1067,13 +1143,20 @@ export default function CopilotPage() {
               <aside class="hidden w-80 shrink-0 border-l border-white/6 bg-[#0b0f17] lg:flex lg:flex-col xl:w-96">
                 <div class="min-h-0 flex-1 overflow-y-auto px-4 py-4">
                   <div class="flex flex-col gap-4">
-
                     {/* preview controls */}
                     <div class="rounded-xl border border-white/6 bg-white/3 px-3 py-3">
                       <div class="text-12-medium text-white/60 mb-2">Preview controls</div>
                       <div class="grid gap-2">
-                        <TextField label="Command" value={store.previewCommand} onChange={(value) => setStore("previewCommand", value)} />
-                        <TextField label="URL" value={store.previewURL} onChange={(value) => setStore("previewURL", value)} />
+                        <TextField
+                          label="Command"
+                          value={store.previewCommand}
+                          onChange={(value) => setStore("previewCommand", value)}
+                        />
+                        <TextField
+                          label="URL"
+                          value={store.previewURL}
+                          onChange={(value) => setStore("previewURL", value)}
+                        />
                       </div>
                     </div>
 
@@ -1081,7 +1164,14 @@ export default function CopilotPage() {
                     <div class="overflow-hidden rounded-xl border border-white/6 bg-white/3">
                       <div class="border-b border-white/6 px-3 py-2 text-12-medium text-white/60">Terminal</div>
                       <div class="h-64">
-                        <Show when={previewPty()} fallback={<div class="flex h-full items-center justify-center text-12-regular text-white/25">No PTY attached</div>}>
+                        <Show
+                          when={previewPty()}
+                          fallback={
+                            <div class="flex h-full items-center justify-center text-12-regular text-white/25">
+                              No PTY attached
+                            </div>
+                          }
+                        >
                           {(pty) => <Terminal pty={pty()} class="h-full" autoFocus={false} />}
                         </Show>
                       </div>
@@ -1096,34 +1186,64 @@ export default function CopilotPage() {
                           <div class="mt-1 break-all text-12-medium text-white/60">{share() || "Unpublished"}</div>
                         </div>
                         <div class="flex flex-wrap gap-1.5">
-                          <Button size="small" variant="secondary" disabled={!sessionID() || store.publishPending} onClick={() => share() ? unpublish() : publish()}>
+                          <Button
+                            size="small"
+                            variant="secondary"
+                            disabled={!sessionID() || store.publishPending}
+                            onClick={() => (share() ? unpublish() : publish())}
+                          >
                             {store.publishPending ? "…" : share() ? "Unpublish" : "Publish"}
                           </Button>
-                          <Button size="small" variant="ghost" disabled={!share()} onClick={() => share() && window.open(share(), "_blank", "noopener,noreferrer")}>
+                          <Button
+                            size="small"
+                            variant="ghost"
+                            disabled={!share()}
+                            onClick={() => share() && window.open(share(), "_blank", "noopener,noreferrer")}
+                          >
                             Open ↗
                           </Button>
                         </div>
                         <Show when={environments().length}>
                           <div>
                             <div class="mb-1 text-[10px] uppercase tracking-[0.12em] text-white/30">Environment</div>
-                            <EnvSelect environments={environments()} value={store.environment} onChange={(id) => setStore("environment", id)} />
+                            <EnvSelect
+                              environments={environments()}
+                              value={store.environment}
+                              onChange={(id) => setStore("environment", id)}
+                            />
                           </div>
                         </Show>
                         <div class="flex flex-wrap gap-1.5">
-                          <Button size="small" variant="secondary" disabled={store.deployPending || !store.environment || (!sessionID() && !releases()[0]?.id)} onClick={deployRun}>
+                          <Button
+                            size="small"
+                            variant="secondary"
+                            disabled={store.deployPending || !store.environment || (!sessionID() && !releases()[0]?.id)}
+                            onClick={deployRun}
+                          >
                             {store.deployPending ? "Deploying…" : "Deploy"}
                           </Button>
-                          <Button size="small" variant="ghost" disabled={!store.deployURL} onClick={() => store.deployURL && window.open(store.deployURL, "_blank", "noopener,noreferrer")}>
+                          <Button
+                            size="small"
+                            variant="ghost"
+                            disabled={!store.deployURL}
+                            onClick={() =>
+                              store.deployURL && window.open(store.deployURL, "_blank", "noopener,noreferrer")
+                            }
+                          >
                             Open ↗
                           </Button>
                         </div>
                         <Show when={store.deployURL}>
-                          <div class="rounded-lg bg-white/[0.02] px-2.5 py-2 text-12-medium text-white/60">{store.deployURL}</div>
+                          <div class="rounded-lg bg-white/[0.02] px-2.5 py-2 text-12-medium text-white/60">
+                            {store.deployURL}
+                          </div>
                         </Show>
                         <Show when={store.deployLogs.length}>
                           <div class="rounded-lg bg-white/[0.02] px-2.5 py-2">
                             <div class="text-[10px] uppercase tracking-[0.12em] text-white/30">Logs</div>
-                            <div class="mt-1 max-h-32 overflow-y-auto whitespace-pre-wrap break-words text-11-regular text-white/40">{store.deployLogs.join("\n")}</div>
+                            <div class="mt-1 max-h-32 overflow-y-auto whitespace-pre-wrap break-words text-11-regular text-white/40">
+                              {store.deployLogs.join("\n")}
+                            </div>
                           </div>
                         </Show>
                       </div>
@@ -1133,24 +1253,38 @@ export default function CopilotPage() {
                     <div class="rounded-xl border border-white/6 bg-white/3 px-3 py-3">
                       <div class="text-12-medium text-white/60 mb-2">Annotations</div>
                       <div class="grid gap-2">
-                        <TextField label="File" value={store.annotationFile} onChange={(value) => setStore("annotationFile", value)} />
+                        <TextField
+                          label="File"
+                          value={store.annotationFile}
+                          onChange={(value) => setStore("annotationFile", value)}
+                        />
                         <textarea
                           class="min-h-20 w-full rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-12-regular text-white/80 outline-none transition focus:border-sky-400/30 placeholder:text-white/20"
                           value={store.annotationNote}
                           onInput={(event) => setStore("annotationNote", event.currentTarget.value)}
                           placeholder="Describe what should change…"
                         />
-                        <Button size="small" variant="secondary" onClick={addAnnotation} disabled={!store.annotationFile.trim() || !store.annotationNote.trim()}>
+                        <Button
+                          size="small"
+                          variant="secondary"
+                          onClick={addAnnotation}
+                          disabled={!store.annotationFile.trim() || !store.annotationNote.trim()}
+                        >
                           Save
                         </Button>
                       </div>
                       <div class="mt-2 flex max-h-40 flex-col gap-1.5 overflow-y-auto">
-                        <Show when={annotations().length} fallback={<div class="text-11-regular text-white/25">No annotations</div>}>
+                        <Show
+                          when={annotations().length}
+                          fallback={<div class="text-11-regular text-white/25">No annotations</div>}
+                        >
                           <For each={annotations()}>
                             {(item) => (
                               <div class="rounded-lg bg-white/[0.02] px-2.5 py-2">
                                 <div class="break-all text-11-medium text-white/60">{item.file}</div>
-                                <div class="mt-0.5 whitespace-pre-wrap break-words text-11-regular text-white/40">{item.note}</div>
+                                <div class="mt-0.5 whitespace-pre-wrap break-words text-11-regular text-white/40">
+                                  {item.note}
+                                </div>
                               </div>
                             )}
                           </For>
@@ -1169,7 +1303,11 @@ export default function CopilotPage() {
                     {/* histories */}
                     <div class="rounded-xl border border-white/6 bg-white/3 px-3 py-3">
                       <div class="text-12-medium text-white/60">Release history</div>
-                      <ReleaseHistory releases={releases()} onRollback={rollbackRelease} environments={environmentMap()} />
+                      <ReleaseHistory
+                        releases={releases()}
+                        onRollback={rollbackRelease}
+                        environments={environmentMap()}
+                      />
                     </div>
                     <div class="rounded-xl border border-white/6 bg-white/3 px-3 py-3">
                       <div class="text-12-medium text-white/60">Deploy history</div>
@@ -1191,7 +1329,13 @@ export default function CopilotPage() {
             class="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-white/40 transition-colors hover:text-white/70"
             onClick={() => navigate(-1)}
           >
-            <svg class="h-3.5 w-3.5 sm:h-4 sm:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <svg
+              class="h-3.5 w-3.5 sm:h-4 sm:w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="2"
+            >
               <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
             </svg>
           </button>
@@ -1215,8 +1359,18 @@ export default function CopilotPage() {
             class="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-white/40 transition-colors hover:text-white/70"
             onClick={() => setSidebar(!sidebar())}
           >
-            <svg class="h-3.5 w-3.5 sm:h-4 sm:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM12.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM18.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />
+            <svg
+              class="h-3.5 w-3.5 sm:h-4 sm:w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="1.5"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M6.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM12.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM18.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0z"
+              />
             </svg>
           </button>
         </div>

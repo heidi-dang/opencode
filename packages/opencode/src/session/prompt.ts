@@ -276,7 +276,7 @@ export namespace SessionPrompt {
       .filter(Boolean)
       .join("\n")
     if (!text) return []
-    const beast = await Agent.get("beast_mode")
+    const beast = await Agent.resolve("beast_mode")
     if (!beast) return []
     const task = inferParallelTask({ text, parts: input.parts })
     return [
@@ -654,7 +654,7 @@ export namespace SessionPrompt {
           { args: taskArgs },
         )
         let executionError: Error | undefined
-        const taskAgent = await Agent.get(task.agent)
+        const taskAgent = await Agent.resolve(task.agent)
         const taskCtx: Tool.Context = {
           agent: task.agent,
           messageID: assistantMessage.id,
