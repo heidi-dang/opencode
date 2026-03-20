@@ -4,6 +4,7 @@ import { Tool } from "./tool"
 import { Filesystem } from "../util/filesystem"
 import { Ripgrep } from "../file/ripgrep"
 import { Process } from "../util/process"
+import { Glob } from "../util/glob"
 
 import DESCRIPTION from "./grep.txt"
 import { Instance } from "../project/instance"
@@ -41,10 +42,64 @@ export const GrepTool = Tool.define("grep", {
 
     const rgPath = await Ripgrep.filepath()
     if (!rgPath) {
+      const files = params.include
+        ? await Glob.scan(`**/${params.include}`, { cwd: searchPath, absolute: true, include: "file", dot: true })
+        : await Glob.scan("**/*", { cwd: searchPath, absolute: true, include: "file", dot: true })
+      const re = new RegExp(params.pattern)
+      const matches = [] as { path: string; modTime: number; lineNum: number; lineText: string }[]
+      for (const file of files) {
+        const text = await Filesystem.readText(file).catch(() => "")
+        if (!text) continue
+        const stats = Filesystem.stat(file)
+        if (!stats) continue
+        const rows = text.split(/\r?\n/)
+        rows.forEach((lineText, index) => {
+          if (!re.test(lineText)) return
+          matches.push({
+            path: file,
+            modTime: stats.mtime.getTime(),
+            lineNum: index + 1,
+            lineText,
+          })
+        })
+      }
+      matches.sort((a, b) => b.modTime - a.modTime)
+
+      if (matches.length === 0) {
+        return {
+          title: params.pattern,
+          metadata: { matches: 0, truncated: false },
+          output: "No files found",
+        }
+      }
+
+      const limit = 100
+      const truncated = matches.length > limit
+      const finalMatches = truncated ? matches.slice(0, limit) : matches
+      const outputLines = [`Found ${matches.length} matches${truncated ? ` (showing first ${limit})` : ""}`]
+      let currentFile = ""
+      for (const match of finalMatches) {
+        if (currentFile !== match.path) {
+          if (currentFile !== "") outputLines.push("")
+          currentFile = match.path
+          outputLines.push(`${match.path}:`)
+        }
+        const truncatedLineText =
+          match.lineText.length > MAX_LINE_LENGTH
+            ? match.lineText.substring(0, MAX_LINE_LENGTH) + "..."
+            : match.lineText
+        outputLines.push(`  Line ${match.lineNum}: ${truncatedLineText}`)
+      }
+      if (truncated) {
+        outputLines.push("")
+        outputLines.push(
+          `(Results truncated: showing ${limit} of ${matches.length} matches (${matches.length - limit} hidden). Consider using a more specific path or pattern.)`,
+        )
+      }
       return {
         title: params.pattern,
-        metadata: { matches: 0, truncated: false },
-        output: "No files found",
+        metadata: { matches: matches.length, truncated },
+        output: outputLines.join("\n"),
       }
     }
     const args = ["-nH", "--hidden", "--no-messages", "--field-match-separator=|", "--regexp", params.pattern]
