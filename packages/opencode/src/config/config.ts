@@ -275,7 +275,7 @@ export namespace Config {
     const targetVersion = Installation.isLocal() ? "*" : Installation.VERSION
 
     const json = await Filesystem.readJson<{ dependencies?: Record<string, string> }>(pkg).catch(() => ({
-      dependencies: {},
+      dependencies: {} as Record<string, string>,
     }))
     const existingDep = json.dependencies?.["@opencode-ai/plugin"]
     json.dependencies = {
