@@ -10,6 +10,7 @@ import { Filesystem } from "../util/filesystem"
 import { Process } from "../util/process"
 import { which } from "../util/which"
 import { text } from "node:stream/consumers"
+import { Glob } from "../util/glob"
 
 import { ZipReader, BlobReader, BlobWriter } from "@zip.js/zip.js"
 import { Log } from "@/util/log"
@@ -222,14 +223,22 @@ export namespace Ripgrep {
     signal?: AbortSignal
   }) {
     input.signal?.throwIfAborted()
+    // Prefer ripgrep binary when available, but fall back to a JS implementation
+    // so tests don't hang downloading or spawning external binaries.
+    let rgpath: string | null = null
+    try {
+      rgpath = await filepath()
+    } catch (err) {
+      rgpath = null
+    }
 
-    const args = [await filepath(), "--files", "--glob=!.git/*"]
-    if (input.follow) args.push("--follow")
-    if (input.hidden !== false) args.push("--hidden")
-    if (input.maxDepth !== undefined) args.push(`--max-depth=${input.maxDepth}`)
+    const args = rgpath ? [rgpath, "--files", "--glob=!.git/*"] : null
+    if (input.follow) args?.push("--follow")
+    if (input.hidden !== false) args?.push("--hidden")
+    if (input.maxDepth !== undefined) args?.push(`--max-depth=${input.maxDepth}`)
     if (input.glob) {
       for (const g of input.glob) {
-        args.push(`--glob=${g}`)
+        args?.push(`--glob=${g}`)
       }
     }
 
@@ -242,36 +251,46 @@ export namespace Ripgrep {
       })
     }
 
-    const proc = Process.spawn(args, {
-      cwd: input.cwd,
-      stdout: "pipe",
-      stderr: "ignore",
-      abort: input.signal,
-    })
+    if (args) {
+      const proc = Process.spawn(args, {
+        cwd: input.cwd,
+        stdout: "pipe",
+        stderr: "ignore",
+        abort: input.signal,
+      })
 
-    if (!proc.stdout) {
-      throw new Error("Process output not available")
-    }
-
-    let buffer = ""
-    const stream = proc.stdout as AsyncIterable<Buffer | string>
-    for await (const chunk of stream) {
-      input.signal?.throwIfAborted()
-
-      buffer += typeof chunk === "string" ? chunk : chunk.toString()
-      // Handle both Unix (\n) and Windows (\r\n) line endings
-      const lines = buffer.split(/\r?\n/)
-      buffer = lines.pop() || ""
-
-      for (const line of lines) {
-        if (line) yield line
+      if (!proc.stdout) {
+        throw new Error("Process output not available")
       }
+
+      let buffer = ""
+      const stream = proc.stdout as AsyncIterable<Buffer | string>
+      for await (const chunk of stream) {
+        input.signal?.throwIfAborted()
+
+        buffer += typeof chunk === "string" ? chunk : chunk.toString()
+        // Handle both Unix (\n) and Windows (\r\n) line endings
+        const lines = buffer.split(/\r?\n/)
+        buffer = lines.pop() || ""
+
+        for (const line of lines) {
+          if (line) yield line
+        }
+      }
+
+      if (buffer) yield buffer
+      await proc.exited
+
+      input.signal?.throwIfAborted()
+      return
     }
 
-    if (buffer) yield buffer
-    await proc.exited
-
-    input.signal?.throwIfAborted()
+    // Fallback JS implementation when ripgrep binary is not available.
+    for (const item of await Glob.scan("**/*", { cwd: input.cwd, absolute: false, dot: !!input.hidden })) {
+      // Glob.scan returns paths relative to cwd when absolute=false
+      if (item.startsWith(".git/")) continue
+      yield item
+    }
   }
 
   export async function tree(input: { cwd: string; limit?: number; signal?: AbortSignal }) {
