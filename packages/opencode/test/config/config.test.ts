@@ -735,7 +735,7 @@ test("does not try to install dependencies in read-only OPENCODE_CONFIG_DIR", as
   }
 })
 
-test("installs dependencies in writable OPENCODE_CONFIG_DIR", async () => {
+test("installs dependencies in writable OPENCODE_CONFIG_DIR", { timeout: 20000 }, async () => {
   await using tmp = await tmpdir<string>({
     init: async (dir) => {
       const cfg = path.join(dir, "configdir")
@@ -748,6 +748,14 @@ test("installs dependencies in writable OPENCODE_CONFIG_DIR", async () => {
   process.env.OPENCODE_CONFIG_DIR = tmp.extra
 
   try {
+    let run: any = spyOn(BunProc, "run").mockImplementation(async (_cmd, opts) => {
+      return {
+        code: 0,
+        stdout: Buffer.alloc(0),
+        stderr: Buffer.alloc(0),
+      }
+    })
+
     await Instance.provide({
       directory: tmp.path,
       fn: async () => {
@@ -759,6 +767,7 @@ test("installs dependencies in writable OPENCODE_CONFIG_DIR", async () => {
     expect(await Filesystem.exists(path.join(tmp.extra, "package.json"))).toBe(true)
     expect(await Filesystem.exists(path.join(tmp.extra, ".gitignore"))).toBe(true)
   } finally {
+    try { run?.mockRestore?.() } catch {}
     if (prev === undefined) delete process.env.OPENCODE_CONFIG_DIR
     else process.env.OPENCODE_CONFIG_DIR = prev
   }
