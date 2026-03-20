@@ -2,6 +2,7 @@ import z from "zod"
 import { Tool } from "./tool"
 import { Filesystem } from "@/util/filesystem"
 import { HeidiContext } from "@/heidi/context"
+import { HeidiTelemetry } from "@/heidi/telemetry"
 
 export const KnowledgeSubagentTool = Tool.define("knowledge_subagent", {
   description:
@@ -20,7 +21,10 @@ export const KnowledgeSubagentTool = Tool.define("knowledge_subagent", {
       ...params.item,
     }
     const target = HeidiContext.knowledgePath(params.task_id as any)
-    const old = await Filesystem.readText(target).catch(() => "")
+    const old = await Filesystem.readText(target).catch((err) => {
+      HeidiTelemetry.warn(params.task_id as any, "knowledge_subagent.read", err)
+      return ""
+    })
     await Filesystem.write(target, old + JSON.stringify(row) + "\n")
     return {
       title: "knowledge updated",

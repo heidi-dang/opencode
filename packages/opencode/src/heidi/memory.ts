@@ -4,6 +4,7 @@ import { Global } from "@/global"
 import { Instance } from "@/project/instance"
 import path from "path"
 import { SessionID } from "@/session/schema"
+import { HeidiTelemetry } from "./telemetry"
 
 export namespace HeidiMemory {
   export type Item = {
@@ -24,10 +25,17 @@ export namespace HeidiMemory {
       /api[_-]?key/i,
       /PRIVATE[_-]?KEY/i,
       /-----BEGIN/i,
-      /[A-Za-z0-9]{32,}/,
+      /aws[_-]?access[_-]?key/i,
+      /bearer\s+[a-zA-Z0-9_\-]{20,}/i,
+      /sk[_-]?[a-zA-Z0-9_\-]{20,}/i,
+      /[A-Za-z0-9+/]{40,}[A-Za-z0-9+/=\s]{10,}[A-Za-z0-9+/]{40,}/,
     ]
+    const unknownPatterns = [/[A-Za-z0-9]{32,}/]
     for (const pat of unsafePatterns) {
       if (pat.test(content)) return "unsafe"
+    }
+    for (const pat of unknownPatterns) {
+      if (pat.test(content)) return "unknown"
     }
     return "safe"
   }
@@ -39,7 +47,11 @@ export namespace HeidiMemory {
     return path.join(Global.Path.state, "heidi", "memory.jsonl")
   }
 
-  export async function add(sessionID: SessionID, item: Omit<Item, "timestamp" | "session_id" | "trust">, scope: "project" | "global" = "project") {
+  export async function add(
+    sessionID: SessionID,
+    item: Omit<Item, "timestamp" | "session_id" | "trust">,
+    scope: "project" | "global" = "project",
+  ) {
     const trust = detectUnsafe(item.content)
     if (trust === "unsafe") {
       throw new Error("Unsafe memory content detected; not stored.")
@@ -58,22 +70,27 @@ export namespace HeidiMemory {
   }
 
   export async function query(text: string, scope: "project" | "global" | "both" = "both"): Promise<Item[]> {
-    const targets = [] as { file: string, scope: "project" | "global" }[]
+    const targets = [] as { file: string; scope: "project" | "global" }[]
     if (scope === "project" || scope === "both") targets.push({ file: projectFile(), scope: "project" })
     if (scope === "global" || scope === "both") targets.push({ file: globalFile(), scope: "global" })
 
     const items = [] as Item[]
     for (const target of targets) {
-      const content = await Filesystem.readText(target.file).catch(() => "")
+      const content = await Filesystem.readText(target.file).catch((err) => {
+        HeidiTelemetry.warn("memory", "memory.query", err)
+        return ""
+      })
       if (!content) continue
       const lines = content.trim().split("\n")
       for (const line of lines) {
         try {
           const item = JSON.parse(line) as Item
           if (item.trust === "unsafe") continue
-          if (item.key.toLowerCase().includes(text.toLowerCase()) || 
-              item.content.toLowerCase().includes(text.toLowerCase()) || 
-              item.type.toLowerCase().includes(text.toLowerCase())) {
+          if (
+            item.key.toLowerCase().includes(text.toLowerCase()) ||
+            item.content.toLowerCase().includes(text.toLowerCase()) ||
+            item.type.toLowerCase().includes(text.toLowerCase())
+          ) {
             items.push({ ...item, scope: target.scope })
           }
         } catch {}
@@ -90,7 +107,7 @@ export namespace HeidiMemory {
     return [
       "Here are some relevant long-term memories and patterns from previous sessions:",
       "<memory>",
-      ...recent.map(m => `  - [${m.scope}] [${m.type}] [${m.trust ?? "unknown"}] ${m.key}: ${m.content}`),
+      ...recent.map((m) => `  - [${m.scope}] [${m.type}] [${m.trust ?? "unknown"}] ${m.key}: ${m.content}`),
       "</memory>",
     ].join("\n")
   }

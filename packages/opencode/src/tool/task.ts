@@ -12,6 +12,7 @@ import { iife } from "@/util/iife"
 import { defer } from "@/util/defer"
 import { Config } from "../config/config"
 import { PermissionNext } from "@/permission"
+import { HeidiTelemetry } from "@/heidi/telemetry"
 
 const parameters = z.object({
   description: z.string().describe("A short (3-5 words) description of the task"),
@@ -75,7 +76,10 @@ export const TaskTool = Tool.define("task", async (ctx) => {
 
       const session = await iife(async () => {
         if (params.task_id) {
-          const found = await Session.get(SessionID.make(params.task_id)).catch(() => {})
+          const found = await Session.get(SessionID.make(params.task_id)).catch((err) => {
+            HeidiTelemetry.warn(ctx.sessionID, "task.session_get", err)
+            return null
+          })
           if (found) return found
         }
 

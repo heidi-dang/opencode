@@ -1,5 +1,7 @@
 import z from "zod"
 
+export const SyncStatus = z.enum(["ok", "degraded", "failed"])
+
 export const FsmState = z.enum([
   "IDLE",
   "DISCOVERY",
@@ -209,6 +211,12 @@ export const ContextState = z.object({
       memory: z.string(),
     }),
   }),
+  sync_status: z.object({
+    status: SyncStatus,
+    last_sync_at: z.string(),
+    attempts: z.number(),
+    last_error: z.string().nullable(),
+  }),
   version: z.number().int().positive(),
   updated_at: z.string(),
 })
@@ -217,3 +225,4 @@ export type TaskState = z.infer<typeof TaskState>
 export type VerifyState = z.infer<typeof VerifyState>
 export type ResumeState = z.infer<typeof ResumeState>
 export type ContextState = z.infer<typeof ContextState>
+export type SyncStatus = z.infer<typeof SyncStatus>

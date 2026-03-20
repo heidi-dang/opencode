@@ -328,8 +328,8 @@ export namespace Session {
     })
     const cfg = await Config.get()
     if (!result.parentID && (Flag.OPENCODE_AUTO_SHARE || cfg.share === "auto"))
-      share(result.id).catch(() => {
-        // Silently ignore sharing errors during session creation
+      share(result.id).catch((err) => {
+        log.warn("share failed during session creation", { sessionID: result.id, err })
       })
     Bus.publish(Event.Updated, {
       info: result,
@@ -668,7 +668,9 @@ export namespace Session {
       for (const child of await children(sessionID)) {
         await remove(child.id)
       }
-      await unshare(sessionID).catch(() => {})
+      await unshare(sessionID).catch((err) => {
+        log.warn("unshare failed during session removal", { sessionID, err })
+      })
       // CASCADE delete handles messages and parts automatically
       Database.use((db) => {
         db.delete(SessionTable).where(eq(SessionTable.id, sessionID)).run()

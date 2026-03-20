@@ -1,5 +1,6 @@
 import { createHash } from "crypto"
 import path from "path"
+import fs from "fs/promises"
 import { Filesystem } from "@/util/filesystem"
 import { Global } from "@/global"
 import { Instance } from "@/project/instance"
@@ -7,8 +8,9 @@ import { SessionID } from "@/session/schema"
 import { Session } from "@/session"
 import { MessageV2 } from "@/session/message-v2"
 import { HeidiState } from "./state"
-import { ContextState } from "./schema"
+import { ContextState, SyncStatus } from "./schema"
 import { HeidiMemory } from "./memory"
+import { HeidiTelemetry } from "./telemetry"
 
 function root(sessionID: SessionID) {
   try {
@@ -57,12 +59,26 @@ function summary(msgs: MessageV2.WithParts[]) {
 }
 
 function safe(text: string) {
-  const bad = [/password/i, /secret/i, /token/i, /api[_-]?key/i, /-----BEGIN/i, /[A-Za-z0-9]{32,}/]
+  const bad = [
+    /password/i,
+    /secret/i,
+    /token/i,
+    /api[_-]?key/i,
+    /-----BEGIN/i,
+    /-----END/i,
+    /aws[_-]?access[_-]?key/i,
+    /bearer\s+[a-zA-Z0-9_\-]{20,}/i,
+    /sk[_-]?[a-zA-Z0-9_\-]{20,}/i,
+    /[A-Za-z0-9+/]{40,}[A-Za-z0-9+/=\s]{10,}[A-Za-z0-9+/]{40,}/,
+  ]
   return bad.some((pat) => pat.test(text)) ? undefined : clip(text)
 }
 
 async function retrieval(sessionID: SessionID) {
-  const raw = await Filesystem.readText(knowledgeFile(sessionID)).catch(() => "")
+  const raw = await Filesystem.readText(knowledgeFile(sessionID)).catch((err) => {
+    HeidiTelemetry.warn(sessionID, "context.retrieval", err)
+    return ""
+  })
   const rows = raw
     .split("\n")
     .filter(Boolean)
@@ -97,7 +113,10 @@ export namespace HeidiContext {
   export async function build(sessionID: SessionID) {
     const [state, msgs, memory, notes, verify] = await Promise.all([
       HeidiState.read(sessionID),
-      Session.messages({ sessionID, limit: 200 }).catch(() => []),
+      Session.messages({ sessionID, limit: 200 }).catch((err) => {
+        HeidiTelemetry.warn(sessionID, "context.build.messages", err)
+        return []
+      }),
       HeidiMemory.query("", "both"),
       retrieval(sessionID),
       HeidiState.readVerification(sessionID),
@@ -136,9 +155,17 @@ export namespace HeidiContext {
       verification: verify
         ? {
             status: verify.status,
-            checks: verify.checks.map((item) => ({ name: item.name, command: item.command, exit_code: item.exit_code })),
+            checks: verify.checks.map((item) => ({
+              name: item.name,
+              command: item.command,
+              exit_code: item.exit_code,
+            })),
             warnings: verify.warnings,
-            remediation: verify.remediation.map((item) => ({ file: item.file, line: item.line, rule_id: item.rule_id })),
+            remediation: verify.remediation.map((item) => ({
+              file: item.file,
+              line: item.line,
+              rule_id: item.rule_id,
+            })),
             browser: verify.browser
               ? {
                   required: verify.browser.required,
@@ -169,15 +196,69 @@ export namespace HeidiContext {
           memory: String(recent.length),
         },
       },
+      sync_status: {
+        status: "ok" as SyncStatus,
+        last_sync_at: new Date().toISOString(),
+        attempts: 1,
+        last_error: null,
+      },
       version: 2,
       updated_at: new Date().toISOString(),
     })
   }
 
+  async function writeWithRetry(
+    sessionID: SessionID,
+    data: ContextState,
+    attempts = 0,
+  ): Promise<{ status: SyncStatus; attempts: number; last_error: string | null }> {
+    const MAX_ATTEMPTS = 3
+    const baseDelay = 100
+    const target = file(sessionID)
+    const tmp = target + ".tmp"
+
+    try {
+      await Filesystem.writeJson(tmp, data)
+      await fs.rename(tmp, target)
+      return { status: "ok", attempts: attempts + 1, last_error: null }
+    } catch (err) {
+      if (attempts + 1 >= MAX_ATTEMPTS) {
+        HeidiTelemetry.error(sessionID, "context.write", err, attempts + 1)
+        try {
+          await Filesystem.writeJson(tmp, data)
+          await fs.rename(tmp, target)
+        } catch {}
+        return {
+          status: "failed",
+          attempts: attempts + 1,
+          last_error: err instanceof Error ? err.message : String(err),
+        }
+      }
+      const delay = baseDelay * Math.pow(2, attempts)
+      await new Promise((r) => setTimeout(r, delay))
+      return writeWithRetry(sessionID, data, attempts + 1)
+    }
+  }
+
   export async function write(sessionID: SessionID) {
     const ctx = await build(sessionID)
-    await Filesystem.writeJson(file(sessionID), ctx)
-    return ctx
+    const syncResult = await writeWithRetry(sessionID, ctx)
+    const resultCtx = {
+      ...ctx,
+      sync_status: {
+        status: syncResult.attempts > 1 ? "degraded" : syncResult.status,
+        last_sync_at: new Date().toISOString(),
+        attempts: syncResult.attempts,
+        last_error: syncResult.last_error,
+      },
+    }
+    if (syncResult.status === "ok" && syncResult.attempts === 1) {
+      return resultCtx
+    }
+    if (syncResult.status === "ok") {
+      await Filesystem.writeJson(file(sessionID), resultCtx)
+    }
+    return resultCtx
   }
 
   export async function read(sessionID: SessionID) {
@@ -195,7 +276,10 @@ export namespace HeidiContext {
   }
 
   export async function system(sessionID: SessionID) {
-    const ctx = await current(sessionID).catch(() => undefined)
+    const ctx = await current(sessionID).catch((err) => {
+      HeidiTelemetry.warn(sessionID, "context.system", err)
+      return undefined
+    })
     if (!ctx) return ""
     return [
       "Current session context:",
@@ -207,7 +291,9 @@ export namespace HeidiContext {
       ctx.summary.files.length ? `  files: ${quote(ctx.summary.files.join(", "))}` : "",
       ctx.activity.active_files.length ? `  active_files: ${quote(ctx.activity.active_files.join(", "))}` : "",
       ctx.activity.changed_files.length ? `  changed_files: ${quote(ctx.activity.changed_files.join(", "))}` : "",
-      ctx.verification ? `  verification: ${quote(`${ctx.verification.status} / ${ctx.verification.checks.length} checks`)}` : "",
+      ctx.verification
+        ? `  verification: ${quote(`${ctx.verification.status} / ${ctx.verification.checks.length} checks`)}`
+        : "",
       ctx.memory.retrieval.length
         ? `  retrieval: ${quote(ctx.memory.retrieval.map((item) => `${item.kind}:${item.summary} (${item.source})`).join(" | "))}`
         : "",

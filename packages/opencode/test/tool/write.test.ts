@@ -5,7 +5,7 @@ import { WriteTool } from "../../src/tool/write"
 import { Instance } from "../../src/project/instance"
 import { tmpdir } from "../fixture/fixture"
 import { SessionID, MessageID } from "../../src/session/schema"
-
+import { enterExecution } from "../fixture/heidi"
 
 const baseCtx = {
   messageID: MessageID.make(""),
@@ -18,10 +18,7 @@ const baseCtx = {
 }
 
 async function withExecutionState(session: { id: string }, label = "test write") {
-  const { HeidiState } = await import("../../src/heidi/state")
-  const state = await HeidiState.ensure(session.id as SessionID, label)
-  state.fsm_state = "EXECUTION"
-  await HeidiState.write(session.id as SessionID, state)
+  await enterExecution(session.id as SessionID, label)
 }
 
 describe("tool.write", () => {
@@ -292,37 +289,37 @@ describe("tool.write", () => {
       })
     })
   })
-    describe("file permissions", () => {
-      test("sets file permissions when writing sensitive data", async () => {
-        await using tmp = await tmpdir()
-        const filepath = path.join(tmp.path, "sensitive.json")
+  describe("file permissions", () => {
+    test("sets file permissions when writing sensitive data", async () => {
+      await using tmp = await tmpdir()
+      const filepath = path.join(tmp.path, "sensitive.json")
 
-        await Instance.provide({
-          directory: tmp.path,
-          fn: async () => {
-            const { Session } = await import("../../src/session")
-            const session = await Session.create({})
-            await withExecutionState(session, "test write sensitive")
-            const write = await WriteTool.init()
-            const testCtx = { ...baseCtx, sessionID: session.id }
-            await write.execute(
-              {
-                filePath: filepath,
-                content: JSON.stringify({ secret: "data" }),
-              },
-              testCtx,
-            )
+      await Instance.provide({
+        directory: tmp.path,
+        fn: async () => {
+          const { Session } = await import("../../src/session")
+          const session = await Session.create({})
+          await withExecutionState(session, "test write sensitive")
+          const write = await WriteTool.init()
+          const testCtx = { ...baseCtx, sessionID: session.id }
+          await write.execute(
+            {
+              filePath: filepath,
+              content: JSON.stringify({ secret: "data" }),
+            },
+            testCtx,
+          )
 
-            // On Unix systems, check permissions
-            if (process.platform !== "win32") {
-              const stats = await fs.stat(filepath)
-              expect(stats.mode & 0o200).toBe(0o200)
-              expect(stats.mode & 0o002).toBe(0)
-            }
-          },
-        })
+          // On Unix systems, check permissions
+          if (process.platform !== "win32") {
+            const stats = await fs.stat(filepath)
+            expect(stats.mode & 0o200).toBe(0o200)
+            expect(stats.mode & 0o002).toBe(0)
+          }
+        },
       })
     })
+  })
 
   describe("content types", () => {
     test("writes JSON content", async () => {
@@ -349,32 +346,32 @@ describe("tool.write", () => {
         },
       })
     })
-      test("writes JSON content", async () => {
-        await using tmp = await tmpdir()
-        const filepath = path.join(tmp.path, "data.json")
-        const data = { key: "value", nested: { array: [1, 2, 3] } }
+    test("writes JSON content", async () => {
+      await using tmp = await tmpdir()
+      const filepath = path.join(tmp.path, "data.json")
+      const data = { key: "value", nested: { array: [1, 2, 3] } }
 
-        await Instance.provide({
-          directory: tmp.path,
-          fn: async () => {
-            const { Session } = await import("../../src/session")
-            const session = await Session.create({})
-            await withExecutionState(session, "test write json content")
-            const write = await WriteTool.init()
-            const testCtx = { ...baseCtx, sessionID: session.id }
-            await write.execute(
-              {
-                filePath: filepath,
-                content: JSON.stringify(data, null, 2),
-              },
-              testCtx,
-            )
+      await Instance.provide({
+        directory: tmp.path,
+        fn: async () => {
+          const { Session } = await import("../../src/session")
+          const session = await Session.create({})
+          await withExecutionState(session, "test write json content")
+          const write = await WriteTool.init()
+          const testCtx = { ...baseCtx, sessionID: session.id }
+          await write.execute(
+            {
+              filePath: filepath,
+              content: JSON.stringify(data, null, 2),
+            },
+            testCtx,
+          )
 
-            const content = await fs.readFile(filepath, "utf-8")
-            expect(JSON.parse(content)).toEqual(data)
-          },
-        })
+          const content = await fs.readFile(filepath, "utf-8")
+          expect(JSON.parse(content)).toEqual(data)
+        },
       })
+    })
 
     test("writes binary-safe content", async () => {
       await using tmp = await tmpdir()

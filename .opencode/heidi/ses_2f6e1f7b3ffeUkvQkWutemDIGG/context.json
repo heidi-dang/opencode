@@ -1,0 +1,56 @@
+{
+  "session_id": "ses_2f6e1f7b3ffeUkvQkWutemDIGG",
+  "objective": "Fix silent catches, add retry/backoff with sync_status, expand trust classification, full copilot parity",
+  "fsm_state": "EXECUTION",
+  "mode": "EXECUTION",
+  "plan": {
+    "path": "/home/heidi/work/opencode-main/.opencode/heidi/ses_2f6e1f7b3ffeUkvQkWutemDIGG/implementation_plan.md",
+    "locked": true
+  },
+  "summary": {
+    "title": null,
+    "body": null,
+    "files": []
+  },
+  "resume": {
+    "next_step": "EXECUTION",
+    "checkpoint_id": "1773974591564-h5kzha",
+    "failed_hypotheses": []
+  },
+  "activity": {
+    "active_files": [
+      "/home/heidi/work/opencode-main/packages/opencode/src/session/index.ts"
+    ],
+    "changed_files": [
+      "/home/heidi/work/opencode-main/packages/opencode/src/heidi/schema.ts",
+      "/home/heidi/work/opencode-main/packages/opencode/src/heidi/context.ts",
+      "/home/heidi/work/opencode-main/packages/opencode/src/heidi/state.ts",
+      "/home/heidi/work/opencode-main/packages/opencode/src/heidi/memory.ts",
+      "/home/heidi/work/opencode-main/packages/opencode/src/session/system.ts",
+      "/home/heidi/work/opencode-main/packages/opencode/src/tool/transparency.ts",
+      "/home/heidi/work/opencode-main/packages/opencode/src/tool/task.ts",
+      "/home/heidi/work/opencode-main/packages/opencode/src/tool/knowledge_subagent.ts",
+      "/home/heidi/work/opencode-main/packages/opencode/src/session/index.ts",
+      "/home/heidi/work/opencode-main/packages/opencode/src/session/processor.ts"
+    ],
+    "commands": [],
+    "validations": []
+  },
+  "verification": null,
+  "memory": {
+    "long_term": [],
+    "retrieval": []
+  },
+  "freshness": {
+    "fingerprint": "41371cfe74935993d471ed2863587b5c54fd800b5fc2d538fd78241221d7d764",
+    "sources": {
+      "task": "begin_execution",
+      "verification": "missing",
+      "knowledge": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "messages": "54",
+      "memory": "0"
+    }
+  },
+  "version": 2,
+  "updated_at": "2026-03-20T02:48:53.221Z"
+}

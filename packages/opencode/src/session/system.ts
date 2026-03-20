@@ -16,6 +16,7 @@ import { Skill } from "@/skill"
 
 import { HeidiMemory } from "@/heidi/memory"
 import { HeidiContext } from "@/heidi/context"
+import { HeidiTelemetry } from "@/heidi/telemetry"
 
 export namespace SystemPrompt {
   export function instructions() {
@@ -35,7 +36,12 @@ export namespace SystemPrompt {
   export async function environment(model: Provider.Model, sessionID?: string) {
     const project = Instance.project
     const memories = await HeidiMemory.system()
-    const ctx = sessionID ? await HeidiContext.system(sessionID as any).catch(() => "") : ""
+    const ctx = sessionID
+      ? await HeidiContext.system(sessionID as any).catch((err) => {
+          HeidiTelemetry.warn(sessionID, "system.environment", err)
+          return ""
+        })
+      : ""
     return [
       [
         `You are powered by the model named ${model.api.id}. The exact model ID is ${model.providerID}/${model.api.id}`,

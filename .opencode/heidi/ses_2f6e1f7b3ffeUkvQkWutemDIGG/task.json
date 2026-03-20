@@ -1,0 +1,52 @@
+{
+  "run_id": "tool_d091f2eac001KGf85gfTTLvfZ1",
+  "task_id": "ses_2f6e1f7b3ffeUkvQkWutemDIGG",
+  "fsm_state": "EXECUTION",
+  "mode": "EXECUTION",
+  "objective": {
+    "locked": true,
+    "text": "Fix silent catches, add retry/backoff with sync_status, expand trust classification, full copilot parity"
+  },
+  "plan": {
+    "path": "/home/heidi/work/opencode-main/.opencode/heidi/ses_2f6e1f7b3ffeUkvQkWutemDIGG/implementation_plan.md",
+    "hash": "5777f53617dc20ee50ee75d1bece23958913c59dd7d7c4ac5727ddce05c6143d",
+    "locked": true,
+    "amendments": []
+  },
+  "checklist": [],
+  "active_files": [
+    "/home/heidi/work/opencode-main/packages/opencode/src/session/index.ts"
+  ],
+  "changed_files": [
+    "/home/heidi/work/opencode-main/packages/opencode/src/heidi/schema.ts",
+    "/home/heidi/work/opencode-main/packages/opencode/src/heidi/context.ts",
+    "/home/heidi/work/opencode-main/packages/opencode/src/heidi/state.ts",
+    "/home/heidi/work/opencode-main/packages/opencode/src/heidi/memory.ts",
+    "/home/heidi/work/opencode-main/packages/opencode/src/session/system.ts",
+    "/home/heidi/work/opencode-main/packages/opencode/src/tool/transparency.ts",
+    "/home/heidi/work/opencode-main/packages/opencode/src/tool/task.ts",
+    "/home/heidi/work/opencode-main/packages/opencode/src/tool/knowledge_subagent.ts",
+    "/home/heidi/work/opencode-main/packages/opencode/src/session/index.ts",
+    "/home/heidi/work/opencode-main/packages/opencode/src/session/processor.ts"
+  ],
+  "commands": [],
+  "verification_commands": [],
+  "checkpoints": [
+    {
+      "id": "1773974591564-h5kzha",
+      "step_id": "edit:/home/heidi/work/opencode-main/packages/opencode/src/heidi/schema.ts",
+      "files": [
+        "/home/heidi/work/opencode-main/packages/opencode/src/heidi/schema.ts"
+      ],
+      "created_at": "2026-03-20T02:43:11.750Z"
+    }
+  ],
+  "block_reason": null,
+  "last_successful_step": "begin_execution",
+  "next_transition": "EXECUTION->VERIFICATION",
+  "resume": {
+    "next_step": "EXECUTION",
+    "checkpoint_id": "1773974591564-h5kzha",
+    "failed_hypotheses": []
+  }
+}

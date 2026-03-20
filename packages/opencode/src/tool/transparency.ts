@@ -4,6 +4,7 @@ import { HeidiMemory } from "@/heidi/memory"
 import { HeidiState } from "@/heidi/state"
 import { HeidiContext } from "@/heidi/context"
 import { ServerStats } from "@/server/stats"
+import { HeidiTelemetry } from "@/heidi/telemetry"
 
 const DESCRIPTION = `Provides a transparent view of Heidi's internal state, including current memory context, active transaction status, and recent decision history.`
 
@@ -15,8 +16,14 @@ export const TransparencyTool = Tool.define("transparency", {
   async execute(params, ctx) {
     const [memory, state, session] = await Promise.all([
       HeidiMemory.query("", "both"),
-      HeidiState.read(ctx.sessionID).catch(() => null),
-      HeidiContext.current(ctx.sessionID).catch(() => null),
+      HeidiState.read(ctx.sessionID).catch((err) => {
+        HeidiTelemetry.warn(ctx.sessionID, "transparency.read", err)
+        return null
+      }),
+      HeidiContext.current(ctx.sessionID).catch((err) => {
+        HeidiTelemetry.warn(ctx.sessionID, "transparency.current", err)
+        return null
+      }),
     ])
     const stats = ServerStats.snapshot()
     const fsm = state?.fsm_state ?? "IDLE"

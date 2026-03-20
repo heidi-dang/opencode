@@ -1,0 +1,76 @@
+{
+  "session_id": "ses_2f9d06fe5ffex9AZb69j4TCgdv",
+  "objective": "Implement a unified 7-phase session context memory system that consolidates session history, compaction, resume state, long-term memory, and retrieval into a canonical context layer with persistence, prompt integration, API visibility, safety filtering, and tests.",
+  "fsm_state": "DISCOVERY",
+  "mode": "EXECUTION",
+  "plan": {
+    "path": "/home/heidi/work/opencode-main/.opencode/heidi/ses_2f9d06fe5ffex9AZb69j4TCgdv/implementation_plan.md",
+    "locked": true
+  },
+  "summary": {
+    "title": "compaction",
+    "body": "---\n## Goal\n\nUnify and harden a canonical session-context memory system for Heidi so sessions carry safe, verifiable, and persistent context across turns and restarts, exposed via a typed API and SDK, with mirror parity in the opencode-copilot tree. The user asked this to be implemented autonomously and to be reported when finished.\n\n## Instructions\n\n- The user instructed to proceed without asking for permission: implement the full 7-phase session-context work and then harden it to 10/10.\n- Treat session context as canonical for prompt injection and debugging (session context should include task state, resume, verification, memory, retrieval, freshness/fingerprint).\n- Do not rely on the model to supply run_id/task_id (task_boundary should auto-fill from session state).\n- Ensure retrieval/knowledge rows are filtered/redacted before injection.\n- Surface failures instead of silently swallowing them (no more silent .catch(() => {})).\n- Regenerate the JavaScript SDK from the authoritative OpenAPI/spec and mirror the relevant changes into the opencode-copilot package.\n- Add tests that exercise assembly, freshness, verification inclusion, retrieval safety, and route behavior.\n\nSpec/plan references to use:\n- Canonical ContextState schema (added to heidi/schema.ts).\n- Context assembly module (heidi/context.ts) which builds and writes context.json and returns system-safe prompt strings.\n- Strict sync behavior in heidi/state.ts (no silent suppression).\n- Verification flow in heidi/verify.ts and heidi/boundary.ts (complete consumes stored verification).\n- Retrieval redaction/validation in heidi/context.ts retrieval() and in the memory layer.\n\n## Discoveries\n\n- The codebase already had related primitives: DB-backed session/message history, compaction summaries, resume state, long-term memory, retrieval tooling, and verification logic — but they were fragmented and inconsistent.\n- Several places previously swallowed context-sync failures with .catch(() => {}), creating silent drift between live state and persisted snapshots.\n- The `task_boundary` contract assumed run_id and task_id were provided; this was brittle. We made the tool optional and auto-filled those IDs from session state.\n- Agent lookup previously failed when the model used the Beast agent display name instead of internal key, causing sessions to fall back to the general agent. Added Agent.resolve to handle key or display-name resolution.\n- Retrieval written by the knowledge subagent lived under different roots for git-backed vs non-git projects; retrieval path mismatch caused missing knowledge in some sessions.\n- The opencode-copilot tree was out of parity for the session-context feature; mirroring required surgical, compatibility-aware edits rather than simple file transplant.\n- SDK generation is driven from the OpenAPI spec; the SDK was regenerated after changing the route schema.\n\n## Accomplished\n\nCompleted (all implemented, tested, typechecked, and pushed):\n- Designed and added a canonical ContextState with verification and freshness metadata.\n  - packages/opencode/src/heidi/schema.ts\n- Implemented the context assembler + persistence:\n  - packages/opencode/src/heidi/context.ts (build(), write(), current(), system(), retrieval safety)\n- Made context sync strict and non-silent:\n  - packages/opencode/src/heidi/state.ts (sync paths now call HeidiContext.sync and surface errors)\n- Hardened verification flow so .complete consumes stored verification:\n  - packages/opencode/src/heidi/verify.ts\n  - packages/opencode/src/heidi/boundary.ts (complete now reads persisted verification)\n- Strengthened retrieval and memory safety:\n  - packages/opencode/src/heidi/context.ts retrieval() does schema validation, redaction, length caps\n  - packages/opencode/src/heidi/memory.ts / tool/knowledge_subagent changes for trust-classification and aligned knowledge file path\n- Exposed typed session-context route:\n  - packages/opencode/src/server/routes/session.ts: added GET /session/:sessionID/task/context and used ContextState as response schema\n- Injected session context into system prompt, quoted & bounded to reduce prompt-injection risk:\n  - packages/opencode/src/session/system.ts\n  - packages/opencode/src/session/prompt.ts (uses SystemPrompt.environment(..., sessionID))\n- Agent resolution change to avoid Beast fallback:\n  - packages/opencode/src/agent/agent.ts (Agent.resolve)\n  - updated callers (task, prompt) to use resolve\n- Task boundary and task tool changes:\n  - packages/opencode/src/tool/task_boundary.ts now auto-fills run_id/task_id when missing (uses HeidiState.ensure + ctx.sessionID)\n  - packages/opencode/src/tool/task.ts updated to use Agent.resolve\n- SDK regeneration and mirroring:\n  - packages/sdk/js script used to regenerate SDK types and sdk.gen.ts; updated types for context endpoint\n  - Mirrored context-related changes into opencode-copilot packages (compatibility-adapted)\n- Tests added/updated:\n  - packages/opencode/test/heidi/context.test.ts\n  - packages/opencode/test/heidi/memory.test.ts (memory safety)\n  - packages/opencode/test/server/session-context.test.ts (route & verification)\n  - updated session/prompt tests to assert context presence\n- Final CI-like runs:\n  - All focused tests in packages/opencode passed (61 pass, 0 fail).\n  - turbo typecheck across packages run; local pushes succeeded.\n- Commits & push:\n  - Final commit for this work: 0898a6ff5, pushed to main (origin main).\n  - All relevant local changes staged, committed and pushed.\n\nWhat was done earlier as context fixes:\n- Copilot mobile layout fix: packages/app/src/pages/copilot.tsx (w-full self-stretch), mirrored in opencode-copilot.\n\nLeft / in-scope follow-up (low-effort, recommended):\n- Add explicit operational telemetry/alerting for context write failures if you want asynchronous sync behavior instead of making them fatal.\n- Optionally move context persistence into a small transactional write with retry/backoff and explicit sync_status in task.json.\n- Expand retrieval trust classification to a stricter classifier/quarantine pipeline if enterprise needs require.\n- Decide on formal cross-repo release strategy to prevent opencode-copilot drift (we mirrored what was needed; full parity could require additional CI/mirroring steps).\n- Run full CI in your CI environment (I ran local typechecks/tests; run entire repo CI and integration tests).\n\n## Relevant files / directories\n\nPrimary context and state (read/edited/created)\n- packages/opencode/src/heidi/context.ts (NEW) — canonical context builder/persistence, retrieval redaction, freshness fingerprint\n- packages/opencode/src/heidi/schema.ts (EDIT) — added ContextState shape (verification + freshness)\n- packages/opencode/src/heidi/state.ts (EDIT) — strict sync behavior (no silent catches), syncctx helper\n- packages/opencode/src/heidi/verify.ts (READ/EDIT) — preflight/gate/write verification flow\n- packages/opencode/src/heidi/boundary.ts (EDIT) — completion consumes stored verification and other boundary flow\n- packages/opencode/src/heidi/memory.ts (EDIT) — trust-aware memory (filter unsafe)\n\nPrompt & injection\n- packages/opencode/src/session/system.ts (EDIT) — environment includes session context safely\n- packages/opencode/src/session/prompt.ts (EDIT) — uses SystemPrompt.environment(..., sessionID)\n\nTools & tasks\n- packages/opencode/src/tool/task_boundary.ts (EDIT) — auto-fills run_id/task_id when missing, bound to session\n- packages/opencode/src/tool/task.ts (EDIT) — uses Agent.resolve\n- packages/opencode/src/tool/knowledge_subagent.ts (EDIT) — writes to same knowledge path used by context\n- packages/opencode/src/tool/transparency.ts (EDIT) — report includes session_context and respects scope\n\nAgent\n- packages/opencode/src/agent/agent.ts (EDIT) — added Agent.resolve (key or display name)\n\nServer & API\n- packages/opencode/src/server/routes/session.ts (EDIT) — added GET /session/:sessionID/task/context (typed with ContextState)\n\nSDK\n- packages/sdk/js/src/v2/gen/types.gen.ts (UPDATED) — types regenerated to include context endpoint\n- packages/sdk/js/src/v2/gen/sdk.gen.ts (UPDATED) — client method for context endpoint regenerated\n\nTests\n- packages/opencode/test/heidi/context.test.ts (NEW)\n- packages/opencode/test/heidi/memory.test.ts (EDIT / NEW cases)\n- packages/opencode/test/server/session-context.test.ts (NEW)\n- packages/opencode/test/session/prompt.test.ts (EDIT)\n- existing tests for boundary/agent were updated or extended as needed\n\nMirroring to opencode-copilot (compatibility-aware)\n- opencode-copilot/packages/opencode/src/heidi/context.ts (NEW)\n- opencode-copilot/packages/opencode/src/heidi/schema.ts (EDIT)\n- opencode-copilot/packages/opencode/src/heidi/state.ts (EDIT)\n- opencode-copilot/packages/opencode/src/heidi/memory.ts (EDIT)\n- opencode-copilot/packages/opencode/src/tool/knowledge_subagent.ts (EDIT)\n- opencode-copilot/packages/opencode/src/server/routes/session.ts (EDIT)\n- regenerated opencode-copilot SDK: opencode-copilot/packages/sdk/js/src/v2/gen/*\n\nOther minor/related changes\n- packages/app/src/pages/copilot.tsx (mobile layout fix added earlier)\n- various small test fixtures and helper files updated to exercise new behavior\n\nCommands used (to continue or reproduce)\n- Local tests & typecheck around this work:\n  - cd packages/opencode && bun typecheck\n  - cd packages/opencode && bun test test/heidi/context.test.ts test/heidi/memory.test.ts test/server/session-context.test.ts\n  - cd packages/sdk/js && ./script/build.ts (regenerate SDK)\n  - bun turbo typecheck (for monorepo cross-package typecheck used in CI)\n\nNotes for the next agent (how to continue)\n- Verify CI in your environment (server CI will run everything: lint, full unit+integration tests).\n- Inspect context.json artifacts written under .opencode/heidi/<sessionID>/context.json to validate fingerprints and freshness fields.\n- If a persistence strategy with retries/backoff or a separate sync-status field is desired, add a small \"context-sync\" status block in task.json or task metadata and update callers to check it before using file snapshots.\n- If you plan to widen mirrored changes, prefer a small compatibility shim in opencode-copilot then a follow-up merge after full testing; I avoided wholesale transplantation to keep the mirror buildable.\n- For production rollout, add monitoring/alerts if context build/write fails (currently write errors will surface; add ops logging/metrics).\n\nIf you want me to continue autonomously:\n- I can push an extra step: implement explicit sync_status field, add telemetry/logging for write errors, and add a test that simulates write failure and asserts the route returns a clear degraded-status payload instead of silent success. Otherwise, this work is implemented, tested, and pushed; you can run repo CI to verify integration across the organization pipelines.",
+    "files": [
+      "heidi/schema.ts",
+      "heidi/context.ts",
+      "context.js",
+      "heidi/state.ts",
+      "heidi/verify.ts",
+      "heidi/boundary.ts",
+      "packages/opencode/src/heidi/schema.ts",
+      "packages/opencode/src/heidi/context.ts",
+      "packages/opencode/src/heidi/state.ts",
+      "packages/opencode/src/heidi/verify.ts",
+      "packages/opencode/src/heidi/boundary.ts",
+      "packages/opencode/src/heidi/memory.ts",
+      "packages/opencode/src/server/routes/session.ts",
+      "packages/opencode/src/session/system.ts",
+      "packages/opencode/src/session/prompt.ts",
+      "packages/opencode/src/agent/agent.ts",
+      "packages/opencode/src/tool/task_boundary.ts",
+      "packages/opencode/src/tool/task.ts",
+      "sdk.gen.ts",
+      "packages/opencode/test/heidi/context.test.ts"
+    ]
+  },
+  "resume": {
+    "next_step": "DISCOVERY",
+    "checkpoint_id": "1773970797399-jkqooq",
+    "failed_hypotheses": []
+  },
+  "activity": {
+    "active_files": [
+      "/home/heidi/work/opencode-main/opencode-copilot/packages/opencode/src/session/prompt.ts"
+    ],
+    "changed_files": [
+      "/home/heidi/work/opencode-main/packages/opencode/src/heidi/schema.ts",
+      "/home/heidi/work/opencode-main/packages/opencode/src/heidi/state.ts",
+      "/home/heidi/work/opencode-main/packages/opencode/src/session/system.ts",
+      "/home/heidi/work/opencode-main/packages/opencode/src/session/prompt.ts",
+      "/home/heidi/work/opencode-main/packages/opencode/src/tool/transparency.ts",
+      "/home/heidi/work/opencode-main/packages/opencode/test/session/prompt.test.ts",
+      "/home/heidi/work/opencode-main/packages/sdk/js/src/v2/gen/sdk.gen.ts",
+      "/home/heidi/work/opencode-main/packages/opencode/test/server/session-context.test.ts",
+      "/home/heidi/work/opencode-main/opencode-copilot/packages/opencode/src/session/prompt.ts"
+    ],
+    "commands": [],
+    "validations": []
+  },
+  "verification": null,
+  "memory": {
+    "long_term": [],
+    "retrieval": []
+  },
+  "freshness": {
+    "fingerprint": "9b5d962f8f8c427a5b8e9081e5360f0525c83cc5659cdd079f861d65ffac298d",
+    "sources": {
+      "task": "start",
+      "verification": "missing",
+      "knowledge": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "messages": "200",
+      "memory": "0"
+    }
+  },
+  "version": 2,
+  "updated_at": "2026-03-20T02:39:45.525Z"
+}

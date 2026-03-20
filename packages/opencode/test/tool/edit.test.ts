@@ -6,7 +6,7 @@ import { Instance } from "../../src/project/instance"
 import { tmpdir } from "../fixture/fixture"
 import { FileTime } from "../../src/file/time"
 import { SessionID, MessageID } from "../../src/session/schema"
-
+import { enterExecution } from "../fixture/heidi"
 
 import { HeidiState } from "../../src/heidi/state"
 
@@ -22,9 +22,7 @@ const ctx = {
 }
 
 async function setExecutionState() {
-  const state = await HeidiState.ensure(ctx.sessionID, "test edit tool")
-  state.fsm_state = "EXECUTION"
-  await HeidiState.write(ctx.sessionID, state)
+  await enterExecution(ctx.sessionID, "test edit tool")
 }
 
 async function touch(file: string, time: number) {
@@ -98,9 +96,7 @@ describe("tool.edit", () => {
           const { Session } = await import("../../src/session")
           const { HeidiState } = await import("../../src/heidi/state")
           const session = await Session.create({})
-          const state = await HeidiState.ensure(session.id, "test edit new file")
-          state.fsm_state = "EXECUTION"
-          await HeidiState.write(session.id, state)
+          await enterExecution(session.id, "test edit new file")
           const edit = await EditTool.init()
           const testCtx = { ...ctx, sessionID: session.id }
           const result = await edit.execute(
@@ -130,9 +126,7 @@ describe("tool.edit", () => {
           const { Session } = await import("../../src/session")
           const { HeidiState } = await import("../../src/heidi/state")
           const session = await Session.create({})
-          const state = await HeidiState.ensure(session.id, "test edit nested dir")
-          state.fsm_state = "EXECUTION"
-          await HeidiState.write(session.id, state)
+          await enterExecution(session.id, "test edit nested dir")
           const edit = await EditTool.init()
           const testCtx = { ...ctx, sessionID: session.id }
           await edit.execute(
@@ -163,9 +157,7 @@ describe("tool.edit", () => {
           const { File } = await import("../../src/file")
           const { FileWatcher } = await import("../../src/file/watcher")
           const session = await Session.create({})
-          const state = await HeidiState.ensure(session.id, "test edit add event")
-          state.fsm_state = "EXECUTION"
-          await HeidiState.write(session.id, state)
+          await enterExecution(session.id, "test edit add event")
           const events: string[] = []
           const unsubEdited = Bus.subscribe(File.Event.Edited, () => events.push("edited"))
           const unsubUpdated = Bus.subscribe(FileWatcher.Event.Updated, () => events.push("updated"))

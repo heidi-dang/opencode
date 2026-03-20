@@ -6,41 +6,39 @@ import { Session } from "../../src/session"
 import { HeidiState } from "../../src/heidi/state"
 import { HeidiExec } from "../../src/heidi/exec"
 import { Filesystem } from "../../src/util/filesystem"
+import { enterExecution } from "../fixture/heidi"
 
 describe("heidi exec", () => {
-    test("rollback preserves usable resume metadata after failure", async () => {
-      await using tmp = await tmpdir({ git: true })
-      await Instance.provide({
-        directory: tmp.path,
-        fn: async () => {
-          const session = await Session.create({})
-          const file = path.join(tmp.path, "a.txt")
-          await Filesystem.write(file, "ok")
-            const checkpointId = await HeidiExec.checkpoint(session.id, [file], undefined)
-          await Filesystem.write(file, "bad")
-          await HeidiExec.cmd(session.id, {
-            cmd: "exit 1",
-            cwd: tmp.path,
-            profile: "app_local",
-            timeout: 1000,
-          })
-          // Resume metadata should reflect rollback
-          const state = await HeidiState.read(session.id)
-          expect(state.resume.checkpoint_id).toBe(checkpointId)
-          expect(await Filesystem.readText(file)).toBe("ok")
-        },
-      })
+  test("rollback preserves usable resume metadata after failure", async () => {
+    await using tmp = await tmpdir({ git: true })
+    await Instance.provide({
+      directory: tmp.path,
+      fn: async () => {
+        const session = await Session.create({})
+        const file = path.join(tmp.path, "a.txt")
+        await Filesystem.write(file, "ok")
+        const checkpointId = await HeidiExec.checkpoint(session.id, [file], undefined)
+        await Filesystem.write(file, "bad")
+        await HeidiExec.cmd(session.id, {
+          cmd: "exit 1",
+          cwd: tmp.path,
+          profile: "app_local",
+          timeout: 1000,
+        })
+        // Resume metadata should reflect rollback
+        const state = await HeidiState.read(session.id)
+        expect(state.resume.checkpoint_id).toBe(checkpointId)
+        expect(await Filesystem.readText(file)).toBe("ok")
+      },
     })
+  })
   test("denies read_only redirect writes", async () => {
     await using tmp = await tmpdir({ git: true })
     await Instance.provide({
       directory: tmp.path,
       fn: async () => {
         const session = await Session.create({})
-        const state = await HeidiState.ensure(session.id, "deny check")
-        state.fsm_state = "EXECUTION"
-        state.mode = "EXECUTION"
-        await HeidiState.write(session.id, state)
+        await enterExecution(session.id, "deny check")
 
         await expect(
           HeidiExec.cmd(session.id, {
@@ -63,7 +61,7 @@ describe("heidi exec", () => {
         const file = path.join(tmp.path, "a.txt")
         await Filesystem.write(file, "ok")
 
-          const checkpointId = await HeidiExec.checkpoint(session.id, [file], undefined)
+        const checkpointId = await HeidiExec.checkpoint(session.id, [file], undefined)
         expect(typeof checkpointId).toBe("string")
         expect(checkpointId).not.toBeNull()
         expect(checkpointId.length).toBeGreaterThan(0)

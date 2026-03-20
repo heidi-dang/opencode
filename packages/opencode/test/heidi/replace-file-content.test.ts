@@ -7,6 +7,7 @@ import { HeidiState } from "../../src/heidi/state"
 import { ReplaceFileContentTool } from "../../src/tool/replace_file_content"
 import type { Tool } from "../../src/tool/tool"
 import { Filesystem } from "../../src/util/filesystem"
+import { enterExecution } from "../fixture/heidi"
 
 describe("replace_file_content", () => {
   test("applies anchored replace in execution", async () => {
@@ -17,10 +18,7 @@ describe("replace_file_content", () => {
         const file = path.join(tmp.path, "x.ts")
         await Filesystem.write(file, "const a = 1\n")
         const session = await Session.create({})
-        const state = await HeidiState.ensure(session.id, "edit")
-        state.fsm_state = "EXECUTION"
-        state.mode = "EXECUTION"
-        await HeidiState.write(session.id, state)
+        await enterExecution(session.id, "edit")
         const ctx: Tool.Context = {
           sessionID: session.id as any,
           messageID: "msg_test_replace" as any,

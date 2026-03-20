@@ -400,8 +400,6 @@ describe("session.prompt parallel assist", () => {
   })
 })
 
-
-
 describe("session context prompt injection", () => {
   test("includes session context in environment prompt", async () => {
     await using tmp = await tmpdir({ git: true })
@@ -411,10 +409,10 @@ describe("session context prompt injection", () => {
         const { HeidiState } = await import("../../src/heidi/state")
         const { HeidiContext } = await import("../../src/heidi/context")
         const { SystemPrompt } = await import("../../src/session/system")
+        const { enterExecution } = await import("../fixture/heidi")
         const session = await Session.create({})
-        const state = await HeidiState.ensure(session.id, "Prompt objective")
-        state.fsm_state = "EXECUTION"
-        state.mode = "EXECUTION"
+        await enterExecution(session.id, "Prompt objective")
+        const state = await HeidiState.read(session.id)
         state.resume.next_step = "continue"
         await HeidiState.write(session.id, state)
         await HeidiContext.write(session.id)

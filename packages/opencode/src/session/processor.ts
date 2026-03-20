@@ -374,7 +374,9 @@ export namespace SessionProcessor {
                   message: retry,
                   next: Date.now() + delay,
                 })
-                await SessionRetry.sleep(delay, input.abort).catch(() => {})
+                await SessionRetry.sleep(delay, input.abort).catch((err) => {
+                  log.debug("retry sleep aborted", { sessionID: input.sessionID, err })
+                })
                 continue
               }
               input.assistantMessage.error = error

@@ -1,7 +1,7 @@
 {
   "run_id": "tool_d0634a1280016WrFo59vm4fVgn",
   "task_id": "ses_2f9d06fe5ffex9AZb69j4TCgdv",
-  "fsm_state": "EXECUTION",
+  "fsm_state": "DISCOVERY",
   "mode": "EXECUTION",
   "objective": {
     "locked": true,
@@ -191,10 +191,10 @@
     }
   ],
   "block_reason": null,
-  "last_successful_step": "begin_execution",
-  "next_transition": "EXECUTION->VERIFICATION",
+  "last_successful_step": "start",
+  "next_transition": "DISCOVERY->PLAN_DRAFT",
   "resume": {
-    "next_step": "EXECUTION",
+    "next_step": "DISCOVERY",
     "checkpoint_id": "1773970797399-jkqooq",
     "failed_hypotheses": []
   }

@@ -4,6 +4,7 @@ import { Instance } from "../../src/project/instance"
 import { Session } from "../../src/session"
 import { HeidiState } from "../../src/heidi/state"
 import { HeidiVerify } from "../../src/heidi/verify"
+import { enterVerification } from "../fixture/heidi"
 
 describe("session context route", () => {
   test("returns typed context with verification", async () => {
@@ -14,9 +15,8 @@ describe("session context route", () => {
         const { Server } = await import("../../src/server/server")
         const app = Server.createApp({})
         const session = await Session.create({})
-        const state = await HeidiState.ensure(session.id, "Route context")
-        state.fsm_state = "VERIFICATION"
-        state.mode = "VERIFICATION"
+        await enterVerification(session.id, "Route context")
+        const state = await HeidiState.read(session.id)
         state.resume.next_step = "complete"
         await HeidiState.write(session.id, state)
         await HeidiVerify.write(session.id, {
@@ -26,7 +26,14 @@ describe("session context route", () => {
           evidence: { changed_files: ["src/a.ts"], command_summary: ["bun typecheck"], before_after: "ok" },
           warnings: [],
           remediation: [],
-          browser: { required: true, status: "pass", screenshots: [], html: [], console_errors: [], network_failures: [] },
+          browser: {
+            required: true,
+            status: "pass",
+            screenshots: [],
+            html: [],
+            console_errors: [],
+            network_failures: [],
+          },
         })
         const res = await app.request(`/session/${session.id}/task/context`, {
           headers: {

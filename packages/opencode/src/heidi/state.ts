@@ -55,7 +55,7 @@ function verifySync(state: TaskState) {
   if (state.fsm_state === "COMPLETE" && !state.plan.locked) {
     throw new Error("complete state requires locked plan")
   }
-  if (["PLAN_LOCKED", "COMPLETE"].includes(state.fsm_state) && !state.plan.locked) {
+  if (["PLAN_LOCKED", "EXECUTION", "VERIFICATION", "COMPLETE"].includes(state.fsm_state) && !state.plan.locked) {
     throw new Error(`${state.fsm_state.toLowerCase()} requires locked plan`)
   }
   if (state.fsm_state !== "IDLE" && !state.objective.text.trim()) {
