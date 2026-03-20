@@ -61,7 +61,7 @@ export namespace Personas {
       playwright: {
         name: "playwright",
         description: "Specialized in end-to-end browser testing and Playwright automation.",
-        prompt: "You are the Playwright UX/E2E Expert. Actively use the browser_subagent and playwright scripts to verify UI flows continuously. Enforce test-driven validation for the frontend.",
+        prompt: "You are the Playwright UX/E2E Expert. Actively use the browser_subagent and playwright scripts to verify UI flows continuously. Enforce test-driven validation for the frontend. If the task requires deep coding research, API analysis, or backend logic, you MUST delegate those specific lanes back to @beast_mode.",
         options: {},
         permission: PermissionNext.merge(defaults, PermissionNext.fromConfig({ "*": "allow", browser_subagent: "allow" }), user),
         mode: "subagent",

@@ -1,0 +1,49 @@
+{
+  "session_id": "ses_2f55f8452ffe3AYv3phPJKQvK5",
+  "objective": "Fix thinking card overlap, mobile chip behavior, and replace orb with cute Heidi identity including doctor checks and implementation doc",
+  "fsm_state": "PLAN_DRAFT",
+  "mode": "PLANNING",
+  "plan": {
+    "path": "/home/heidi/work/opencode-main/.opencode/heidi/ses_2f55f8452ffe3AYv3phPJKQvK5/implementation_plan.md",
+    "locked": false
+  },
+  "summary": {
+    "title": null,
+    "body": null,
+    "files": []
+  },
+  "resume": {
+    "next_step": "DISCOVERY",
+    "checkpoint_id": null,
+    "failed_hypotheses": []
+  },
+  "activity": {
+    "active_files": [],
+    "changed_files": [],
+    "commands": [],
+    "validations": []
+  },
+  "verification": null,
+  "memory": {
+    "long_term": [],
+    "retrieval": []
+  },
+  "freshness": {
+    "fingerprint": "c51187a129e1a07d29580eb2faa3633067adf02af2111eb7d98a89ea4de0efbe",
+    "sources": {
+      "task": "add_items",
+      "verification": "missing",
+      "knowledge": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "messages": "133",
+      "memory": "0"
+    }
+  },
+  "sync_status": {
+    "status": "ok",
+    "last_sync_at": "2026-03-20T10:27:44.018Z",
+    "attempts": 1,
+    "last_error": null
+  },
+  "version": 2,
+  "updated_at": "2026-03-20T10:27:44.018Z"
+}

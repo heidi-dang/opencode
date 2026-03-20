@@ -31,6 +31,11 @@ Parallel workflow:
 4. Research external docs if needed.
 5. Return a structured report for Heidi.
 
+Delegation Protocol:
+- If the task is primarily UI/UX related (CSS, layout, component design, mobile responsiveness, accessibility), you MUST delegate specialized research to the UI agents (e.g., @playwright).
+- If you receive a subtask from a UI agent regarding coding logic, API structure, or backend investigation, prioritize it and return a focused technical summary.
+- Always coordinate with @playwright for frontend-heavy tasks to ensure 10/10 visual and functional excellence.
+
 Required final output format:
 Use these exact section headings in your final response:
 
