@@ -5,6 +5,7 @@ import { createStore } from "solid-js/store"
 import { Collapsible } from "./collapsible"
 import type { IconProps } from "./icon"
 import { TextShimmer } from "./text-shimmer"
+import { humanize } from "../lib/activity-mapper"
 
 export type TriggerTitle = {
   title: string
@@ -234,15 +235,15 @@ export function GenericTool(props: {
   hideDetails?: boolean
   input?: Record<string, unknown>
 }) {
-  const i18n = useI18n()
+  const activity = () => humanize(props.tool, props.input ?? {}, props.status)
 
   return (
     <BasicTool
       icon="mcp"
       status={props.status}
       trigger={{
-        title: i18n.t("ui.basicTool.called", { tool: props.tool }),
-        subtitle: label(props.input),
+        title: activity().title,
+        subtitle: activity().subtitle || label(props.input),
         args: args(props.input),
       }}
       hideDetails={props.hideDetails}

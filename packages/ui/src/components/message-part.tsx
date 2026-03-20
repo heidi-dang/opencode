@@ -55,6 +55,7 @@ import { ToolStatusTitle } from "./tool-status-title"
 import { animate } from "motion"
 import { useLocation } from "@solidjs/router"
 import { attached, inline, kind } from "./message-file"
+import { humanize, humanizeContext } from "../lib/activity-mapper"
 
 function ShellSubmessage(props: { text: string; animate?: boolean }) {
   let widthRef: HTMLSpanElement | undefined
@@ -805,8 +806,8 @@ function ContextToolGroup(props: { parts: ToolPart[]; busy?: boolean }) {
             <span data-slot="context-tool-group-label" class="shrink-0">
               <ToolStatusTitle
                 active={pending()}
-                activeText={i18n.t("ui.sessionTurn.status.gatheringContext")}
-                doneText={i18n.t("ui.sessionTurn.status.gatheredContext")}
+                activeText={humanizeContext(true).active}
+                doneText={humanizeContext(false).done}
                 split={false}
               />
             </span>
@@ -1702,6 +1703,7 @@ ToolRegistry.register({
       const out = stripAnsi(props.output || props.metadata.output || "")
       return `$ ${cmd}${out ? "\n\n" + out : ""}`
     })
+    const activity = createMemo(() => humanize("bash", props.input, props.status))
     const [copied, setCopied] = createSignal(false)
 
     const handleCopy = async () => {
@@ -1720,10 +1722,10 @@ ToolRegistry.register({
           <div data-slot="basic-tool-tool-info-structured">
             <div data-slot="basic-tool-tool-info-main">
               <span data-slot="basic-tool-tool-title">
-                <TextShimmer text={i18n.t("ui.tool.shell")} active={pending()} />
+                <TextShimmer text={activity().title} active={pending()} />
               </span>
-              <Show when={!pending() && props.input.description}>
-                <ShellSubmessage text={props.input.description} animate={sawPending} />
+              <Show when={!pending() && (activity().subtitle || props.input.description)}>
+                <ShellSubmessage text={activity().subtitle || props.input.description} animate={sawPending} />
               </Show>
             </div>
           </div>
@@ -1766,6 +1768,7 @@ ToolRegistry.register({
     const path = createMemo(() => props.metadata?.filediff?.file || props.input.filePath || "")
     const filename = () => getFilename(props.input.filePath ?? "")
     const pending = () => props.status === "pending" || props.status === "running"
+    const activity = createMemo(() => humanize("edit", props.input, props.status))
     return (
       <div data-component="edit-tool">
         <BasicTool
@@ -1777,7 +1780,7 @@ ToolRegistry.register({
               <div data-slot="message-part-title-area">
                 <div data-slot="message-part-title">
                   <span data-slot="message-part-title-text">
-                    <TextShimmer text={i18n.t("ui.messagePart.title.edit")} active={pending()} />
+                    <TextShimmer text={activity().title} active={pending()} />
                   </span>
                   <Show when={!pending()}>
                     <span data-slot="message-part-title-filename">{filename()}</span>
@@ -1838,6 +1841,7 @@ ToolRegistry.register({
     const path = createMemo(() => props.input.filePath || "")
     const filename = () => getFilename(props.input.filePath ?? "")
     const pending = () => props.status === "pending" || props.status === "running"
+    const activity = createMemo(() => humanize("write", props.input, props.status))
     return (
       <div data-component="write-tool">
         <BasicTool
@@ -1849,7 +1853,7 @@ ToolRegistry.register({
               <div data-slot="message-part-title-area">
                 <div data-slot="message-part-title">
                   <span data-slot="message-part-title-text">
-                    <TextShimmer text={i18n.t("ui.messagePart.title.write")} active={pending()} />
+                    <TextShimmer text={activity().title} active={pending()} />
                   </span>
                   <Show when={!pending()}>
                     <span data-slot="message-part-title-filename">{filename()}</span>
