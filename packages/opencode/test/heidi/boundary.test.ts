@@ -44,90 +44,11 @@ describe("heidi boundary", () => {
           action: "begin_execution",
           payload: {},
         })
-        await HeidiBoundary.apply({
-          run_id: "run-1",
-          task_id: session.id,
-          action: "request_verification",
-          payload: {},
-        })
-        await HeidiState.writeVerification(session.id, {
-          task_id: session.id,
-          status: "pass",
-          checks: [
-            {
-              name: "run",
-              command: "echo ok",
-              exit_code: 0,
-              duration_ms: 10,
-              log_ref: "log1.txt",
-            },
-          ],
-          evidence: {
-            changed_files: ["file1.txt", "file2.txt"],
-            command_summary: ["echo ok", "ls"],
-            before_after: "1",
-          },
-          browser: {
-            required: true,
-            status: "pass",
-            screenshots: ["shot1.png", "shot2.png"],
-            html: [],
-            console_errors: [],
-            network_failures: [],
-          },
-          warnings: ["all good"],
-          remediation: [
-            {
-              file: "file1.txt",
-              line: 1,
-              rule_id: "R1",
-              message: "no remediation needed",
-              next_action: "none",
-            },
-          ],
-        })
         const result = await HeidiBoundary.apply({
           run_id: "run-1",
           task_id: session.id,
           action: "complete",
-          payload: {
-            verification: {
-              task_id: session.id,
-              status: "pass",
-              checks: [
-                {
-                  name: "run",
-                  command: "echo ok",
-                  exit_code: 0,
-                  duration_ms: 10,
-                  log_ref: "log1.txt",
-                },
-              ],
-              evidence: {
-                changed_files: ["file1.txt", "file2.txt"],
-                command_summary: ["echo ok", "ls"],
-                before_after: "1",
-              },
-              browser: {
-                required: true,
-                status: "pass",
-                screenshots: ["shot1.png", "shot2.png"],
-                html: [],
-                console_errors: [],
-                network_failures: [],
-              },
-              warnings: ["all good"],
-              remediation: [
-                {
-                  file: "file1.txt",
-                  line: 1,
-                  rule_id: "R1",
-                  message: "no remediation needed",
-                  next_action: "none",
-                },
-              ],
-            },
-          },
+          payload: {},
         })
         expect(result.ok).toBe(true)
         expect(result.fsm_state).toBe("COMPLETE")
