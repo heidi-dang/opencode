@@ -79,9 +79,11 @@ export const SessionQuestionDock: Component<{ request: QuestionRequest; onSubmit
     if (!(dock instanceof HTMLElement)) return
 
     const dockBottom = dock.getBoundingClientRect().bottom
+    const view = window.visualViewport?.height ?? window.innerHeight
+    const bottom = Math.min(dockBottom, view)
     const below = Math.max(0, dockBottom - root.getBoundingClientRect().bottom)
     const gap = 8
-    const max = Math.max(240, Math.floor(dockBottom - top - gap - below))
+    const max = Math.max(160, Math.floor(bottom - top - gap - below))
     root.style.setProperty("--question-prompt-max-height", `${max}px`)
   }
 
