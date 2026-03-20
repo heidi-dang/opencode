@@ -1,25 +1,24 @@
 # Heidi Task: ses_2f55f8452ffe3AYv3phPJKQvK5
 
 > **Run ID**: `tool_d0aa74393001uhf7u6p68qV3vf`
-> **Status**: `PLAN_DRAFT` (PLANNING)
+> **Status**: `EXECUTION` (EXECUTION)
 > **Goal**: Fix thinking card overlap, mobile chip behavior, and replace orb with cute Heidi identity including doctor checks and implementation doc
 
 ### Progress
-- **Last Step**: add_items
-- **Next Transition**: DISCOVERY->PLAN_DRAFT
+- **Last Step**: begin_execution
+- **Next Transition**: EXECUTION->VERIFICATION
 
 ### Analytics
-- **Tool Calls**: 5
+- **Tool Calls**: 6
 - **Started**: 2026-03-20T09:50:27.242Z
 
 ### Checklist
 #### Modify
-- [ ] 🟡 Refactor thinking theater into 4-row mobile-safe structure
-- [ ] 🟡 Implement chip overflow collapse (+N more) with two-line mobile cap
-- [ ] 🟡 Replace default orb with Chibi Heidi identity and required states
-- [ ] 🟡 Integrate orb lane and text hierarchy polishing for dark mode
+- [ ] 🟡 packages/ui/src/lib/thinking-wording.ts (replace with new copy pack + focused/warning entries)
+- [ ] 🟡 packages/ui/src/components/thinking-theater.tsx (update to use sceneAt/subtextAt/chipSet API)
 #### New
-- [ ] 🟡 Add implementation doc at .local/implementation-thinking-card-mobile-polish.md
-- [ ] 🟡 Add doctor checks module and wire into tools/doctor.py
+- [ ] 🟡 None
 #### Verify
-- [ ] 🟡 Run verification checks and capture evidence
+- [ ] 🟡 bun typecheck in packages/ui
+- [ ] 🟡 python3 tools/doctor.py
+- [ ] 🟡 git diff --stat
