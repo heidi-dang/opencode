@@ -1,4 +1,5 @@
 import { Config } from "../config/config"
+import { Log } from "../util/log"
 import z from "zod"
 import { Provider } from "../provider/provider"
 import { ModelID, ProviderID } from "../provider/schema"
@@ -24,6 +25,7 @@ import { Skill } from "../skill"
 import { Personas } from "./personas"
 
 export namespace Agent {
+  const log = Log.create({ service: "agent" })
   export const Info = z
     .object({
       name: z.string(),
@@ -96,8 +98,7 @@ export namespace Agent {
         name: "heidi",
         description:
           "Autonomous orchestrator with 7-Phase architecture: FSM state, Git rollback, multi-agent delegation.",
-        prompt:
-          "You are Heidi, an autonomous software orchestrator.\nUse task_boundary for FSM state. Delegate to @secops/@dba/@playwright/@mcp_expert/@idea_generator via task tool for sequential reviews. On complex tasks, use Phase 1 parallel assist with @beast_mode. Heidi lane: own the plan, implementation, edits, verification, and final answer. Beast lane: read, search, research docs, and return a structured summary only. Launch Beast in parallel with your own discovery or validation work when possible. Require Beast to return sections for Summary, Files Read, Findings, Recommended Changes, Risks, and Open Questions. Heidi remains the single owner of final edits, merge decisions, and verification. Make atomic edits with Git rollback. Be technically honest. Do not claim work is complete, production-ready, or 10/10 unless the evidence actually proves it. State gaps, uncertainty, and residual risk directly when they exist.",
+        prompt: "", // dynamically built below after all agents are registered
         options: {},
         permission: PermissionNext.merge(
           defaults,
@@ -363,6 +364,39 @@ export namespace Agent {
 
     if (result.idea_generator) {
       result.idea_generator.mode = "primary"
+    }
+
+    // Weakness 3 fix: dynamically build Heidi prompt from assembled agents
+    const subs = Object.values(result)
+      .filter((a) => a.mode === "subagent" && !a.hidden)
+      .map((a) => `@${a.name}`)
+      .join(", ")
+    result.heidi.prompt = [
+      "You are Heidi, an autonomous software orchestrator.",
+      `Use task_boundary for FSM state. Delegate to available specialized subagents (${subs}) via task tool for sequential reviews.`,
+      "On complex tasks, use Phase 1 parallel assist with @beast_mode.",
+      "Heidi lane: own the plan, implementation, edits, verification, and final answer.",
+      "Beast lane: read, search, research docs, and return a structured summary only.",
+      "Launch Beast in parallel with your own discovery or validation work when possible.",
+      "Require Beast to return sections for Summary, Files Read, Findings, Recommended Changes, Risks, and Open Questions.",
+      "Heidi remains the single owner of final edits, merge decisions, and verification.",
+      "Make atomic edits with Git rollback.",
+      "Be technically honest. Do not claim work is complete, production-ready, or 10/10 unless the evidence actually proves it.",
+      "State gaps, uncertainty, and residual risk directly when they exist.",
+    ].join("\n")
+
+    // Fix 3: strict runtime validation for permission coherence
+    for (const [key, agent] of Object.entries(result)) {
+      if (agent.mode !== "subagent") continue
+      const disabled = PermissionNext.disabled(["run_command", "edit", "write", "bash"], agent.permission)
+      const prompt = agent.prompt ?? ""
+      if (prompt.includes("sudo") && disabled.has("run_command"))
+        log.warn("permission mismatch", { agent: key, issue: "prompt mentions sudo but run_command is denied" })
+      if (prompt.includes("edit") && disabled.has("edit"))
+        log.warn("permission mismatch", { agent: key, issue: "prompt mentions edit but edit is denied" })
+      const q = PermissionNext.evaluate("question", "*", agent.permission)
+      if (q.action === "allow")
+        log.warn("permission risk", { agent: key, issue: "subagent has question: allow, may stall pipeline" })
     }
 
     for (const [key, value] of Object.entries(cfg.agent ?? {})) {

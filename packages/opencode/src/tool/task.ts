@@ -14,6 +14,20 @@ import { Config } from "../config/config"
 import { PermissionNext } from "@/permission"
 import { HeidiTelemetry } from "@/heidi/telemetry"
 
+// Fix 6: file lock registry to prevent concurrent subagent edits on the same file
+const locks = new Set<string>()
+
+export function acquireLocks(files: string[]) {
+  const conflicts = files.filter((f) => locks.has(f))
+  if (conflicts.length) return conflicts
+  for (const f of files) locks.add(f)
+  return []
+}
+
+export function releaseLocks(files: string[]) {
+  for (const f of files) locks.delete(f)
+}
+
 const parameters = z.object({
   description: z.string().describe("A short (3-5 words) description of the task"),
   prompt: z.string().describe("The task for the agent to perform"),
@@ -35,7 +49,7 @@ const parameters = z.object({
 })
 
 export const TaskTool = Tool.define("task", async (ctx) => {
-  const agents = await Agent.list().then((x) => x.filter((a) => a.mode !== "primary"))
+  const agents = await Agent.list().then((x) => x.filter((a) => a.mode !== "primary" || a.name === "idea_generator"))
 
   // Filter agents by permissions if agent provided
   const caller = ctx?.agent
@@ -88,6 +102,11 @@ export const TaskTool = Tool.define("task", async (ctx) => {
           title: params.description + ` (@${agent.name} subagent)`,
           permission: [
             {
+              permission: "doom_loop",
+              pattern: "*",
+              action: "deny",
+            },
+            {
               permission: "todowrite",
               pattern: "*",
               action: "deny",
@@ -139,6 +158,14 @@ export const TaskTool = Tool.define("task", async (ctx) => {
         },
       })
 
+      // Fix 6: acquire file locks for exclusive_edit ownership
+      const owned = params.ownership?.mode === "exclusive_edit" ? params.ownership.files : []
+      if (owned.length) {
+        const conflicts = acquireLocks(owned)
+        if (conflicts.length)
+          throw new Error(`File lock conflict: ${conflicts.join(", ")} already being edited by another subagent`)
+      }
+
       const messageID = MessageID.ascending()
 
       function cancel() {
@@ -147,6 +174,38 @@ export const TaskTool = Tool.define("task", async (ctx) => {
       ctx.abort?.addEventListener("abort", cancel)
       using _ = defer(() => ctx.abort?.removeEventListener("abort", cancel))
       const promptParts = await SessionPrompt.resolvePromptParts(params.prompt)
+
+      // Weakness 1 fix: inject autonomy preamble so subagents never stall on interactive prompts
+      const autonomy = [
+        "CRITICAL: You are operating as an autonomous subagent inside the Heidi orchestrator.",
+        "You MUST NOT ask the user clarifying questions or wait for interactive confirmation.",
+        "You MUST NOT use phrases like 'say generate to begin' or 'let me know when ready'.",
+        "Analyze the provided context and execute your task immediately and completely.",
+        "If information is missing, make the most reasonable assumption and proceed.",
+      ].join("\n")
+      promptParts.unshift({ type: "text", text: autonomy })
+
+      // Weakness 4 fix: enrich subagent prompt with structured context from Heidi's session
+      const history = ctx.messages ?? []
+      const relevant = history.filter((m) => m.info.role === "user" || m.info.role === "assistant")
+      // Fix 5: adaptive depth — 3 for short conversations, up to 6 for longer ones
+      const depth = Math.min(6, Math.max(3, Math.ceil(relevant.length * 0.15)))
+      const recent = relevant
+        .slice(-depth)
+        .flatMap((m) => m.parts.filter((p) => p.type === "text").map((p) => (p as any).text))
+        .filter(Boolean)
+        .join("\n---\n")
+      if (recent) {
+        const envelope = [
+          "<context_from_heidi>",
+          `Agent: ${params.subagent_type}`,
+          `Task: ${params.description}`,
+          `Lane: ${params.lane ?? "default"}`,
+          `Recent conversation context:\n${recent}`,
+          "</context_from_heidi>",
+        ].join("\n")
+        promptParts.unshift({ type: "text", text: envelope })
+      }
 
       const started = Date.now()
       const result = await SessionPrompt.prompt({
@@ -168,6 +227,9 @@ export const TaskTool = Tool.define("task", async (ctx) => {
 
       const text = result.parts.findLast((x) => x.type === "text")?.text ?? ""
       const finished = Date.now()
+
+      // Fix 6: release file locks after subagent completes
+      if (owned.length) releaseLocks(owned)
 
       const output = [
         `task_id: ${session.id} (for resuming to continue this task if needed)`,

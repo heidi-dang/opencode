@@ -225,6 +225,55 @@ When constructing the summary, try to stick to this template:
     })
 
     if (result === "compact") {
+      // Fix 4: aggressive prune-retry before giving up
+      await prune({ sessionID: input.sessionID })
+      const pruned = await MessageV2.filterCompacted(MessageV2.stream(input.sessionID))
+      if (pruned.length > 1) {
+        const retryProcessor = SessionProcessor.create({
+          assistantMessage: msg,
+          sessionID: input.sessionID,
+          model,
+          abort: input.abort,
+        })
+        const msgs2 = structuredClone(pruned)
+        await Plugin.trigger("experimental.chat.messages.transform", {}, { messages: msgs2 })
+        const retry = await retryProcessor.process({
+          user: userMessage,
+          agent,
+          abort: input.abort,
+          sessionID: input.sessionID,
+          tools: {},
+          system: [],
+          messages: [
+            ...MessageV2.toModelMessages(msgs2, model, { stripMedia: true }),
+            { role: "user", content: [{ type: "text", text: promptText }] },
+          ],
+          model,
+        })
+        if (retry !== "compact") {
+          if (retry === "continue" && input.auto) {
+            const continueMsg = await Session.updateMessage({
+              id: MessageID.ascending(),
+              role: "user",
+              sessionID: input.sessionID,
+              time: { created: Date.now() },
+              agent: userMessage.agent,
+              model: userMessage.model,
+            })
+            await Session.updatePart({
+              id: PartID.ascending(),
+              messageID: continueMsg.id,
+              sessionID: input.sessionID,
+              type: "text",
+              synthetic: true,
+              text: "Conversation was aggressively pruned and compacted. Continue if you have next steps, or stop and ask for clarification if unsure.",
+              time: { start: Date.now(), end: Date.now() },
+            })
+          }
+          Bus.publish(Event.Compacted, { sessionID: input.sessionID })
+          return "continue"
+        }
+      }
       processor.message.error = new MessageV2.ContextOverflowError({
         message: replay
           ? "Conversation history too large to compact - exceeds model context limit"
