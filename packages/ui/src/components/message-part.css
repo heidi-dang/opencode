@@ -1112,6 +1112,35 @@
     align-items: center;
     gap: 8px;
   }
+
+  @media (max-width: 640px) {
+    [data-slot="question-footer"] {
+      align-items: stretch;
+      flex-direction: column;
+      gap: 8px;
+      padding: 12px 8px calc(8px + env(safe-area-inset-bottom, 0px));
+      margin-top: 0;
+    }
+
+    [data-slot="question-footer"] > [data-component="button"] {
+      width: 100%;
+    }
+
+    [data-slot="question-footer-actions"] {
+      width: 100%;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    [data-slot="question-footer-actions"] > [data-component="button"] {
+      width: 100%;
+    }
+
+    [data-slot="question-footer-actions"] > [data-component="button"]:only-child {
+      grid-column: 1 / -1;
+    }
+  }
 }
 
 [data-component="question-answers"] {
