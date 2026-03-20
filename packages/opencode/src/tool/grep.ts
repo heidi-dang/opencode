@@ -12,6 +12,35 @@ import path from "path"
 import { assertExternalDirectory } from "./external-directory"
 
 const MAX_LINE_LENGTH = 2000
+const MAX_FILE_BYTES = 512 * 1024
+const MAX_FILES = 2000
+const MAX_MATCHES = 2000
+const BIN_EXT = new Set([
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".gif",
+  ".webp",
+  ".ico",
+  ".pdf",
+  ".zip",
+  ".gz",
+  ".tar",
+  ".7z",
+  ".exe",
+  ".dll",
+  ".so",
+  ".dylib",
+  ".woff",
+  ".woff2",
+  ".ttf",
+  ".otf",
+  ".mp3",
+  ".mp4",
+  ".mov",
+  ".avi",
+  ".webm",
+])
 
 export const GrepTool = Tool.define("grep", {
   description: DESCRIPTION,
@@ -47,13 +76,22 @@ export const GrepTool = Tool.define("grep", {
         : await Glob.scan("**/*", { cwd: searchPath, absolute: true, include: "file", dot: true })
       const re = new RegExp(params.pattern)
       const matches = [] as { path: string; modTime: number; lineNum: number; lineText: string }[]
+      let seen = 0
+      let hit = false
       for (const file of files) {
-        const text = await Filesystem.readText(file).catch(() => "")
-        if (!text) continue
+        ctx.abort.throwIfAborted()
+        if (seen >= MAX_FILES || hit) break
+        seen += 1
+        if (BIN_EXT.has(path.extname(file).toLowerCase())) continue
         const stats = Filesystem.stat(file)
         if (!stats) continue
+        const size = typeof stats.size === "bigint" ? Number(stats.size) : stats.size
+        if (size > MAX_FILE_BYTES) continue
+        const text = await Filesystem.readText(file).catch(() => "")
+        if (!text) continue
         const rows = text.split(/\r?\n/)
         rows.forEach((lineText, index) => {
+          if (hit) return
           if (!re.test(lineText)) return
           matches.push({
             path: file,
@@ -61,6 +99,9 @@ export const GrepTool = Tool.define("grep", {
             lineNum: index + 1,
             lineText,
           })
+          if (matches.length >= MAX_MATCHES) {
+            hit = true
+          }
         })
       }
       matches.sort((a, b) => b.modTime - a.modTime)
