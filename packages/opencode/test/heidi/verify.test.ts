@@ -101,7 +101,7 @@ describe("heidi verify", () => {
         await HeidiState.writeVerification(session.id, {
           task_id: session.id,
           status: "pass",
-          checks: [],
+          checks: [{ name: "check", command: "run", exit_code: 0, duration_ms: 10 }],
           evidence: { changed_files: [], command_summary: [], before_after: "" },
           warnings: [],
           remediation: [],
@@ -114,7 +114,7 @@ describe("heidi verify", () => {
             network_failures: [],
           },
         })
-        await expect(HeidiVerify.gate(session.id)).rejects.toThrow("checks missing")
+        await expect(HeidiVerify.gate(session.id)).rejects.toThrow("evidence is empty or ceremonial")
       },
     })
   })
@@ -129,7 +129,7 @@ describe("heidi verify", () => {
         await HeidiState.writeVerification(session.id, {
           task_id: session.id,
           status: "pass",
-          checks: [],
+          checks: [{ name: "check", command: "run", exit_code: 0, duration_ms: 10 }],
           evidence: { changed_files: ["foo.txt"], command_summary: ["run"], before_after: "ok" },
           warnings: [],
           remediation: [],
@@ -142,7 +142,7 @@ describe("heidi verify", () => {
             network_failures: [],
           },
         })
-        await expect(HeidiVerify.gate(session.id)).rejects.toThrow("checks missing")
+        await expect(HeidiVerify.gate(session.id)).rejects.toThrow("browser evidence missing or failed")
       },
     })
   })
@@ -157,7 +157,7 @@ describe("heidi verify", () => {
         await HeidiState.writeVerification(session.id, {
           task_id: session.id,
           status: "pass",
-          checks: [],
+          checks: [{ name: "check", command: "run", exit_code: 0, duration_ms: 10 }],
           evidence: { changed_files: ["foo.txt"], command_summary: ["run"], before_after: "ok" },
           warnings: [],
           remediation: [],
@@ -170,7 +170,7 @@ describe("heidi verify", () => {
             network_failures: [],
           },
         })
-        await expect(HeidiVerify.gate(session.id)).rejects.toThrow("checks missing")
+        await expect(HeidiVerify.gate(session.id)).rejects.toThrow("browser evidence missing or failed")
       },
     })
   })
