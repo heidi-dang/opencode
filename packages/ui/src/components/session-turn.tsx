@@ -16,6 +16,7 @@ import { Collapsible } from "./collapsible"
 import { DiffChanges } from "./diff-changes"
 import { Icon } from "./icon"
 import { TextShimmer } from "./text-shimmer"
+import { ThinkingTheater } from "./thinking-theater"
 import { SessionRetry } from "./session-retry"
 import { TextReveal } from "./text-reveal"
 import { createAutoScroll } from "../hooks"
@@ -321,6 +322,31 @@ export function SessionTurn(
   const working = createMemo(() => status().type !== "idle" && active())
   const showReasoningSummaries = createMemo(() => props.showReasoningSummaries ?? true)
 
+  // Derive Heidi phase from session status for the presence orb
+  const orbPhase = createMemo(() => {
+    const s = status()
+    if (s.type === "idle") return "idle" as const
+    if (s.type === "retry") return "blocked" as const
+    // Check last tool activity to infer phase
+    const msgs = assistantMessages()
+    const last = msgs.at(-1)
+    if (!last) return "thinking" as const
+    const parts = list(data.store.part?.[last.id], emptyParts)
+    const tool = parts.findLast((p) => p.type === "tool")
+    if (!tool || tool.type !== "tool") return "thinking" as const
+    const name = tool.tool
+    if (name === "bash" || name === "run_command") {
+      const cmd = String((tool as any).state?.input?.command ?? "")
+      if (cmd.includes("typecheck") || cmd.includes("test")) return "testing" as const
+      return "editing" as const
+    }
+    if (name === "edit" || name === "write" || name === "apply_patch") return "editing" as const
+    if (name === "verify" || name === "request_verification") return "verifying" as const
+    if (name === "task_boundary") return "planning" as const
+    if (name === "read" || name === "glob" || name === "grep" || name === "list") return "thinking" as const
+    return "thinking" as const
+  })
+
   const assistantCopyPartID = createMemo(() => {
     if (working()) return null
     return showAssistantCopyPartID() ?? null
@@ -415,17 +441,10 @@ export function SessionTurn(
                 </div>
               </Show>
               <Show when={showThinking()}>
-                <div data-slot="session-turn-thinking">
-                  <TextShimmer text={i18n.t("ui.sessionTurn.status.thinking")} />
-                  <Show when={!showReasoningSummaries()}>
-                    <TextReveal
-                      text={reasoningHeading()}
-                      class="session-turn-thinking-heading"
-                      travel={25}
-                      duration={700}
-                    />
-                  </Show>
-                </div>
+                <ThinkingTheater
+                  phase={orbPhase()}
+                  heading={reasoningHeading()}
+                />
               </Show>
               <SessionRetry status={status()} show={active()} />
               <Show when={edited() > 0 && !working()}>

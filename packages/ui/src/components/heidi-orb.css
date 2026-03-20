@@ -1,0 +1,167 @@
+/* ─── Orb keyframes ─── */
+@keyframes orb-breathe {
+  0%, 100% { transform: scale(1); opacity: 0.6; }
+  50% { transform: scale(1.15); opacity: 1; }
+}
+
+@keyframes orb-halo-pulse {
+  0%, 100% { transform: scale(1); opacity: 0; }
+  50% { transform: scale(1.8); opacity: 0.3; }
+}
+
+@keyframes orb-ring-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes orb-success-bloom {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(var(--phase-success), 0.4); }
+  50% { transform: scale(1.3); box-shadow: 0 0 20px 8px rgba(var(--phase-success), 0.3); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(var(--phase-success), 0); }
+}
+
+@keyframes orb-blocked-shimmer {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+/* ─── Orb container ─── */
+[data-component="heidi-orb"] {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+/* ─── Orb core ─── */
+[data-slot="orb-core"] {
+  position: absolute;
+  inset: 6px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(var(--phase-thinking), 0.9), rgba(var(--phase-thinking), 0.5));
+  animation: orb-breathe 3s ease-in-out infinite;
+}
+
+/* ─── Orb halo ─── */
+[data-slot="orb-halo"] {
+  position: absolute;
+  inset: 2px;
+  border-radius: 50%;
+  background: rgba(var(--phase-thinking), 0.1);
+  animation: orb-halo-pulse 3s ease-in-out infinite;
+}
+
+/* ─── Orb ring ─── */
+[data-slot="orb-ring"] {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1.5px solid transparent;
+  border-top-color: rgba(var(--phase-thinking), 0.3);
+  border-right-color: rgba(var(--phase-thinking), 0.1);
+  animation: orb-ring-spin 4s linear infinite;
+  opacity: 0;
+}
+
+/* ─── Phase: thinking ─── */
+[data-component="heidi-orb"][data-phase="thinking"] {
+  [data-slot="orb-core"] {
+    background: radial-gradient(circle, rgba(var(--phase-thinking), 0.9), rgba(var(--phase-thinking), 0.4));
+  }
+  [data-slot="orb-halo"] { animation-duration: 3s; }
+  [data-slot="orb-ring"] { opacity: 0.3; animation-duration: 6s; }
+}
+
+/* ─── Phase: planning ─── */
+[data-component="heidi-orb"][data-phase="planning"] {
+  [data-slot="orb-core"] {
+    background: radial-gradient(circle, rgba(var(--phase-planning), 0.9), rgba(var(--phase-planning), 0.4));
+    animation-duration: 2.5s;
+  }
+  [data-slot="orb-halo"] {
+    background: rgba(var(--phase-planning), 0.1);
+    animation-duration: 2.5s;
+  }
+  [data-slot="orb-ring"] {
+    opacity: 0.5;
+    border-top-color: rgba(var(--phase-planning), 0.5);
+    border-right-color: rgba(var(--phase-planning), 0.2);
+    animation-duration: 3s;
+  }
+}
+
+/* ─── Phase: editing ─── */
+[data-component="heidi-orb"][data-phase="editing"] {
+  [data-slot="orb-core"] {
+    background: radial-gradient(circle, rgba(var(--phase-editing), 0.9), rgba(var(--phase-editing), 0.4));
+    animation-duration: 1.8s;
+  }
+  [data-slot="orb-halo"] {
+    background: rgba(var(--phase-editing), 0.1);
+    animation-duration: 1.8s;
+  }
+  [data-slot="orb-ring"] {
+    opacity: 0.4;
+    border-top-color: rgba(var(--phase-editing), 0.4);
+    animation-duration: 2s;
+  }
+}
+
+/* ─── Phase: testing ─── */
+[data-component="heidi-orb"][data-phase="testing"] {
+  [data-slot="orb-core"] {
+    background: radial-gradient(circle, rgba(var(--phase-testing), 0.9), rgba(var(--phase-testing), 0.4));
+    animation-duration: 2s;
+  }
+  [data-slot="orb-halo"] {
+    background: rgba(var(--phase-testing), 0.1);
+    animation-duration: 2s;
+  }
+  [data-slot="orb-ring"] { opacity: 0.3; border-top-color: rgba(var(--phase-testing), 0.4); }
+}
+
+/* ─── Phase: verifying ─── */
+[data-component="heidi-orb"][data-phase="verifying"] {
+  [data-slot="orb-core"] {
+    background: radial-gradient(circle, rgba(var(--phase-verifying), 0.9), rgba(var(--phase-verifying), 0.4));
+    animation-duration: 2.2s;
+  }
+  [data-slot="orb-halo"] {
+    background: rgba(var(--phase-verifying), 0.12);
+    animation-duration: 2.2s;
+  }
+  [data-slot="orb-ring"] { opacity: 0.5; border-top-color: rgba(var(--phase-verifying), 0.5); }
+}
+
+/* ─── Phase: success ─── */
+[data-component="heidi-orb"][data-phase="success"] {
+  [data-slot="orb-core"] {
+    background: radial-gradient(circle, rgba(var(--phase-success), 1), rgba(var(--phase-success), 0.6));
+    animation: orb-success-bloom 1s ease-out forwards;
+  }
+  [data-slot="orb-halo"] { animation: none; opacity: 0; }
+  [data-slot="orb-ring"] { animation: none; opacity: 0; }
+}
+
+/* ─── Phase: blocked ─── */
+[data-component="heidi-orb"][data-phase="blocked"] {
+  [data-slot="orb-core"] {
+    background: radial-gradient(circle, rgba(var(--phase-blocked), 0.9), rgba(var(--phase-blocked), 0.4));
+    animation: orb-blocked-shimmer 1.5s ease-in-out infinite;
+  }
+  [data-slot="orb-halo"] {
+    background: rgba(var(--phase-blocked), 0.1);
+    animation-duration: 1.5s;
+  }
+  [data-slot="orb-ring"] { opacity: 0; }
+}
+
+/* ─── Phase: idle ─── */
+[data-component="heidi-orb"][data-phase="idle"] {
+  [data-slot="orb-core"] {
+    opacity: 0.3;
+    animation: orb-breathe 5s ease-in-out infinite;
+  }
+  [data-slot="orb-halo"] { animation: none; opacity: 0; }
+  [data-slot="orb-ring"] { animation: none; opacity: 0; }
+}
