@@ -56,6 +56,31 @@ describe("tool.edit", () => {
           action: "start",
           payload: { objective: "test edit drift" },
         })
+        const planPath = HeidiState.plan(session.id)
+        await Filesystem.write(
+          planPath,
+          [
+            "# Implementation Plan",
+            "",
+            "## Task goal",
+            "test edit drift",
+            "",
+            "## Background and discovered repo facts",
+            "None",
+            "",
+            "## Scope",
+            "None",
+            "",
+            "## Files to modify",
+            "- src/a.ts",
+            "",
+            "## Change strategy by component",
+            "None",
+            "",
+            "## Verification plan",
+            "- bun test",
+          ].join("\n"),
+        )
         await HeidiBoundary.apply({
           run_id: "run-drift-3",
           task_id: session.id,
@@ -69,7 +94,6 @@ describe("tool.edit", () => {
           payload: {},
         })
         // Mutate the plan file after lock
-        const planPath = HeidiState.plan(session.id)
         const orig = await Filesystem.readText(planPath)
         await Filesystem.write(planPath, orig + "\n# DRIFT\n")
         const edit = await EditTool.init()

@@ -39,6 +39,31 @@ describe("tool.write", () => {
           action: "start",
           payload: { objective: "test write drift" },
         })
+        const planPath = HeidiState.plan(session.id)
+        await Filesystem.write(
+          planPath,
+          [
+            "# Implementation Plan",
+            "",
+            "## Task goal",
+            "test write drift",
+            "",
+            "## Background and discovered repo facts",
+            "None",
+            "",
+            "## Scope",
+            "None",
+            "",
+            "## Files to modify",
+            "- src/a.ts",
+            "",
+            "## Change strategy by component",
+            "None",
+            "",
+            "## Verification plan",
+            "- bun test",
+          ].join("\n"),
+        )
         await HeidiBoundary.apply({
           run_id: "run-drift-2",
           task_id: session.id,
@@ -52,7 +77,6 @@ describe("tool.write", () => {
           payload: {},
         })
         // Mutate the plan file after lock
-        const planPath = HeidiState.plan(session.id)
         const orig = await Filesystem.readText(planPath)
         await Filesystem.write(planPath, orig + "\n# DRIFT\n")
         const write = await WriteTool.init()

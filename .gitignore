@@ -28,3 +28,9 @@ opencode-dev
 logs/
 *.bun-build
 tsconfig.tsbuildinfo
+
+# Runtime artifacts
+.local/
+.opencode/heidi/
+**/__pycache__/
+*.pyc
