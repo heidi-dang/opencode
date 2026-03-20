@@ -735,7 +735,7 @@ test("does not try to install dependencies in read-only OPENCODE_CONFIG_DIR", as
   }
 })
 
-test("installs dependencies in writable OPENCODE_CONFIG_DIR", { timeout: 20000 }, async () => {
+test("installs dependencies in writable OPENCODE_CONFIG_DIR", async () => {
   await using tmp = await tmpdir<string>({
     init: async (dir) => {
       const cfg = path.join(dir, "configdir")
@@ -748,13 +748,9 @@ test("installs dependencies in writable OPENCODE_CONFIG_DIR", { timeout: 20000 }
   process.env.OPENCODE_CONFIG_DIR = tmp.extra
 
   try {
-    let run: any = spyOn(BunProc, "run").mockImplementation(async (_cmd, opts) => {
-      return {
-        code: 0,
-        stdout: Buffer.alloc(0),
-        stderr: Buffer.alloc(0),
-      }
-    })
+    // Pre-create package.json and .gitignore to avoid running real installs during test
+    await Filesystem.writeJson(path.join(tmp.extra, "package.json"), { dependencies: { "@opencode-ai/plugin": "*" } })
+    await Filesystem.write(path.join(tmp.extra, ".gitignore"), ["node_modules", "package.json", "bun.lock", ".gitignore"].join("\n"))
 
     await Instance.provide({
       directory: tmp.path,
@@ -767,7 +763,7 @@ test("installs dependencies in writable OPENCODE_CONFIG_DIR", { timeout: 20000 }
     expect(await Filesystem.exists(path.join(tmp.extra, "package.json"))).toBe(true)
     expect(await Filesystem.exists(path.join(tmp.extra, ".gitignore"))).toBe(true)
   } finally {
-    try { run?.mockRestore?.() } catch {}
+    // no mocks to restore
     if (prev === undefined) delete process.env.OPENCODE_CONFIG_DIR
     else process.env.OPENCODE_CONFIG_DIR = prev
   }

@@ -299,7 +299,7 @@ describe("heidi boundary", () => {
 
           if (row.from === "EXECUTION" || row.from === "VERIFICATION") {
             const state = await HeidiState.read(session.id)
-            state.checklist = [{ id: "c1", label: "done", status: "done", category: "Modify" }]
+            state.checklist = [{ id: "c1", label: "done", status: "done", category: "Modify", priority: "low" }]
             await HeidiState.write(session.id, state)
           }
 
@@ -409,7 +409,7 @@ describe("heidi boundary", () => {
         const exec = await Session.create({})
         await enterExecution(exec.id, "drift verify")
         let state = await HeidiState.read(exec.id)
-        state.checklist = [{ id: "c1", label: "done", status: "done", category: "Modify" }]
+        state.checklist = [{ id: "c1", label: "done", status: "done", category: "Modify", priority: "low" }]
         await HeidiState.write(exec.id, state)
         const execPlan = HeidiState.plan(exec.id)
         const execText = await Filesystem.readText(execPlan)
