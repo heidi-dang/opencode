@@ -77,7 +77,7 @@ export namespace HeidiMemory {
     const items = [] as Item[]
     for (const target of targets) {
       const content = await Filesystem.readText(target.file).catch((err) => {
-        HeidiTelemetry.warn("memory", "memory.query", err)
+        HeidiTelemetry.debug("memory", "memory.query")
         return ""
       })
       if (!content) continue

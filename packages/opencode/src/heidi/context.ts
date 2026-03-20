@@ -76,7 +76,7 @@ function safe(text: string) {
 
 async function retrieval(sessionID: SessionID) {
   const raw = await Filesystem.readText(knowledgeFile(sessionID)).catch((err) => {
-    HeidiTelemetry.warn(sessionID, "context.retrieval", err)
+    HeidiTelemetry.debug(sessionID, "context.retrieval")
     return ""
   })
   const rows = raw
@@ -277,7 +277,7 @@ export namespace HeidiContext {
 
   export async function system(sessionID: SessionID) {
     const ctx = await current(sessionID).catch((err) => {
-      HeidiTelemetry.warn(sessionID, "context.system", err)
+      HeidiTelemetry.debug(sessionID, "context.system")
       return undefined
     })
     if (!ctx) return ""
