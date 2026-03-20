@@ -1,0 +1,30 @@
+{
+  "run_id": "tool_fix_boundary_sdk",
+  "task_id": "ses_fix_boundary_sdk",
+  "fsm_state": "DISCOVERY",
+  "mode": "PLANNING",
+  "objective": {
+    "locked": false,
+    "text": "Fix task_boundary spec and SDK inconsistencies"
+  },
+  "plan": {
+    "path": "/home/heidi/work/opencode-main/.opencode/heidi/ses_fix_boundary_sdk/implementation_plan.md",
+    "hash": "",
+    "locked": false,
+    "amendments": []
+  },
+  "checklist": [],
+  "active_files": [],
+  "changed_files": [],
+  "commands": [],
+  "verification_commands": [],
+  "checkpoints": [],
+  "block_reason": null,
+  "last_successful_step": "start",
+  "next_transition": "DISCOVERY->PLAN_DRAFT",
+  "resume": {
+    "next_step": "DISCOVERY",
+    "checkpoint_id": null,
+    "failed_hypotheses": []
+  }
+}

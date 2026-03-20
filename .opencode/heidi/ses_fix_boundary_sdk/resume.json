@@ -1,0 +1,16 @@
+{
+  "run_id": "tool_fix_boundary_sdk",
+  "task_id": "ses_fix_boundary_sdk",
+  "fsm_state": "DISCOVERY",
+  "objective": "Fix task_boundary spec and SDK inconsistencies",
+  "plan_ref": "/home/heidi/work/opencode-main/.opencode/heidi/ses_fix_boundary_sdk/implementation_plan.md",
+  "completed": [],
+  "pending": [],
+  "touched_files": [],
+  "edited_files": [],
+  "last_validations": [],
+  "failed_hypotheses": [],
+  "next_step": "DISCOVERY",
+  "checkpoint_ref": null,
+  "narrative": "Heidi is in DISCOVERY state (Mode: PLANNING). Completed 0 items. Next transition: DISCOVERY->PLAN_DRAFT. Last successful step: start."
+}

@@ -905,7 +905,7 @@ export namespace SessionPrompt {
       // Build system prompt, adding structured output instruction if needed
       const skills = await SystemPrompt.skills(agent)
       const system = [
-        ...(await SystemPrompt.environment(model)),
+        ...(await SystemPrompt.environment(model, sessionID)),
         ...(skills ? [skills] : []),
         ...(await InstructionPrompt.system()),
       ]

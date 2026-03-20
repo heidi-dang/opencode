@@ -185,6 +185,8 @@ import type {
   SessionSummarizeResponses,
   SessionTaskBoundaryErrors,
   SessionTaskBoundaryResponses,
+  SessionTaskContextErrors,
+  SessionTaskContextResponses,
   SessionTaskGetErrors,
   SessionTaskGetResponses,
   SessionTodoErrors,
@@ -2173,6 +2175,38 @@ export class Task extends HeyApiClient {
   }
 
   /**
+   * Get Heidi session context
+   *
+   * Get the canonical assembled session context for this session.
+   */
+  public context<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<SessionTaskContextResponses, SessionTaskContextErrors, ThrowOnError>({
+      url: "/session/{sessionID}/task/context",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
    * Apply task boundary action
    *
    * Mutate Heidi task state via task boundary contract.
@@ -2182,7 +2216,6 @@ export class Task extends HeyApiClient {
       sessionID: string
       directory?: string
       workspace?: string
-      run_id?: string
       action?:
         | "start"
         | "set_mode"
@@ -2196,6 +2229,7 @@ export class Task extends HeyApiClient {
       payload?: {
         [key: string]: unknown
       }
+      run_id?: string
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -2207,9 +2241,9 @@ export class Task extends HeyApiClient {
             { in: "path", key: "sessionID" },
             { in: "query", key: "directory" },
             { in: "query", key: "workspace" },
-            { in: "body", key: "run_id" },
             { in: "body", key: "action" },
             { in: "body", key: "payload" },
+            { in: "body", key: "run_id" },
           ],
         },
       ],

@@ -2,24 +2,23 @@ import z from "zod"
 import { Tool } from "./tool"
 import { HeidiMemory } from "@/heidi/memory"
 import { HeidiState } from "@/heidi/state"
+import { HeidiContext } from "@/heidi/context"
 
 const DESCRIPTION = `Provides a transparent view of Heidi's internal state, including current memory context, active transaction status, and recent decision history.`
 
 export const TransparencyTool = Tool.define("transparency", {
   description: DESCRIPTION,
   parameters: z.object({
-    scope: z.enum(["memory", "transaction", "all"]).default("all")
+    scope: z.enum(["memory", "transaction", "context", "all"]).default("all"),
   }),
   async execute(params, ctx) {
-    const [memory, state] = await Promise.all([
+    const [memory, state, session] = await Promise.all([
       HeidiMemory.query("", "both"),
-      HeidiState.read(ctx.sessionID).catch(() => null)
+      HeidiState.read(ctx.sessionID).catch(() => null),
+      HeidiContext.current(ctx.sessionID).catch(() => null),
     ])
-
-    const fsmState = state?.fsm_state ?? "IDLE"
+    const fsm = state?.fsm_state ?? "IDLE"
     const mode = state?.mode ?? "PLANNING"
-    
-    // Generate phase status based on actual FSM state
     const phaseMap: Record<string, { name: string; status: string }> = {
       IDLE: { name: "Runtime Initialization", status: "READY" },
       DISCOVERY: { name: "Codebase Discovery & Analysis", status: "ACTIVE" },
@@ -30,33 +29,46 @@ export const TransparencyTool = Tool.define("transparency", {
       COMPLETE: { name: "Task Completion", status: "DONE" },
       BLOCKED: { name: "Blocked - Awaiting Resolution", status: "BLOCKED" },
     }
-    
-    const currentPhase = phaseMap[fsmState] ?? { name: "Unknown", status: fsmState }
-    
+    const phase = phaseMap[fsm] ?? { name: "Unknown", status: fsm }
+    const mem = params.scope === "context" ? [] : memory
+    const ctxLines = params.scope === "memory" ? [] : [
+      session ? `Session Context: ${session.fsm_state} (${session.mode})` : "",
+      session?.summary.body ? `Context Summary: ${session.summary.body}` : "",
+      session?.resume.next_step ? `Context Next Step: ${session.resume.next_step}` : "",
+      session?.memory.retrieval.length
+        ? `Retrieved Knowledge: ${session.memory.retrieval.map((item) => item.summary).join(" | ")}`
+        : "",
+    ]
     return {
       title: "Heidi System Transparency Report",
       output: [
-        `Current FSM State: ${fsmState}`,
+        `Current FSM State: ${fsm}`,
         `Current Mode: ${mode}`,
         "",
-        `Active Phase: ${currentPhase.name} [${currentPhase.status}]`,
+        `Active Phase: ${phase.name} [${phase.status}]`,
         "",
-        params.scope !== "transaction" ? `Long-term Memory: ${memory.length} items stored.` : "",
-        params.scope !== "transaction" && memory.length > 0 ? "Memory Items:" : "",
-        params.scope !== "transaction" && memory.length > 0 ? memory.slice(0, 5).map(m => `  - [${m.scope}] [${m.type}] [${m.trust ?? "unknown"}] ${m.key}: ${m.content}`).join("\n") : "",
+        params.scope !== "transaction" && params.scope !== "context" ? `Long-term Memory: ${mem.length} items stored.` : "",
+        params.scope !== "transaction" && params.scope !== "context" && mem.length > 0 ? "Memory Items:" : "",
+        params.scope !== "transaction" && params.scope !== "context" && mem.length > 0
+          ? mem.slice(0, 5).map((item) => `  - [${item.scope}] [${item.type}] [${item.trust ?? "unknown"}] ${item.key}: ${item.content}`).join("\n")
+          : "",
+        ...ctxLines,
         state?.resume?.checkpoint_id ? `Active Checkpoint: ${state.resume.checkpoint_id}` : "No active checkpoint.",
         state?.block_reason ? `Block Reason: ${state.block_reason}` : "",
-      ].filter(Boolean).join("\n"),
+      ]
+        .filter(Boolean)
+        .join("\n"),
       metadata: {
-        memory_count: memory.length,
-        fsm_state: fsmState,
-        mode: mode,
+        memory_count: mem.length,
+        fsm_state: fsm,
+        mode,
         scope: params.scope,
         has_checkpoint: !!state?.resume?.checkpoint_id,
         has_block: !!state?.block_reason,
         checkpoint_id: state?.resume?.checkpoint_id ?? null,
         block_reason: state?.block_reason ?? null,
-      }
+        session_context: session,
+      },
     }
-  }
+  },
 })

@@ -4,6 +4,7 @@
 const net = require("net")
 
 let nextId = 1
+let didClose = 0
 
 function encode(message) {
   const json = JSON.stringify(message)
@@ -62,6 +63,14 @@ function handle(raw) {
     return
   }
   if (data.method === "workspace/didChangeConfiguration") {
+    return
+  }
+  if (data.method === "textDocument/didClose") {
+    didClose += 1
+    return
+  }
+  if (data.method === "test/getState") {
+    send({ jsonrpc: "2.0", id: data.id, result: { didClose } })
     return
   }
   if (data.method === "test/trigger") {

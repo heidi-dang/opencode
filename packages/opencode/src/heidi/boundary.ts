@@ -207,9 +207,9 @@ export namespace HeidiBoundary {
     if (req.action === "complete") {
       if (state.fsm_state !== "VERIFICATION") throw new Error("Task can only complete from VERIFICATION")
       await HeidiVerify.gate(req.task_id)
-      const verify = VerifyState.parse(req.payload.verification)
+      const verify = await HeidiState.readVerification(req.task_id)
+      if (!verify) throw new Error("Verification must exist before completion")
       if (verify.status !== "pass") throw new Error("Verification must pass before completion")
-      await HeidiVerify.write(req.task_id, verify)
       move(state, "COMPLETE")
       state.last_successful_step = "complete"
       state.next_transition = "NONE"

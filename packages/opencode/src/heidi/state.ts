@@ -6,6 +6,7 @@ import { Identifier } from "@/id/id"
 import { SessionID } from "@/session/schema"
 import { TaskState, VerifyState, ResumeState } from "./schema"
 import { Instance } from "@/project/instance"
+import { HeidiContext } from "./context"
 
 function root(sessionID: SessionID) {
   try {
@@ -34,18 +35,22 @@ function planPath(sessionID: SessionID) {
   return path.join(root(sessionID), "implementation_plan.md")
 }
 
+function contextPath(sessionID: SessionID) {
+  return path.join(root(sessionID), "context.json")
+}
+
 function verifySync(state: TaskState) {
   if (state.fsm_state === "COMPLETE" && !state.plan.locked) {
     throw new Error("complete state requires locked plan")
   }
 }
 
-function now() {
-  return new Date().toISOString()
-}
-
 function hash(text: string) {
   return createHash("sha256").update(text).digest("hex")
+}
+
+async function syncctx(sessionID: SessionID) {
+  await HeidiContext.sync(sessionID)
 }
 
 function render(state: TaskState) {
@@ -66,8 +71,7 @@ function render(state: TaskState) {
   out.push(`- **Next Transition**: ${state.next_transition}`)
   out.push("")
   out.push("### Checklist")
-  const categories = ["Modify", "New", "Delete", "Verify"]
-  for (const cat of categories) {
+  for (const cat of ["Modify", "New", "Delete", "Verify"]) {
     const items = state.checklist.filter((item) => item.category === cat)
     if (items.length === 0) continue
     out.push(`#### ${cat}`)
@@ -82,14 +86,10 @@ export namespace HeidiState {
   }
 
   export async function ensure(sessionID: SessionID, objective: string) {
-    const p = taskPath(sessionID)
-    const exists = await Filesystem.exists(p)
-    if (exists) return await read(sessionID)
-
-    const task_id = sessionID
+    if (await Filesystem.exists(taskPath(sessionID))) return await read(sessionID)
     const init: TaskState = {
       run_id: Identifier.ascending("tool"),
-      task_id,
+      task_id: sessionID,
       fsm_state: "IDLE",
       mode: "PLANNING",
       objective: {
@@ -161,6 +161,7 @@ export namespace HeidiState {
       await Filesystem.write(planPath(sessionID), plan)
     }
     await write(sessionID, init)
+    await syncctx(sessionID)
     return init
   }
 
@@ -173,11 +174,11 @@ export namespace HeidiState {
     verifySync(next)
     await Filesystem.writeJson(taskPath(sessionID), next)
     await Filesystem.write(taskMdPath(sessionID), render(next))
+    await syncctx(sessionID)
   }
 
   export async function sync(sessionID: SessionID) {
-    const state = await read(sessionID)
-    await write(sessionID, state)
+    await write(sessionID, await read(sessionID))
   }
 
   export async function files(sessionID: SessionID) {
@@ -188,6 +189,7 @@ export namespace HeidiState {
       implementation_plan: planPath(sessionID),
       verification: verifyPath(sessionID),
       resume: resumePath(sessionID),
+      context: contextPath(sessionID),
       knowledge: path.join(base, "knowledge.jsonl"),
       exists: {
         task_json: await Filesystem.exists(taskPath(sessionID)),
@@ -195,6 +197,7 @@ export namespace HeidiState {
         implementation_plan: await Filesystem.exists(planPath(sessionID)),
         verification: await Filesystem.exists(verifyPath(sessionID)),
         resume: await Filesystem.exists(resumePath(sessionID)),
+        context: await Filesystem.exists(contextPath(sessionID)),
         knowledge: await Filesystem.exists(path.join(base, "knowledge.jsonl")),
       },
     }
@@ -202,26 +205,25 @@ export namespace HeidiState {
 
   export async function setPlanHash(sessionID: SessionID) {
     const state = await read(sessionID)
-    const plan = await Filesystem.readText(planPath(sessionID)).catch(() => "")
-    state.plan.hash = hash(plan)
+    state.plan.hash = hash(await Filesystem.readText(planPath(sessionID)).catch(() => ""))
     await write(sessionID, state)
     return state
   }
 
   export async function writeVerification(sessionID: SessionID, verify: VerifyState) {
     await Filesystem.writeJson(verifyPath(sessionID), VerifyState.parse(verify))
+    await syncctx(sessionID)
   }
 
   export async function readVerification(sessionID: SessionID) {
     if (!(await Filesystem.exists(verifyPath(sessionID)))) return null
     return VerifyState.parse(await Filesystem.readJson(verifyPath(sessionID)))
   }
-  // Plan-lock drift detection
+
   export async function checkPlanDrift(sessionID: SessionID) {
     const state = await read(sessionID)
     const plan = await Filesystem.readText(planPath(sessionID)).catch(() => "")
-    const hashNow = hash(plan)
-    if (state.plan.locked && state.plan.hash && hashNow !== state.plan.hash) {
+    if (state.plan.locked && state.plan.hash && hash(plan) !== state.plan.hash) {
       throw new Error("plan-lock drift detected: plan has changed after lock")
     }
     return true
@@ -229,23 +231,20 @@ export namespace HeidiState {
 
   export async function writeResume(sessionID: SessionID, resume: ResumeState) {
     await Filesystem.writeJson(resumePath(sessionID), ResumeState.parse(resume))
+    await syncctx(sessionID)
   }
 
   export async function updateResume(sessionID: SessionID) {
     const state = await read(sessionID)
     const done = state.checklist.filter((item) => item.status === "done").map((item) => item.id)
     const pending = state.checklist.filter((item) => item.status !== "done").map((item) => item.id)
-    let next_step = state.resume.next_step
-    // If checklist exists and all are done, clear next_step in both state and persisted task state
+    let next = state.resume.next_step
     if (state.checklist.length > 0 && pending.length === 0) {
-      next_step = undefined
+      next = undefined
       state.resume.next_step = undefined
-      // Persist cleared next_step in task state
       await write(sessionID, state)
     }
-    // If checklist is empty, preserve explicit next_step, but normalize null to undefined
-    const normalized_next_step = typeof next_step === "string" ? next_step : undefined
-    const resume: ResumeState = {
+    await writeResume(sessionID, {
       run_id: state.run_id,
       task_id: state.task_id,
       fsm_state: state.fsm_state,
@@ -257,10 +256,9 @@ export namespace HeidiState {
       edited_files: state.changed_files,
       last_validations: state.verification_commands,
       failed_hypotheses: state.resume.failed_hypotheses,
-      next_step: normalized_next_step,
+      next_step: typeof next === "string" ? next : undefined,
       checkpoint_ref: state.resume.checkpoint_id,
       narrative: `Heidi is in ${state.fsm_state} state (Mode: ${state.mode}). Completed ${done.length} items. Next transition: ${state.next_transition}. Last successful step: ${state.last_successful_step || "init"}.`,
-    }
-    await writeResume(sessionID, resume)
+    })
   }
 }

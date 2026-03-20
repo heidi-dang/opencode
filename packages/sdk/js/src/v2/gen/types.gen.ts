@@ -4974,9 +4974,110 @@ export type SessionTaskGetResponses = {
 
 export type SessionTaskGetResponse = SessionTaskGetResponses[keyof SessionTaskGetResponses]
 
+export type SessionTaskContextData = {
+  body?: never
+  path: {
+    sessionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/session/{sessionID}/task/context"
+}
+
+export type SessionTaskContextErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type SessionTaskContextError = SessionTaskContextErrors[keyof SessionTaskContextErrors]
+
+export type SessionTaskContextResponses = {
+  /**
+   * Session context
+   */
+  200: {
+    session_id: string
+    objective: string
+    fsm_state:
+      | "IDLE"
+      | "DISCOVERY"
+      | "PLAN_DRAFT"
+      | "PLAN_LOCKED"
+      | "EXECUTION"
+      | "VERIFICATION"
+      | "COMPLETE"
+      | "BLOCKED"
+    mode: "PLANNING" | "EXECUTION" | "VERIFICATION"
+    plan: {
+      path: string
+      locked: boolean
+    }
+    summary: {
+      title: string | null
+      body: string | null
+      files: Array<string>
+    }
+    resume: {
+      next_step: string | null
+      checkpoint_id: string | null
+      failed_hypotheses: Array<string>
+    }
+    activity: {
+      active_files: Array<string>
+      changed_files: Array<string>
+      commands: Array<string>
+      validations: Array<string>
+    }
+    verification: {
+      status: "pass" | "fail" | "blocked"
+      checks: Array<{
+        name: string
+        command: string
+        exit_code: number
+      }>
+      warnings: Array<string>
+      remediation: Array<{
+        file: string
+        line: number
+        rule_id: string
+      }>
+      browser: {
+        required: boolean
+        status: "pass" | "fail" | "skipped"
+        console_errors: number
+        network_failures: number
+      } | null
+    } | null
+    memory: {
+      long_term: Array<{
+        scope: "project" | "global"
+        type: string
+        key: string
+        content: string
+      }>
+      retrieval: Array<{
+        kind: string
+        summary: string
+        source: string
+      }>
+    }
+    version: number
+    updated_at: string
+  }
+}
+
+export type SessionTaskContextResponse = SessionTaskContextResponses[keyof SessionTaskContextResponses]
+
 export type SessionTaskBoundaryData = {
   body?: {
-    run_id?: string
     action:
       | "start"
       | "set_mode"
@@ -4990,6 +5091,7 @@ export type SessionTaskBoundaryData = {
     payload?: {
       [key: string]: unknown
     }
+    run_id?: string
   }
   path: {
     sessionID: string

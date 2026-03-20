@@ -18,6 +18,7 @@ const DIAGNOSTICS_DEBOUNCE_MS = 150
 
 export namespace LSPClient {
   const log = Log.create({ service: "lsp.client" })
+  export const OPEN_LIMIT = 128
 
   export type Info = NonNullable<Awaited<ReturnType<typeof create>>>
 
@@ -136,6 +137,27 @@ export namespace LSPClient {
     const files: {
       [path: string]: number
     } = {}
+    const docs: string[] = []
+
+    const touch = (file: string) => {
+      const idx = docs.indexOf(file)
+      if (idx !== -1) docs.splice(idx, 1)
+      docs.push(file)
+    }
+
+    const close = async (file: string) => {
+      if (files[file] === undefined) return
+      delete files[file]
+      diagnostics.delete(file)
+      const idx = docs.indexOf(file)
+      if (idx !== -1) docs.splice(idx, 1)
+      log.info("textDocument/didClose", { path: file })
+      await connection.sendNotification("textDocument/didClose", {
+        textDocument: {
+          uri: pathToFileURL(file).href,
+        },
+      })
+    }
 
     const result = {
       root: input.root,
@@ -154,6 +176,7 @@ export namespace LSPClient {
 
           const version = files[input.path]
           if (version !== undefined) {
+            touch(input.path)
             log.info("workspace/didChangeWatchedFiles", input)
             await connection.sendNotification("workspace/didChangeWatchedFiles", {
               changes: [
@@ -180,6 +203,10 @@ export namespace LSPClient {
             return
           }
 
+          if (docs.length >= OPEN_LIMIT) {
+            await close(docs[0])
+          }
+
           log.info("workspace/didChangeWatchedFiles", input)
           await connection.sendNotification("workspace/didChangeWatchedFiles", {
             changes: [
@@ -201,6 +228,7 @@ export namespace LSPClient {
             },
           })
           files[input.path] = 0
+          touch(input.path)
           return
         },
       },
@@ -238,6 +266,7 @@ export namespace LSPClient {
       },
       async shutdown() {
         l.info("shutting down")
+        await Promise.all([...docs].map(close))
         connection.end()
         connection.dispose()
         await Process.stop(input.server.process)

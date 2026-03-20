@@ -399,3 +399,31 @@ describe("session.prompt parallel assist", () => {
     expect(prompt).toContain("Heidi keeps ownership of these reserved files: src/token.ts")
   })
 })
+
+
+
+describe("session context prompt injection", () => {
+  test("includes session context in environment prompt", async () => {
+    await using tmp = await tmpdir({ git: true })
+    await Instance.provide({
+      directory: tmp.path,
+      fn: async () => {
+        const { HeidiState } = await import("../../src/heidi/state")
+        const { HeidiContext } = await import("../../src/heidi/context")
+        const { SystemPrompt } = await import("../../src/session/system")
+        const session = await Session.create({})
+        const state = await HeidiState.ensure(session.id, "Prompt objective")
+        state.fsm_state = "EXECUTION"
+        state.mode = "EXECUTION"
+        state.resume.next_step = "continue"
+        await HeidiState.write(session.id, state)
+        await HeidiContext.write(session.id)
+        const env = await SystemPrompt.environment({ api: { id: "gpt-5.4" }, providerID: "openai" } as any, session.id)
+        const out = env.join("\\n")
+        expect(out).toContain("<session_context>")
+        expect(out).toContain("Prompt objective")
+        expect(out).toContain('next_step: "continue"')
+      },
+    })
+  })
+})

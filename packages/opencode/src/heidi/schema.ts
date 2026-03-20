@@ -129,6 +129,91 @@ export const ResumeState = z.object({
   narrative: z.string().optional(),
 })
 
+export const ContextState = z.object({
+  session_id: z.string(),
+  objective: z.string(),
+  fsm_state: FsmState,
+  mode: Mode,
+  plan: z.object({
+    path: z.string(),
+    locked: z.boolean(),
+  }),
+  summary: z.object({
+    title: z.string().nullable(),
+    body: z.string().nullable(),
+    files: z.array(z.string()),
+  }),
+  resume: z.object({
+    next_step: z.string().nullable(),
+    checkpoint_id: z.string().nullable(),
+    failed_hypotheses: z.array(z.string()),
+  }),
+  activity: z.object({
+    active_files: z.array(z.string()),
+    changed_files: z.array(z.string()),
+    commands: z.array(z.string()),
+    validations: z.array(z.string()),
+  }),
+  verification: z
+    .object({
+      status: z.enum(["pass", "fail", "blocked"]),
+      checks: z.array(
+        z.object({
+          name: z.string(),
+          command: z.string(),
+          exit_code: z.number(),
+        }),
+      ),
+      warnings: z.array(z.string()),
+      remediation: z.array(
+        z.object({
+          file: z.string(),
+          line: z.number(),
+          rule_id: z.string(),
+        }),
+      ),
+      browser: z
+        .object({
+          required: z.boolean(),
+          status: z.enum(["pass", "fail", "skipped"]),
+          console_errors: z.number(),
+          network_failures: z.number(),
+        })
+        .nullable(),
+    })
+    .nullable(),
+  memory: z.object({
+    long_term: z.array(
+      z.object({
+        scope: z.enum(["project", "global"]),
+        type: z.string(),
+        key: z.string(),
+        content: z.string(),
+      }),
+    ),
+    retrieval: z.array(
+      z.object({
+        kind: z.string(),
+        summary: z.string(),
+        source: z.string(),
+      }),
+    ),
+  }),
+  freshness: z.object({
+    fingerprint: z.string(),
+    sources: z.object({
+      task: z.string(),
+      verification: z.string(),
+      knowledge: z.string(),
+      messages: z.string(),
+      memory: z.string(),
+    }),
+  }),
+  version: z.number().int().positive(),
+  updated_at: z.string(),
+})
+
 export type TaskState = z.infer<typeof TaskState>
 export type VerifyState = z.infer<typeof VerifyState>
 export type ResumeState = z.infer<typeof ResumeState>
+export type ContextState = z.infer<typeof ContextState>

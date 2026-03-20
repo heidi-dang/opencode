@@ -113,3 +113,35 @@ test("Instance.state dedupes concurrent promise initialization", async () => {
   expect(a).toBe(b)
   expect(n).toBe(1)
 })
+
+test("Instance auto-disposes after idle ttl", async () => {
+  await using tmp = await tmpdir()
+  const prev = process.env.OPENCODE_INSTANCE_TTL_MS
+  const seen: string[] = []
+  const state = Instance.state(
+    () => ({ dir: Instance.directory }),
+    async (value) => {
+      seen.push(value.dir)
+    },
+  )
+
+  process.env.OPENCODE_INSTANCE_TTL_MS = "20"
+
+  try {
+    await Instance.provide({
+      directory: tmp.path,
+      fn: async () => state(),
+    })
+
+    for (let i = 0; i < 20; i++) {
+      if (seen.length) break
+      await Bun.sleep(10)
+    }
+
+    expect(seen).toEqual([tmp.path])
+  } finally {
+    if (prev === undefined) delete process.env.OPENCODE_INSTANCE_TTL_MS
+    else process.env.OPENCODE_INSTANCE_TTL_MS = prev
+    await Instance.disposeAll()
+  }
+})

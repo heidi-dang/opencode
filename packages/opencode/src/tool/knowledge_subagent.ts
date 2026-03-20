@@ -1,12 +1,7 @@
 import z from "zod"
 import { Tool } from "./tool"
 import { Filesystem } from "@/util/filesystem"
-import path from "path"
-import { Global } from "@/global"
-
-function file(taskID: string) {
-  return path.join(Global.Path.state, "heidi", taskID, "knowledge.jsonl")
-}
+import { HeidiContext } from "@/heidi/context"
 
 export const KnowledgeSubagentTool = Tool.define("knowledge_subagent", {
   description:
@@ -24,7 +19,7 @@ export const KnowledgeSubagentTool = Tool.define("knowledge_subagent", {
       timestamp: new Date().toISOString(),
       ...params.item,
     }
-    const target = file(params.task_id)
+    const target = HeidiContext.knowledgePath(params.task_id as any)
     const old = await Filesystem.readText(target).catch(() => "")
     await Filesystem.write(target, old + JSON.stringify(row) + "\n")
     return {

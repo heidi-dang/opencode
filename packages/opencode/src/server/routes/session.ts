@@ -23,6 +23,8 @@ import { Database, eq } from "@/storage/db"
 import { PartTable } from "@/storage/schema"
 import { HeidiBoundary } from "@/heidi/boundary"
 import { HeidiState } from "@/heidi/state"
+import { HeidiContext } from "@/heidi/context"
+import { ContextState } from "@/heidi/schema"
 
 const log = Log.create({ service: "server" })
 
@@ -187,6 +189,35 @@ export const SessionRoutes = lazy(() =>
         const sessionID = c.req.valid("param").sessionID
         const state = await HeidiState.read(sessionID)
         return c.json(state)
+      },
+    )
+    .get(
+      "/:sessionID/task/context",
+      describeRoute({
+        summary: "Get Heidi session context",
+        description: "Get the canonical assembled session context for this session.",
+        operationId: "session.task.context",
+        responses: {
+          200: {
+            description: "Session context",
+            content: {
+              "application/json": {
+                schema: resolver(ContextState),
+              },
+            },
+          },
+          ...errors(400, 404),
+        },
+      }),
+      validator(
+        "param",
+        z.object({
+          sessionID: SessionID.zod,
+        }),
+      ),
+      async (c) => {
+        const sessionID = c.req.valid("param").sessionID
+        return c.json(await HeidiContext.current(sessionID))
       },
     )
     .post(

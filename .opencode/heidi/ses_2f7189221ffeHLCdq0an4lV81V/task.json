@@ -1,0 +1,30 @@
+{
+  "run_id": "tool_d08e7886e001kfq2tg7ILQqHVy",
+  "task_id": "ses_2f7189221ffeHLCdq0an4lV81V",
+  "fsm_state": "DISCOVERY",
+  "mode": "PLANNING",
+  "objective": {
+    "locked": false,
+    "text": ""
+  },
+  "plan": {
+    "path": "/home/heidi/work/opencode-main/.opencode/heidi/ses_2f7189221ffeHLCdq0an4lV81V/implementation_plan.md",
+    "hash": "",
+    "locked": false,
+    "amendments": []
+  },
+  "checklist": [],
+  "active_files": [],
+  "changed_files": [],
+  "commands": [],
+  "verification_commands": [],
+  "checkpoints": [],
+  "block_reason": null,
+  "last_successful_step": "start",
+  "next_transition": "DISCOVERY->PLAN_DRAFT",
+  "resume": {
+    "next_step": "DISCOVERY",
+    "checkpoint_id": null,
+    "failed_hypotheses": []
+  }
+}

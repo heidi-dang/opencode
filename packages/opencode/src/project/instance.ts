@@ -1,5 +1,6 @@
 import { GlobalBus } from "@/bus/global"
 import { disposeInstance } from "@/effect/instance-registry"
+import { Flag } from "@/flag/flag"
 import { Filesystem } from "@/util/filesystem"
 import { iife } from "@/util/iife"
 import { Log } from "@/util/log"
@@ -13,7 +14,16 @@ interface Context {
   project: Project.Info
 }
 const context = Context.create<Context>("instance")
-const cache = new Map<string, Promise<Context>>()
+const cache = new Map<string, Entry>()
+
+const DEFAULT_TTL = 15 * 60 * 1000
+
+interface Entry {
+  ctx: Promise<Context>
+  refs: number
+  timer?: ReturnType<typeof setTimeout>
+  disposing?: Promise<void>
+}
 
 const disposal = {
   all: undefined as Promise<void> | undefined,
@@ -53,32 +63,89 @@ function boot(input: { directory: string; init?: () => Promise<any>; project?: P
 }
 
 function track(directory: string, next: Promise<Context>) {
+  const entry: Entry = {
+    ctx: Promise.resolve(undefined as never),
+    refs: 0,
+  }
   const task = next.catch((error) => {
-    if (cache.get(directory) === task) cache.delete(directory)
+    if (cache.get(directory) === entry) cache.delete(directory)
     throw error
   })
-  cache.set(directory, task)
+  entry.ctx = task
+  cache.set(directory, entry)
+  return entry
+}
+
+function clear(entry: Entry) {
+  if (!entry.timer) return
+  clearTimeout(entry.timer)
+  entry.timer = undefined
+}
+
+function ttl() {
+  return Flag.OPENCODE_INSTANCE_TTL_MS ?? DEFAULT_TTL
+}
+
+async function dispose(directory: string, entry?: Entry) {
+  const hit = entry ?? cache.get(directory)
+  if (!hit) return
+  if (hit.disposing) return hit.disposing
+  clear(hit)
+  const task = iife(async () => {
+    if (cache.get(directory) === hit) cache.delete(directory)
+    const ctx = await hit.ctx.catch((error) => {
+      Log.Default.warn("instance dispose failed", { key: directory, error })
+      return undefined
+    })
+    if (!ctx) return
+    await context.provide(ctx, async () => {
+      await Promise.all([State.dispose(directory), disposeInstance(directory)])
+    })
+    emit(directory)
+  }).finally(() => {
+    if (hit.disposing === task) hit.disposing = undefined
+  })
+  hit.disposing = task
   return task
+}
+
+function schedule(directory: string, entry: Entry) {
+  if (entry.refs > 0) return
+  clear(entry)
+  entry.timer = setTimeout(() => {
+    if (cache.get(directory) !== entry) return
+    if (entry.refs > 0) return
+    void dispose(directory, entry)
+  }, ttl())
+  entry.timer.unref?.()
 }
 
 export const Instance = {
   async provide<R>(input: { directory: string; init?: () => Promise<any>; fn: () => R }): Promise<R> {
     const directory = Filesystem.resolve(input.directory)
-    let existing = cache.get(directory)
-    if (!existing) {
-      Log.Default.info("creating instance", { directory })
-      existing = track(
-        directory,
-        boot({
+    const existing =
+      cache.get(directory) ??
+      (() => {
+        Log.Default.info("creating instance", { directory })
+        return track(
           directory,
-          init: input.init,
-        }),
-      )
+          boot({
+            directory,
+            init: input.init,
+          }),
+        )
+      })()
+    clear(existing)
+    existing.refs += 1
+    try {
+      const ctx = await existing.ctx
+      return await context.provide(ctx, async () => {
+        return input.fn()
+      })
+    } finally {
+      existing.refs -= 1
+      if (cache.get(directory) === existing) schedule(directory, existing)
     }
-    const ctx = await existing
-    return context.provide(ctx, async () => {
-      return input.fn()
-    })
   },
   get current() {
     return context.use()
@@ -119,18 +186,13 @@ export const Instance = {
   async reload(input: { directory: string; init?: () => Promise<any>; project?: Project.Info; worktree?: string }) {
     const directory = Filesystem.resolve(input.directory)
     Log.Default.info("reloading instance", { directory })
-    await Promise.all([State.dispose(directory), disposeInstance(directory)])
-    cache.delete(directory)
-    const next = track(directory, boot({ ...input, directory }))
-    emit(directory)
-    return await next
+    await dispose(directory)
+    return await track(directory, boot({ ...input, directory })).ctx
   },
   async dispose() {
     const directory = Instance.directory
     Log.Default.info("disposing instance", { directory })
-    await Promise.all([State.dispose(directory), disposeInstance(directory)])
-    cache.delete(directory)
-    emit(directory)
+    await dispose(directory)
   },
   async disposeAll() {
     if (disposal.all) return disposal.all
@@ -140,22 +202,7 @@ export const Instance = {
       const entries = [...cache.entries()]
       for (const [key, value] of entries) {
         if (cache.get(key) !== value) continue
-
-        const ctx = await value.catch((error) => {
-          Log.Default.warn("instance dispose failed", { key, error })
-          return undefined
-        })
-
-        if (!ctx) {
-          if (cache.get(key) === value) cache.delete(key)
-          continue
-        }
-
-        if (cache.get(key) !== value) continue
-
-        await context.provide(ctx, async () => {
-          await Instance.dispose()
-        })
+        await dispose(key, value)
       }
     }).finally(() => {
       disposal.all = undefined

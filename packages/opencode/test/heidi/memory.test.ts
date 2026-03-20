@@ -13,7 +13,7 @@ describe("heidi memory", () => {
       fn: async () => {
         const sessionID = SessionID.make("mem-unsafe")
         await expect(
-          HeidiMemory.add(sessionID, { type: "note", key: "danger", content: "my secret password is 123" })
+          HeidiMemory.add(sessionID, { type: "note", key: "danger", content: "my secret password is 123" }),
         ).rejects.toThrow("Unsafe memory content detected")
       },
     })
@@ -41,16 +41,48 @@ describe("heidi memory", () => {
       directory: tmp.path,
       fn: async () => {
         const sessionID = SessionID.make("mem-mixed")
-        // Safe
         await HeidiMemory.add(sessionID, { type: "note", key: "safe", content: "this is fine" })
-        // Unsafe
         await expect(
-          HeidiMemory.add(sessionID, { type: "note", key: "unsafe", content: "PRIVATE_KEY=abc" })
+          HeidiMemory.add(sessionID, { type: "note", key: "unsafe", content: "PRIVATE_KEY=abc" }),
         ).rejects.toThrow()
-        // Query should only return safe
         const results = await HeidiMemory.query("")
-        expect(results.some(x => x.key === "unsafe")).toBe(false)
-        expect(results.some(x => x.key === "safe")).toBe(true)
+        expect(results.some((item) => item.key === "unsafe")).toBe(false)
+        expect(results.some((item) => item.key === "safe")).toBe(true)
+      },
+    })
+  })
+
+  test("system output omits unsafe legacy memory rows", async () => {
+    await using tmp = await tmpdir({ git: true })
+    await Instance.provide({
+      directory: tmp.path,
+      fn: async () => {
+        const target = path.join(tmp.path, ".opencode", "heidi", "memory.jsonl")
+        await Bun.write(
+          target,
+          [
+            JSON.stringify({
+              timestamp: new Date().toISOString(),
+              session_id: "mem-legacy",
+              type: "note",
+              key: "bad",
+              content: "password is 123",
+              trust: "unsafe",
+            }),
+            JSON.stringify({
+              timestamp: new Date().toISOString(),
+              session_id: "mem-safe",
+              type: "note",
+              key: "good",
+              content: "safe memory",
+              trust: "safe",
+            }),
+          ].join("\n") + "\n",
+        )
+        const text = await HeidiMemory.system()
+        expect(text).toContain("good")
+        expect(text).not.toContain("bad")
+        expect(text).not.toContain("password")
       },
     })
   })

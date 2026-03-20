@@ -1,0 +1,43 @@
+{
+  "run_id": "tool_d08d723ed0014CkEDJjNxo0BiS",
+  "task_id": "ses_2f7291161ffe8KvtVraupDzsoE",
+  "fsm_state": "PLAN_DRAFT",
+  "mode": "PLANNING",
+  "objective": {
+    "locked": false,
+    "text": ""
+  },
+  "plan": {
+    "path": "/home/heidi/work/opencode-main/.opencode/heidi/ses_2f7291161ffe8KvtVraupDzsoE/implementation_plan.md",
+    "hash": "",
+    "locked": false,
+    "amendments": []
+  },
+  "checklist": [],
+  "active_files": [],
+  "changed_files": [],
+  "commands": [],
+  "verification_commands": [],
+  "checkpoints": [
+    {
+      "id": "1773970599568-m8hl3i",
+      "step_id": "transaction:fix-instance-lsp-leaks",
+      "files": [
+        "/home/heidi/work/opencode-main/packages/opencode/src/project/instance.ts",
+        "/home/heidi/work/opencode-main/packages/opencode/src/flag/flag.ts",
+        "/home/heidi/work/opencode-main/packages/opencode/src/lsp/client.ts",
+        "/home/heidi/work/opencode-main/packages/opencode/test/project/state.test.ts",
+        "/home/heidi/work/opencode-main/packages/opencode/test/lsp/client.test.ts"
+      ],
+      "created_at": "2026-03-20T01:36:39.747Z"
+    }
+  ],
+  "block_reason": null,
+  "last_successful_step": "start",
+  "next_transition": "DISCOVERY->PLAN_DRAFT",
+  "resume": {
+    "next_step": "DISCOVERY",
+    "checkpoint_id": null,
+    "failed_hypotheses": []
+  }
+}

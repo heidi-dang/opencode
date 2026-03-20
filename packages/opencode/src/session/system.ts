@@ -15,6 +15,7 @@ import { PermissionNext } from "@/permission"
 import { Skill } from "@/skill"
 
 import { HeidiMemory } from "@/heidi/memory"
+import { HeidiContext } from "@/heidi/context"
 
 export namespace SystemPrompt {
   export function instructions() {
@@ -31,9 +32,10 @@ export namespace SystemPrompt {
     return [PROMPT_DEFAULT]
   }
 
-  export async function environment(model: Provider.Model) {
+  export async function environment(model: Provider.Model, sessionID?: string) {
     const project = Instance.project
     const memories = await HeidiMemory.system()
+    const ctx = sessionID ? await HeidiContext.system(sessionID as any).catch(() => "") : ""
     return [
       [
         `You are powered by the model named ${model.api.id}. The exact model ID is ${model.providerID}/${model.api.id}`,
@@ -46,6 +48,7 @@ export namespace SystemPrompt {
         `  Today's date: ${new Date().toDateString()}`,
         `</env>`,
         memories,
+        ctx,
         `<directories>`,
         `  ${
           project.vcs === "git" && false

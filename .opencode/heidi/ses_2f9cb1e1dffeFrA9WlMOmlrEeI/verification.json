@@ -1,0 +1,22 @@
+{
+  "task_id": "ses_2f9cb1e1dffeFrA9WlMOmlrEeI",
+  "status": "fail",
+  "checks": [],
+  "evidence": {
+    "changed_files": [],
+    "command_summary": [],
+    "before_after": ""
+  },
+  "warnings": [],
+  "remediation": [],
+  "browser": {
+    "required": true,
+    "status": "fail",
+    "screenshots": [],
+    "html": [],
+    "console_errors": [],
+    "network_failures": [
+      "Unable to connect. Is the computer able to access the url?"
+    ]
+  }
+}
