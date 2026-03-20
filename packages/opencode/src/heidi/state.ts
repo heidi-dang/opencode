@@ -110,6 +110,13 @@ function parsePlan(text: string): TaskState["checklist"] {
       if (m && m[1] !== "TBD") items.push({ id: `verify-${items.length}`, label: m[1].trim(), status: "todo", category: "Verify" })
     }
   }
+  const del = text.match(/## Files to delete\s*\n([\s\S]*?)(?=##|$)/)
+  if (del) {
+    for (const line of del[1].split("\n")) {
+      const m = line.match(/^\s*-\s+(.+?)\s*(?:\(Delete\))?\s*$/)
+      if (m && m[1] !== "TBD" && m[1] !== "TBD (Delete)") items.push({ id: `del-${items.length}`, label: m[1].trim(), status: "todo", category: "Delete" })
+    }
+  }
   return items
 }
 
