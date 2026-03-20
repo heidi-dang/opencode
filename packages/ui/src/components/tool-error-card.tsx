@@ -52,7 +52,12 @@ export function ToolErrorCard(props: ToolErrorCardProps) {
   })
   const isWarning = createMemo(() => {
     const msg = cleaned().toLowerCase()
-    return msg.includes("verification gate failed") || msg.includes("plan incomplete") || msg.includes("plan drift detected")
+    return (
+      msg.includes("verification gate failed") ||
+      msg.includes("plan incomplete") ||
+      msg.includes("plan drift detected") ||
+      msg.includes("invalid transition")
+    )
   })
 
   const subtitle = createMemo(() => {
@@ -65,7 +70,20 @@ export function ToolErrorCard(props: ToolErrorCardProps) {
   })
 
   const body = createMemo(() => {
-    const parts = tail().split(": ")
+    const raw = tail()
+    // Try to parse Zod error JSON
+    if (raw.startsWith("[") && raw.endsWith("]")) {
+      try {
+        const parsed = JSON.parse(raw)
+        if (Array.isArray(parsed) && parsed[0]?.code === "invalid_type") {
+          const first = parsed[0]
+          const field = Array.isArray(first.path) ? first.path.join(".") : "input"
+          return i18n.t("ui.toolErrorCard.missingField", { field }) || `Heidi missed a required field: ${field}`
+        }
+      } catch {}
+    }
+
+    const parts = raw.split(": ")
     if (parts.length <= 1) return cleaned()
     return parts.slice(1).join(": ").trim() || cleaned()
   })
