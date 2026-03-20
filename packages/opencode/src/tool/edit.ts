@@ -56,15 +56,9 @@ export const EditTool = Tool.define("edit", {
     replaceAll: z.boolean().optional().describe("Replace all occurrences of oldString (default false)"),
   }),
   async execute(params, ctx) {
-    const state = await HeidiState.ensure(ctx.sessionID, "")
     const filePath = path.isAbsolute(params.filePath) ? params.filePath : path.join(Instance.directory, params.filePath)
-    const isSessionFile = filePath.includes(".opencode/heidi")
-    const agent = await Agent.resolve(ctx.agent)
-    
-    if (state.fsm_state !== "EXECUTION" && state.fsm_state !== "VERIFICATION" && agent?.mode !== "subagent" && !isSessionFile) {
-      throw new Error(`edit is only available in EXECUTION or VERIFICATION. Current state: ${state.fsm_state}`)
-    }
-    await HeidiState.checkPlanDrift(ctx.sessionID)
+    await HeidiState.assertExecution(ctx, filePath)
+    const state = await HeidiState.read(ctx.sessionID)
 
     if (!params.filePath) {
       throw new Error("filePath is required")

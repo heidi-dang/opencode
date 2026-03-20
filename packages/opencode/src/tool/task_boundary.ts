@@ -42,8 +42,11 @@ export const TaskBoundaryTool = Tool.define("task_boundary", {
   async execute(params, ctx) {
     const objective = params.action === "start" ? (params.objective ?? "") : ""
     const state = await HeidiState.ensure(ctx.sessionID, objective)
+    if (params.action === "mark_item" && (!params.id || !params.status)) {
+      throw new Error("mark_item requires both 'id' and 'status' parameters")
+    }
     const payload = params.payload ?? {
-      objective: params.objective,
+      objective: params.objective ?? (params.action === "start" ? (objective || undefined) : undefined),
       mode: params.mode,
       id: params.id,
       status: params.status,

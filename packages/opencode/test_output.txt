@@ -1,0 +1,44 @@
+bun test v1.3.10 (30e609e0)
+
+test/heidi/consistency.test.ts:
+(pass) fsm consistency > edit is blocked in DISCOVERY [101.00ms]
+(pass) fsm consistency > write is blocked in DISCOVERY [35.00ms]
+(pass) fsm consistency > replace_file_content is blocked in DISCOVERY [47.00ms]
+(pass) fsm consistency > apply_patch is blocked in DISCOVERY [40.00ms]
+(pass) fsm consistency > begin_execution with incomplete plan gives structured errors [35.00ms]
+71 | 
+72 |       const assert = Effect.fn("FileTime.assert")(function* (sessionID: SessionID, filepath: string) {
+73 |         if (disableCheck) return
+74 | 
+75 |         const time = reads.get(sessionID)?.get(filepath)
+76 |         if (!time) throw new Error(`You must read file ${filepath} before overwriting it. Use the Read tool first`)
+                                  ^
+error: You must read file /tmp/opencode-test-zl1wabmq0m/test.txt before overwriting it. Use the Read tool first
+      at /home/heidi/work/opencode-main/packages/opencode/src/file/time.ts:76:30
+      at ~effect/Effect/successCont (/home/heidi/work/opencode-main/node_modules/.bun/effect@4.0.0-beta.35/node_modules/effect/dist/internal/effect.js:913:22)
+      at runLoop (/home/heidi/work/opencode-main/node_modules/.bun/effect@4.0.0-beta.35/node_modules/effect/dist/internal/effect.js:420:66)
+      at evaluate (/home/heidi/work/opencode-main/node_modules/.bun/effect@4.0.0-beta.35/node_modules/effect/dist/internal/effect.js:380:14)
+      at /home/heidi/work/opencode-main/node_modules/.bun/effect@4.0.0-beta.35/node_modules/effect/dist/internal/effect.js:2501:6
+      at /home/heidi/work/opencode-main/node_modules/.bun/effect@4.0.0-beta.35/node_modules/effect/dist/internal/effect.js:2569:16
+      at /home/heidi/work/opencode-main/node_modules/.bun/effect@4.0.0-beta.35/node_modules/effect/dist/internal/effect.js:2580:5
+      at assert (/home/heidi/work/opencode-main/packages/opencode/src/file/time.ts:104:12)
+      at /home/heidi/work/opencode-main/packages/opencode/src/tool/edit.ts:133:13
+      at ~effect/Utils/internal (/home/heidi/work/opencode-main/node_modules/.bun/effect@4.0.0-beta.35/node_modules/effect/dist/Utils.js:75:14)
+      at /home/heidi/work/opencode-main/node_modules/.bun/effect@4.0.0-beta.35/node_modules/effect/dist/internal/effect.js:694:9
+      at ~effect/Effect/evaluate (/home/heidi/work/opencode-main/node_modules/.bun/effect@4.0.0-beta.35/node_modules/effect/dist/internal/effect.js:727:17)
+      at runLoop (/home/heidi/work/opencode-main/node_modules/.bun/effect@4.0.0-beta.35/node_modules/effect/dist/internal/effect.js:420:66)
+      at evaluate (/home/heidi/work/opencode-main/node_modules/.bun/effect@4.0.0-beta.35/node_modules/effect/dist/internal/effect.js:380:14)
+      at /home/heidi/work/opencode-main/node_modules/.bun/effect@4.0.0-beta.35/node_modules/effect/dist/internal/effect.js:732:11
+      at doneUnsafe (/home/heidi/work/opencode-main/node_modules/.bun/effect@4.0.0-beta.35/node_modules/effect/dist/Deferred.js:437:20)
+      at evaluate (/home/heidi/work/opencode-main/node_modules/.bun/effect@4.0.0-beta.35/node_modules/effect/dist/internal/effect.js:397:21)
+      at /home/heidi/work/opencode-main/node_modules/.bun/effect@4.0.0-beta.35/node_modules/effect/dist/internal/effect.js:732:11
+      at /home/heidi/work/opencode-main/node_modules/.bun/effect@4.0.0-beta.35/node_modules/effect/dist/internal/effect.js:2271:10
+      at evaluate (/home/heidi/work/opencode-main/node_modules/.bun/effect@4.0.0-beta.35/node_modules/effect/dist/internal/effect.js:397:21)
+      at /home/heidi/work/opencode-main/node_modules/.bun/effect@4.0.0-beta.35/node_modules/effect/dist/internal/effect.js:732:11
+      at processTicksAndRejections (unknown:7:39)
+(fail) fsm consistency > valid transition allows editing [82.00ms]
+
+ 5 pass
+ 1 fail
+ 5 expect() calls
+Ran 6 tests across 1 file. [1289.00ms]

@@ -7,6 +7,8 @@ import { SessionID } from "@/session/schema"
 import { TaskState, VerifyState, ResumeState } from "./schema"
 import { Instance } from "@/project/instance"
 import { HeidiContext } from "./context"
+import { Tool } from "@/tool/tool"
+import { Log } from "@/util/log"
 
 const StateMode = {
   IDLE: "PLANNING",
@@ -19,13 +21,15 @@ const StateMode = {
   BLOCKED: "PLANNING",
 } as const satisfies Record<TaskState["fsm_state"], TaskState["mode"]>
 
+const log = Log.create({ service: "heidi.state" })
+
 const PLAN_SECTIONS = [
   "Background and discovered repo facts",
   "Scope",
   "Files to modify",
   "Change strategy by component",
   "Verification plan",
-]
+] as const
 
 function root(sessionID: SessionID) {
   try {
@@ -80,25 +84,19 @@ async function syncctx(sessionID: SessionID) {
 }
 
 function validatePlan(text: string) {
-  const tbd = PLAN_SECTIONS.filter((s) => {
-    const re = new RegExp(`## ${s}\\s*\\n([\\s\\S]*?)(?=##|$)`)
-    const match = text.match(re)
-    if (!match) return true
-    const body = match[1]?.trim() ?? ""
-    if (!body) return true
-    if (/^none$/im.test(body)) return false
-    return /^\s*-?\s*TBD/im.test(body)
-  })
-  if (tbd.length > 0) throw new Error(`Plan incomplete — sections still TBD: ${tbd.join(", ")}`)
+  const issues = planIssues(text)
+  if (issues.length > 0) {
+    throw new Error(`Plan incomplete — the following sections are missing or contain TBD: ${issues.join(", ")}`)
+  }
 }
 
 function planIssues(text: string) {
   return PLAN_SECTIONS.filter((s) => {
-    const re = new RegExp(`## ${s}\\s*\\n([\\s\\S]*?)(?=##|$)`)
+    const re = new RegExp(`## ${s}\\s*\\n([\\s\\S]*?)(?=##|$)`, "i")
     const match = text.match(re)
     if (!match) return true
     const body = match[1]?.trim() ?? ""
-    if (!body) return true
+    if (!body || body === "- TBD" || body === "TBD") return true
     if (/^none$/im.test(body)) return false
     return /^\s*-?\s*TBD/im.test(body)
   })
@@ -390,9 +388,31 @@ export namespace HeidiState {
     const state = await read(sessionID)
     const plan = await Filesystem.readText(planPath(sessionID)).catch(() => "")
     if (state.plan.locked && state.plan.hash && hash(plan) !== state.plan.hash) {
-      throw new Error("plan-lock drift detected: plan has changed after lock")
+      log.warn("plan drift detected", { sessionID, expected: state.plan.hash, actual: hash(plan) })
+      throw new Error("plan-lock drift detected: implementation plan has been modified after lock. Re-lock the plan if these changes were intentional.")
     }
     return true
+  }
+
+  export async function assertExecution(ctx: Tool.Context, filePath?: string) {
+    const state = await read(ctx.sessionID)
+    const isSessionFile = filePath?.includes(".opencode/heidi") || filePath?.includes(".gemini/antigravity")
+    
+    // 1. Check FSM state
+    if (state.fsm_state !== "EXECUTION" && state.fsm_state !== "VERIFICATION" && !isSessionFile) {
+      throw new Error(`Execution blocked: ${ctx.callID ?? "tool"} requires EXECUTION or VERIFICATION state. Current state: ${state.fsm_state}. Ensure the implementation plan is complete and begin execution first.`)
+    }
+
+    // 2. Check plan completeness and drift
+    if ((state.fsm_state === "EXECUTION" || state.fsm_state === "VERIFICATION") && !isSessionFile) {
+      const plan = await planStatus(ctx.sessionID)
+      if (!plan.ready) {
+        throw new Error(`Execution blocked: Implementation plan is incomplete. Missing or TBD sections: ${plan.missing.join(", ")}`)
+      }
+      await checkPlanDrift(ctx.sessionID)
+    }
+
+    log.info("preflight passed", { callID: ctx.callID, state: state.fsm_state, file: filePath })
   }
 
   export async function writeResume(sessionID: SessionID, resume: ResumeState) {

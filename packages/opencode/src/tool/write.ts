@@ -35,15 +35,9 @@ export const WriteTool = Tool.define("write", {
     filePath: z.string().describe("The absolute path to the file to write (must be absolute, not relative)"),
   }),
   async execute(params, ctx) {
-    const state = await HeidiState.ensure(ctx.sessionID, "")
     const filepath = path.isAbsolute(params.filePath) ? params.filePath : path.join(Instance.directory, params.filePath)
-    const isSessionFile = filepath.includes(".opencode/heidi")
-    const agent = await Agent.resolve(ctx.agent)
-
-    if (state.fsm_state !== "EXECUTION" && state.fsm_state !== "VERIFICATION" && agent?.mode !== "subagent" && !isSessionFile) {
-      throw new Error(`write is only available in EXECUTION or VERIFICATION. Current state: ${state.fsm_state}`)
-    }
-    await HeidiState.checkPlanDrift(ctx.sessionID)
+    await HeidiState.assertExecution(ctx, filepath)
+    const state = await HeidiState.read(ctx.sessionID)
     HeidiJail.assert(filepath)
     await assertExternalDirectory(ctx, filepath)
     assertOwnership(ctx, filepath)

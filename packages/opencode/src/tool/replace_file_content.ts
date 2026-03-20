@@ -36,9 +36,15 @@ export const ReplaceFileContentTool = Tool.define("replace_file_content", {
     edits: z.array(Item).optional(),
   }),
   async execute(params, ctx) {
-    const state = await HeidiState.ensure(ctx.sessionID, "")
-    if (state.fsm_state !== "EXECUTION" && state.fsm_state !== "VERIFICATION") {
-      throw new Error(`replace_file_content is only available in EXECUTION or VERIFICATION. Current state: ${state.fsm_state}`)
+    const paths = new Set<string>()
+    if (params.path) paths.add(params.path)
+    if (params.edits) {
+      for (const edit of params.edits) {
+        paths.add(edit.path)
+      }
+    }
+    for (const p of paths) {
+      await HeidiState.assertExecution(ctx, p)
     }
 
     const edits =
