@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach } from "bun:test"
+import { describe, test, expect } from "bun:test"
 import path from "path"
 import fs from "fs/promises"
 import { EditTool } from "../../src/tool/edit"
@@ -7,8 +7,6 @@ import { tmpdir } from "../fixture/fixture"
 import { FileTime } from "../../src/file/time"
 import { SessionID, MessageID } from "../../src/session/schema"
 import { enterExecution } from "../fixture/heidi"
-
-import { HeidiState } from "../../src/heidi/state"
 
 const ctx = {
   sessionID: SessionID.make("ses_test-edit-session"),
@@ -21,8 +19,18 @@ const ctx = {
   ask: async () => {},
 }
 
-async function setExecutionState() {
-  await enterExecution(ctx.sessionID, "test edit tool")
+function toolctx(sessionID: SessionID) {
+  return {
+    ...ctx,
+    sessionID,
+  }
+}
+
+async function createCtx(objective = "test edit tool") {
+  const { Session } = await import("../../src/session")
+  const session = await Session.create({})
+  await enterExecution(session.id, objective)
+  return toolctx(session.id)
 }
 
 async function touch(file: string, time: number) {
@@ -65,10 +73,7 @@ describe("tool.edit", () => {
         const orig = await Filesystem.readText(planPath)
         await Filesystem.write(planPath, orig + "\n# DRIFT\n")
         const edit = await EditTool.init()
-        const driftCtx = {
-          ...ctx,
-          sessionID: session.id,
-        }
+        const driftCtx = toolctx(session.id)
         await expect(
           edit.execute(
             {
@@ -82,9 +87,6 @@ describe("tool.edit", () => {
       },
     })
   })
-  beforeEach(async () => {
-    await setExecutionState()
-  })
   describe("creating new files", () => {
     test("creates new file when oldString is empty", async () => {
       await using tmp = await tmpdir()
@@ -93,12 +95,8 @@ describe("tool.edit", () => {
       await Instance.provide({
         directory: tmp.path,
         fn: async () => {
-          const { Session } = await import("../../src/session")
-          const { HeidiState } = await import("../../src/heidi/state")
-          const session = await Session.create({})
-          await enterExecution(session.id, "test edit new file")
+          const testCtx = await createCtx("test edit new file")
           const edit = await EditTool.init()
-          const testCtx = { ...ctx, sessionID: session.id }
           const result = await edit.execute(
             {
               filePath: filepath,
@@ -123,12 +121,8 @@ describe("tool.edit", () => {
       await Instance.provide({
         directory: tmp.path,
         fn: async () => {
-          const { Session } = await import("../../src/session")
-          const { HeidiState } = await import("../../src/heidi/state")
-          const session = await Session.create({})
-          await enterExecution(session.id, "test edit nested dir")
+          const testCtx = await createCtx("test edit nested dir")
           const edit = await EditTool.init()
-          const testCtx = { ...ctx, sessionID: session.id }
           await edit.execute(
             {
               filePath: filepath,
@@ -151,18 +145,14 @@ describe("tool.edit", () => {
       await Instance.provide({
         directory: tmp.path,
         fn: async () => {
-          const { Session } = await import("../../src/session")
-          const { HeidiState } = await import("../../src/heidi/state")
           const { Bus } = await import("../../src/bus")
           const { File } = await import("../../src/file")
           const { FileWatcher } = await import("../../src/file/watcher")
-          const session = await Session.create({})
-          await enterExecution(session.id, "test edit add event")
+          const testCtx = await createCtx("test edit add event")
           const events: string[] = []
           const unsubEdited = Bus.subscribe(File.Event.Edited, () => events.push("edited"))
           const unsubUpdated = Bus.subscribe(FileWatcher.Event.Updated, () => events.push("updated"))
           const edit = await EditTool.init()
-          const testCtx = { ...ctx, sessionID: session.id }
           await edit.execute(
             {
               filePath: filepath,
@@ -190,7 +180,8 @@ describe("tool.edit", () => {
       await Instance.provide({
         directory: tmp.path,
         fn: async () => {
-          await FileTime.read(ctx.sessionID, filepath)
+          const testCtx = await createCtx("test edit replace")
+          await FileTime.read(testCtx.sessionID, filepath)
 
           const edit = await EditTool.init()
           const result = await edit.execute(
@@ -199,7 +190,7 @@ describe("tool.edit", () => {
               oldString: "old content",
               newString: "new content",
             },
-            ctx,
+            testCtx,
           )
 
           expect(result.output).toContain("Edit applied successfully")
@@ -217,7 +208,8 @@ describe("tool.edit", () => {
       await Instance.provide({
         directory: tmp.path,
         fn: async () => {
-          await FileTime.read(ctx.sessionID, filepath)
+          const testCtx = await createCtx("test edit missing file")
+          await FileTime.read(testCtx.sessionID, filepath)
 
           const edit = await EditTool.init()
           await expect(
@@ -227,7 +219,7 @@ describe("tool.edit", () => {
                 oldString: "old",
                 newString: "new",
               },
-              ctx,
+              testCtx,
             ),
           ).rejects.toThrow("not found")
         },
@@ -242,6 +234,7 @@ describe("tool.edit", () => {
       await Instance.provide({
         directory: tmp.path,
         fn: async () => {
+          const testCtx = await createCtx("test edit identical")
           const edit = await EditTool.init()
           await expect(
             edit.execute(
@@ -250,7 +243,7 @@ describe("tool.edit", () => {
                 oldString: "same",
                 newString: "same",
               },
-              ctx,
+              testCtx,
             ),
           ).rejects.toThrow("identical")
         },
@@ -265,7 +258,8 @@ describe("tool.edit", () => {
       await Instance.provide({
         directory: tmp.path,
         fn: async () => {
-          await FileTime.read(ctx.sessionID, filepath)
+          const testCtx = await createCtx("test edit old string missing")
+          await FileTime.read(testCtx.sessionID, filepath)
 
           const edit = await EditTool.init()
           await expect(
@@ -275,7 +269,7 @@ describe("tool.edit", () => {
                 oldString: "not in file",
                 newString: "replacement",
               },
-              ctx,
+              testCtx,
             ),
           ).rejects.toThrow()
         },
@@ -290,6 +284,7 @@ describe("tool.edit", () => {
       await Instance.provide({
         directory: tmp.path,
         fn: async () => {
+          const testCtx = await createCtx("test edit filetime required")
           const edit = await EditTool.init()
           await expect(
             edit.execute(
@@ -298,7 +293,7 @@ describe("tool.edit", () => {
                 oldString: "content",
                 newString: "modified",
               },
-              ctx,
+              testCtx,
             ),
           ).rejects.toThrow("You must read file")
         },
@@ -314,8 +309,9 @@ describe("tool.edit", () => {
       await Instance.provide({
         directory: tmp.path,
         fn: async () => {
+          const testCtx = await createCtx("test edit stale file")
           // Read first
-          await FileTime.read(ctx.sessionID, filepath)
+          await FileTime.read(testCtx.sessionID, filepath)
 
           // Simulate external modification
           await fs.writeFile(filepath, "modified externally", "utf-8")
@@ -330,7 +326,7 @@ describe("tool.edit", () => {
                 oldString: "modified externally",
                 newString: "edited",
               },
-              ctx,
+              testCtx,
             ),
           ).rejects.toThrow("modified since it was last read")
         },
@@ -345,7 +341,8 @@ describe("tool.edit", () => {
       await Instance.provide({
         directory: tmp.path,
         fn: async () => {
-          await FileTime.read(ctx.sessionID, filepath)
+          const testCtx = await createCtx("test edit replace all")
+          await FileTime.read(testCtx.sessionID, filepath)
 
           const edit = await EditTool.init()
           await edit.execute(
@@ -355,7 +352,7 @@ describe("tool.edit", () => {
               newString: "qux",
               replaceAll: true,
             },
-            ctx,
+            testCtx,
           )
 
           const content = await fs.readFile(filepath, "utf-8")
@@ -372,7 +369,8 @@ describe("tool.edit", () => {
       await Instance.provide({
         directory: tmp.path,
         fn: async () => {
-          await FileTime.read(ctx.sessionID, filepath)
+          const testCtx = await createCtx("test edit emits change")
+          await FileTime.read(testCtx.sessionID, filepath)
 
           const { Bus } = await import("../../src/bus")
           const { File } = await import("../../src/file")
@@ -389,7 +387,7 @@ describe("tool.edit", () => {
               oldString: "original",
               newString: "modified",
             },
-            ctx,
+            testCtx,
           )
 
           expect(events).toContain("edited")
@@ -410,7 +408,8 @@ describe("tool.edit", () => {
       await Instance.provide({
         directory: tmp.path,
         fn: async () => {
-          await FileTime.read(ctx.sessionID, filepath)
+          const testCtx = await createCtx("test edit multiline")
+          await FileTime.read(testCtx.sessionID, filepath)
 
           const edit = await EditTool.init()
           await edit.execute(
@@ -419,7 +418,7 @@ describe("tool.edit", () => {
               oldString: "line2",
               newString: "new line 2\nextra line",
             },
-            ctx,
+            testCtx,
           )
 
           const content = await fs.readFile(filepath, "utf-8")
@@ -436,7 +435,8 @@ describe("tool.edit", () => {
       await Instance.provide({
         directory: tmp.path,
         fn: async () => {
-          await FileTime.read(ctx.sessionID, filepath)
+          const testCtx = await createCtx("test edit crlf")
+          await FileTime.read(testCtx.sessionID, filepath)
 
           const edit = await EditTool.init()
           await edit.execute(
@@ -445,7 +445,7 @@ describe("tool.edit", () => {
               oldString: "old",
               newString: "new",
             },
-            ctx,
+            testCtx,
           )
 
           const content = await fs.readFile(filepath, "utf-8")
@@ -462,6 +462,7 @@ describe("tool.edit", () => {
       await Instance.provide({
         directory: tmp.path,
         fn: async () => {
+          const testCtx = await createCtx("test edit empty identical")
           const edit = await EditTool.init()
           await expect(
             edit.execute(
@@ -470,7 +471,7 @@ describe("tool.edit", () => {
                 oldString: "",
                 newString: "",
               },
-              ctx,
+              testCtx,
             ),
           ).rejects.toThrow("identical")
         },
@@ -485,7 +486,8 @@ describe("tool.edit", () => {
       await Instance.provide({
         directory: tmp.path,
         fn: async () => {
-          await FileTime.read(ctx.sessionID, dirpath)
+          const testCtx = await createCtx("test edit directory path")
+          await FileTime.read(testCtx.sessionID, dirpath)
 
           const edit = await EditTool.init()
           await expect(
@@ -495,7 +497,7 @@ describe("tool.edit", () => {
                 oldString: "old",
                 newString: "new",
               },
-              ctx,
+              testCtx,
             ),
           ).rejects.toThrow("directory")
         },
@@ -510,7 +512,8 @@ describe("tool.edit", () => {
       await Instance.provide({
         directory: tmp.path,
         fn: async () => {
-          await FileTime.read(ctx.sessionID, filepath)
+          const testCtx = await createCtx("test edit filediff")
+          await FileTime.read(testCtx.sessionID, filepath)
 
           const edit = await EditTool.init()
           const result = await edit.execute(
@@ -519,7 +522,7 @@ describe("tool.edit", () => {
               oldString: "line2",
               newString: "new line a\nnew line b",
             },
-            ctx,
+            testCtx,
           )
 
           expect(result.metadata.filediff).toBeDefined()
@@ -579,9 +582,10 @@ describe("tool.edit", () => {
       return await Instance.provide({
         directory: tmp.path,
         fn: async () => {
+          const testCtx = await createCtx("test edit line endings")
           const edit = await EditTool.init()
           const filePath = path.join(tmp.path, "test.txt")
-          await FileTime.read(ctx.sessionID, filePath)
+          await FileTime.read(testCtx.sessionID, filePath)
           await edit.execute(
             {
               filePath,
@@ -589,7 +593,7 @@ describe("tool.edit", () => {
               newString: input.newString,
               replaceAll: input.replaceAll,
             },
-            ctx,
+            testCtx,
           )
           return await Bun.file(filePath).text()
         },
@@ -722,7 +726,8 @@ describe("tool.edit", () => {
       await Instance.provide({
         directory: tmp.path,
         fn: async () => {
-          await FileTime.read(ctx.sessionID, filepath)
+          const testCtx = await createCtx("test edit concurrent")
+          await FileTime.read(testCtx.sessionID, filepath)
 
           const edit = await EditTool.init()
 
@@ -733,11 +738,11 @@ describe("tool.edit", () => {
               oldString: "0",
               newString: "1",
             },
-            ctx,
+            testCtx,
           )
 
           // Need to read again since FileTime tracks per-session
-          await FileTime.read(ctx.sessionID, filepath)
+          await FileTime.read(testCtx.sessionID, filepath)
 
           const promise2 = edit.execute(
             {
@@ -745,7 +750,7 @@ describe("tool.edit", () => {
               oldString: "0",
               newString: "2",
             },
-            ctx,
+            testCtx,
           )
 
           // Both should complete without error (though one might fail due to content mismatch)

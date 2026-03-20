@@ -7,6 +7,7 @@ import { HeidiState } from "../../src/heidi/state"
 import { Filesystem } from "../../src/util/filesystem"
 import { TaskBoundaryTool } from "../../src/tool/task_boundary"
 import { MessageID } from "../../src/session/schema"
+import { enterVerification } from "../fixture/heidi"
 
 describe("heidi boundary", () => {
   test("valid lifecycle writes artifacts", async () => {
@@ -15,41 +16,7 @@ describe("heidi boundary", () => {
       directory: tmp.path,
       fn: async () => {
         const session = await Session.create({})
-        await HeidiBoundary.apply({
-          run_id: "run-1",
-          task_id: session.id,
-          action: "start",
-          payload: { objective: "Ship heidi runtime" },
-        })
-        let state = await HeidiState.read(session.id)
-        state.objective.text = "Ship heidi runtime"
-        await HeidiState.write(session.id, state)
-        await HeidiBoundary.apply({
-          run_id: "run-1",
-          task_id: session.id,
-          action: "lock_plan",
-          payload: {},
-        })
-        state = await HeidiState.read(session.id)
-        state.checklist.push({
-          id: "c1",
-          label: "implement",
-          status: "done",
-          category: "Modify",
-        })
-        await HeidiState.write(session.id, state)
-        await HeidiBoundary.apply({
-          run_id: "run-1",
-          task_id: session.id,
-          action: "begin_execution",
-          payload: {},
-        })
-        await HeidiBoundary.apply({
-          run_id: "run-1",
-          task_id: session.id,
-          action: "request_verification",
-          payload: {},
-        })
+        await enterVerification(session.id, "Ship heidi runtime")
         await HeidiState.writeVerification(session.id, {
           task_id: session.id,
           status: "pass",

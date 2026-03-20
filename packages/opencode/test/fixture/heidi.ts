@@ -28,13 +28,7 @@ export async function enterExecution(sessionID: SessionID, objective: string) {
 }
 
 export async function enterVerification(sessionID: SessionID, objective: string) {
-  await startTask(sessionID, objective)
-  await HeidiBoundary.apply({
-    run_id: `run-${sessionID}`,
-    task_id: sessionID,
-    action: "lock_plan",
-    payload: {},
-  })
+  await enterExecution(sessionID, objective)
   const state = await HeidiState.read(sessionID)
   state.checklist = [{ id: "1", label: "do thing", status: "done", category: "Modify" }]
   await HeidiState.write(sessionID, state)
@@ -44,4 +38,9 @@ export async function enterVerification(sessionID: SessionID, objective: string)
     action: "request_verification",
     payload: {},
   })
+}
+
+export async function startAndRead(sessionID: SessionID, objective: string) {
+  await startTask(sessionID, objective)
+  return HeidiState.read(sessionID)
 }

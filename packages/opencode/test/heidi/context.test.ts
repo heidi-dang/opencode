@@ -8,6 +8,7 @@ import { HeidiContext } from "../../src/heidi/context"
 import { HeidiMemory } from "../../src/heidi/memory"
 import { Filesystem } from "../../src/util/filesystem"
 import { MessageID, PartID, SessionID } from "../../src/session/schema"
+import { enterExecution } from "../fixture/heidi"
 
 describe("heidi context", () => {
   test("writes canonical context with resume and long-term memory", async () => {
@@ -16,16 +17,19 @@ describe("heidi context", () => {
       directory: tmp.path,
       fn: async () => {
         const session = await Session.create({})
-        const state = await HeidiState.ensure(session.id, "Ship context")
-        state.fsm_state = "EXECUTION"
-        state.mode = "EXECUTION"
+        await enterExecution(session.id, "Ship context")
+        const state = await HeidiState.read(session.id)
         state.active_files = ["src/a.ts"]
         state.changed_files = ["src/a.ts"]
         state.resume.next_step = "patch"
         state.verification_commands = ["bun test"]
         await HeidiState.write(session.id, state)
         await HeidiMemory.add(session.id, { type: "fact", key: "ctx", content: "context memory exists" })
-        await HeidiMemory.add(SessionID.make("ses_other"), { type: "fact", key: "other", content: "other session memory" })
+        await HeidiMemory.add(SessionID.make("ses_other"), {
+          type: "fact",
+          key: "other",
+          content: "other session memory",
+        })
         await Session.updateMessage({
           id: MessageID.ascending(),
           sessionID: session.id,
@@ -60,7 +64,14 @@ describe("heidi context", () => {
           evidence: { changed_files: ["src/a.ts"], command_summary: ["bun typecheck"], before_after: "ok" },
           warnings: [],
           remediation: [],
-          browser: { required: true, status: "pass", screenshots: [], html: [], console_errors: [], network_failures: [] },
+          browser: {
+            required: true,
+            status: "pass",
+            screenshots: [],
+            html: [],
+            console_errors: [],
+            network_failures: [],
+          },
         })
         const ctx = await HeidiContext.write(session.id)
         expect(ctx.objective).toBe("Ship context")
