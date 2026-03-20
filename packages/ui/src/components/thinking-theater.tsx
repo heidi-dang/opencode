@@ -1,52 +1,38 @@
 import { createSignal, createEffect, createMemo, onCleanup, For, Show } from "solid-js"
 import { TextShimmer } from "./text-shimmer"
-import { scenes, SUBTEXTS, THOUGHT_CHIPS, type Phase } from "../lib/thinking-wording"
+import { sceneAt, subtextAt, chipSet, type Phase } from "../lib/thinking-wording"
 import { HeidiOrb } from "./heidi-orb"
 import "./thinking-theater.css"
 
 export function ThinkingTheater(props: { phase: Phase; heading?: string | null }) {
-  // Scene rotation — every 5s
   const [idx, setIdx] = createSignal(0)
   const [sub, setSub] = createSignal(0)
   const [chips, setChips] = createSignal<string[]>([])
   const [mobile, setMobile] = createSignal(false)
 
-  // Rotate main scene
+  // Rotate main scene title every ~5s
   createEffect(() => {
-    const list = scenes(props.phase)
+    const list = sceneAt(props.phase, 0).split(" ")
     const timer = setInterval(() => {
-      setIdx((i) => (i + 1) % list.length)
+      setIdx((i) => i + 1)
     }, 5000)
     onCleanup(() => clearInterval(timer))
   })
 
-  // Rotate subtext
+  // Rotate subtext every ~3.5s
   createEffect(() => {
     const timer = setInterval(() => {
-      setSub((i) => (i + 1) % SUBTEXTS.length)
+      setSub((i) => i + 1)
     }, 3500)
     onCleanup(() => clearInterval(timer))
   })
 
-  // Pop thought chips
+  // Deterministic chip selection — refreshed when phase changes
   createEffect(() => {
-    const timer = setInterval(() => {
-      const pool = THOUGHT_CHIPS
-      const pick = pool[Math.floor(Math.random() * pool.length)]
-      setChips((prev) => {
-        const next = [...prev, pick].slice(-8)
-        return next
-      })
-    }, 2800)
-    onCleanup(() => clearInterval(timer))
-  })
-
-  // Fade out old chips
-  createEffect(() => {
-    const timer = setInterval(() => {
-      setChips((prev) => prev.slice(1))
-    }, 5200)
-    onCleanup(() => clearInterval(timer))
+    const phase = props.phase
+    const seed = phase.length + phase.charCodeAt(0)
+    const next = chipSet(phase, seed, 8)
+    setChips(next)
   })
 
   // Mobile-specific layout constraints for iPhone-sized widths.
@@ -60,12 +46,11 @@ export function ThinkingTheater(props: { phase: Phase; heading?: string | null }
     onCleanup(() => query.removeEventListener("change", sync))
   })
 
-  const scene = () => {
-    const list = scenes(props.phase)
-    return list[idx() % list.length]
+  const title = () => sceneAt(props.phase, idx())
+  const subtitle = () => {
+    if (props.heading?.trim()) return props.heading.trim()
+    return subtextAt(props.phase, sub())
   }
-
-  const subtext = () => SUBTEXTS[sub() % SUBTEXTS.length]
 
   // Chip overflow logic used by doctor checks.
   const rendered = createMemo(() => {
@@ -75,16 +60,6 @@ export function ThinkingTheater(props: { phase: Phase; heading?: string | null }
     if (list.length <= max) return list
     const rest = list.length - (max - 1)
     return [...list.slice(0, max - 1), `+${rest} more`]
-  })
-
-  const subtitle = createMemo(() => {
-    if (!props.heading?.trim()) return subtext()
-    return props.heading.trim()
-  })
-
-  const detail = createMemo(() => {
-    if (!props.heading?.trim()) return undefined
-    return subtext()
   })
 
   return (
@@ -101,11 +76,10 @@ export function ThinkingTheater(props: { phase: Phase; heading?: string | null }
             row 4: optional live strip */}
         <div data-slot="theater-main">
           <div data-slot="theater-title">
-            <TextShimmer text={scene()} active />
+            <TextShimmer text={title()} active />
           </div>
           <div data-slot="theater-subtext">
             <span>{subtitle()}</span>
-            <Show when={detail()}>{(text) => <span data-slot="theater-subhint">{text()}</span>}</Show>
           </div>
           {/* Chip overflow logic: on narrow mobile keep at most two visual rows by
               capping entries and replacing hidden items with a +N token. */}
