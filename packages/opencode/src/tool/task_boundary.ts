@@ -17,12 +17,17 @@ export const TaskBoundaryTool = Tool.define("task_boundary", {
       "request_verification",
       "block",
       "complete",
+      "add_items",
     ]),
     objective: z.string().trim().optional(),
     mode: z.enum(["PLANNING", "EXECUTION", "VERIFICATION"]).optional(),
     id: z.string().optional(),
     status: z.enum(["todo", "doing", "done", "blocked"]).optional(),
     reason: z.string().trim().optional(),
+    items: z.array(z.object({
+      label: z.string().min(1),
+      category: z.enum(["Modify", "New", "Delete", "Verify"]),
+    })).optional(),
     payload: z.any().optional(), // backward compatibility if needed
     run_id: z.string().optional(),
     task_id: z.string().regex(/^ses.*/).optional(),
@@ -36,6 +41,7 @@ export const TaskBoundaryTool = Tool.define("task_boundary", {
       id: params.id,
       status: params.status,
       reason: params.reason,
+      items: params.items,
     }
     const result = await HeidiBoundary.apply({
       action: params.action as any,

@@ -90,6 +90,17 @@ const Request = z.discriminatedUnion("action", [
     payload: z.object({ reason: z.string().trim().min(1) }),
   }),
   z.object({ run_id: z.string().optional(), task_id: SessionID.zod, action: z.literal("complete"), payload: Empty }),
+  z.object({
+    run_id: z.string().optional(),
+    task_id: SessionID.zod,
+    action: z.literal("add_items"),
+    payload: z.object({
+      items: z.array(z.object({
+        label: z.string().min(1),
+        category: z.enum(["Modify", "New", "Delete", "Verify"]),
+      })).min(1),
+    }),
+  }),
 ])
 
 const Response = z.object({
@@ -150,6 +161,16 @@ export namespace HeidiBoundary {
       run_id: z.string().optional(),
     }),
     z.object({ action: z.literal("complete"), payload: Empty, run_id: z.string().optional() }),
+    z.object({
+      action: z.literal("add_items"),
+      payload: z.object({
+        items: z.array(z.object({
+          label: z.string().min(1),
+          category: z.enum(["Modify", "New", "Delete", "Verify"]),
+        })).min(1),
+      }),
+      run_id: z.string().optional(),
+    }),
   ])
   export const Output = Response
 
@@ -172,6 +193,9 @@ export namespace HeidiBoundary {
     const state = await HeidiState.ensure(req.task_id, req.action === "start" ? req.payload.objective : "")
 
     if (req.action === "start") {
+      if (!req.payload.objective.trim()) {
+        throw new Error("Cannot start a task with an empty objective.")
+      }
       state.run_id = req.run_id || state.run_id || Identifier.ascending("tool")
       state.objective.text = req.payload.objective
       move(state, "DISCOVERY")
@@ -192,6 +216,18 @@ export namespace HeidiBoundary {
       if (!found) throw new Error(`Checklist item not found: ${req.payload.id}`)
       found.status = req.payload.status
       state.last_successful_step = `mark_item:${req.payload.id}`
+    }
+
+    if (req.action === "add_items") {
+      for (const item of req.payload.items) {
+        state.checklist.push({
+          id: `manual-${state.checklist.length}`,
+          label: item.label,
+          status: "todo",
+          category: item.category,
+        })
+      }
+      state.last_successful_step = "add_items"
     }
 
     if (req.action === "lock_plan") {

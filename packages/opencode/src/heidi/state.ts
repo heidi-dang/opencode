@@ -71,6 +71,48 @@ async function syncctx(sessionID: SessionID) {
   await HeidiContext.sync(sessionID)
 }
 
+function validatePlan(text: string) {
+  const sections = [
+    "Background and discovered repo facts",
+    "Scope",
+    "Files to modify",
+    "Change strategy by component",
+    "Verification plan",
+  ]
+  const tbd = sections.filter((s) => {
+    const re = new RegExp(`## ${s}\\s*\n[\\s\\S]*?(?=##|$)`)
+    const match = text.match(re)
+    return !match || /^\s*-?\s*TBD/m.test(match[0].split("\n").slice(1).join("\n"))
+  })
+  if (tbd.length > 0) throw new Error(`Plan incomplete — sections still TBD: ${tbd.join(", ")}`)
+}
+
+function parsePlan(text: string): TaskState["checklist"] {
+  const items: TaskState["checklist"] = []
+  const modify = text.match(/## Files to modify\s*\n([\s\S]*?)(?=##|$)/)
+  if (modify) {
+    for (const line of modify[1].split("\n")) {
+      const m = line.match(/^\s*-\s+(.+?)\s*(?:\(Modify\))?\s*$/)
+      if (m && m[1] !== "TBD" && m[1] !== "TBD (Modify)") items.push({ id: `mod-${items.length}`, label: m[1].trim(), status: "todo", category: "Modify" })
+    }
+  }
+  const create = text.match(/## Files to create\s*\n([\s\S]*?)(?=##|$)/)
+  if (create) {
+    for (const line of create[1].split("\n")) {
+      const m = line.match(/^\s*-\s+(.+?)\s*(?:\(New\))?\s*$/)
+      if (m && m[1] !== "TBD" && m[1] !== "TBD (New)") items.push({ id: `new-${items.length}`, label: m[1].trim(), status: "todo", category: "New" })
+    }
+  }
+  const verify = text.match(/## Verification plan\s*\n([\s\S]*?)(?=##|$)/)
+  if (verify) {
+    for (const line of verify[1].split("\n")) {
+      const m = line.match(/^\s*-\s+(.+)$/)
+      if (m && m[1] !== "TBD") items.push({ id: `verify-${items.length}`, label: m[1].trim(), status: "todo", category: "Verify" })
+    }
+  }
+  return items
+}
+
 function render(state: TaskState) {
   const out = [] as string[]
   out.push(`# Heidi Task: ${state.task_id}`)
@@ -226,7 +268,11 @@ export namespace HeidiState {
 
   export async function setPlanHash(sessionID: SessionID) {
     const state = await read(sessionID)
-    state.plan.hash = hash(await Filesystem.readText(planPath(sessionID)).catch(() => ""))
+    const text = await Filesystem.readText(planPath(sessionID)).catch(() => "")
+    validatePlan(text)
+    const items = parsePlan(text)
+    if (items.length > 0) state.checklist = items
+    state.plan.hash = hash(text)
     await write(sessionID, state)
     return state
   }
