@@ -2,6 +2,7 @@ import { createSignal, createEffect, onCleanup, For, Show } from "solid-js"
 import { TextShimmer } from "./text-shimmer"
 import { scenes, SUBTEXTS, THOUGHT_CHIPS, type Phase } from "../lib/thinking-wording"
 import { HeidiOrb } from "./heidi-orb"
+import "./thinking-theater.css"
 
 export function ThinkingTheater(props: {
   phase: Phase

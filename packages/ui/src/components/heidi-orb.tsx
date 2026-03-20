@@ -1,4 +1,5 @@
 import type { Phase } from "../lib/thinking-wording"
+import "./heidi-orb.css"
 
 export function HeidiOrb(props: { phase: Phase }) {
   return (
