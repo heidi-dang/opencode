@@ -223,16 +223,16 @@ function UsageBlock(props: { usage?: { tokens?: number; cost?: number; provider?
     return `${t}`
   }
 
-  const isCopilot = () => props.usage?.provider?.includes("github-copilot")
+  const isCopilot = () => {
+    const p = props.usage?.provider?.toLowerCase() ?? ""
+    return p.includes("copilot") || p.includes("github")
+  }
 
   const costValue = () => {
     if (!props.usage) return ""
     if (isCopilot()) {
-      const t = props.usage.tokens ?? 0
-      if (t === 0) return ""
-      // Simulated: 1 PR per 1000 tokens, 50 PR limit
-      const prUsed = t / 1000
-      return `${Math.min(100, (prUsed / 50) * 100).toFixed(1)}% PR`
+      // User specifically requested the PR metric show 0.00% for Copilot
+      return "0.00% PR"
     }
     const c = props.usage.cost ?? 0
     if (c === 0 && (props.usage.tokens ?? 0) > 0) return "<$0.01"
@@ -241,9 +241,8 @@ function UsageBlock(props: { usage?: { tokens?: number; cost?: number; provider?
 
   const prPercent = () => {
     if (!isCopilot()) return 0
-    const t = props.usage?.tokens ?? 0
-    const prUsed = t / 1000
-    return Math.min(100, (prUsed / 50) * 100)
+    // Force 0% as requested for the visual bar too
+    return 0
   }
 
   return (
@@ -253,7 +252,7 @@ function UsageBlock(props: { usage?: { tokens?: number; cost?: number; provider?
         <div data-slot="usage-cost">{costValue()}</div>
         <Show when={isCopilot()}>
           <div data-slot="usage-pr-progress">
-            <div data-slot="usage-pr-bar" style={{ width: `${prPercent()}%` }} title={`${prPercent().toFixed(1)}%`} />
+            <div data-slot="usage-pr-bar" style={{ width: `${prPercent()}%` }} title="0.00% Premium Requests" />
           </div>
         </Show>
       </div>
