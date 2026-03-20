@@ -3,7 +3,7 @@ import { Bus } from "@/bus"
 import z from "zod"
 import { SessionID } from "@/session/schema"
 import { HeidiState } from "./state"
-import { Mode, FsmState, TaskState, VerifyState } from "./schema"
+import { Mode, FsmState, TaskState } from "./schema"
 import { Identifier } from "@/id/id"
 import { HeidiVerify } from "./verify"
 
@@ -43,22 +43,54 @@ const StateMode: Record<z.infer<typeof FsmState>, z.infer<typeof Mode>> = {
   BLOCKED: "PLANNING",
 }
 
-const Request = z.object({
-  run_id: z.string().optional(),
-  task_id: SessionID.zod,
-  action: z.enum([
-    "start",
-    "set_mode",
-    "mark_item",
-    "lock_plan",
-    "reopen_plan",
-    "begin_execution",
-    "request_verification",
-    "block",
-    "complete",
-  ]),
-  payload: z.record(z.string(), z.unknown()).default({}),
-})
+const Empty = z.object({}).default({})
+
+const Request = z.discriminatedUnion("action", [
+  z.object({
+    run_id: z.string().optional(),
+    task_id: SessionID.zod,
+    action: z.literal("start"),
+    payload: z.object({ objective: z.string().trim().min(1) }),
+  }),
+  z.object({
+    run_id: z.string().optional(),
+    task_id: SessionID.zod,
+    action: z.literal("set_mode"),
+    payload: z.object({ mode: Mode }),
+  }),
+  z.object({
+    run_id: z.string().optional(),
+    task_id: SessionID.zod,
+    action: z.literal("mark_item"),
+    payload: z.object({ id: z.string().min(1), status: z.enum(["todo", "doing", "done", "blocked"]) }),
+  }),
+  z.object({ run_id: z.string().optional(), task_id: SessionID.zod, action: z.literal("lock_plan"), payload: Empty }),
+  z.object({
+    run_id: z.string().optional(),
+    task_id: SessionID.zod,
+    action: z.literal("reopen_plan"),
+    payload: z.object({ reason: z.string().trim().min(1) }),
+  }),
+  z.object({
+    run_id: z.string().optional(),
+    task_id: SessionID.zod,
+    action: z.literal("begin_execution"),
+    payload: Empty,
+  }),
+  z.object({
+    run_id: z.string().optional(),
+    task_id: SessionID.zod,
+    action: z.literal("request_verification"),
+    payload: Empty,
+  }),
+  z.object({
+    run_id: z.string().optional(),
+    task_id: SessionID.zod,
+    action: z.literal("block"),
+    payload: z.object({ reason: z.string().trim().min(1) }),
+  }),
+  z.object({ run_id: z.string().optional(), task_id: SessionID.zod, action: z.literal("complete"), payload: Empty }),
+])
 
 const Response = z.object({
   ok: z.boolean(),
@@ -92,6 +124,33 @@ export namespace HeidiBoundary {
   }
 
   export const Input = Request
+  export const ClientInput = z.discriminatedUnion("action", [
+    z.object({
+      action: z.literal("start"),
+      payload: z.object({ objective: z.string().trim().min(1) }),
+      run_id: z.string().optional(),
+    }),
+    z.object({ action: z.literal("set_mode"), payload: z.object({ mode: Mode }), run_id: z.string().optional() }),
+    z.object({
+      action: z.literal("mark_item"),
+      payload: z.object({ id: z.string().min(1), status: z.enum(["todo", "doing", "done", "blocked"]) }),
+      run_id: z.string().optional(),
+    }),
+    z.object({ action: z.literal("lock_plan"), payload: Empty, run_id: z.string().optional() }),
+    z.object({
+      action: z.literal("reopen_plan"),
+      payload: z.object({ reason: z.string().trim().min(1) }),
+      run_id: z.string().optional(),
+    }),
+    z.object({ action: z.literal("begin_execution"), payload: Empty, run_id: z.string().optional() }),
+    z.object({ action: z.literal("request_verification"), payload: Empty, run_id: z.string().optional() }),
+    z.object({
+      action: z.literal("block"),
+      payload: z.object({ reason: z.string().trim().min(1) }),
+      run_id: z.string().optional(),
+    }),
+    z.object({ action: z.literal("complete"), payload: Empty, run_id: z.string().optional() }),
+  ])
   export const Output = Response
 
   function move(state: TaskState, next: z.infer<typeof FsmState>) {
@@ -108,13 +167,13 @@ export namespace HeidiBoundary {
     if (missing.length) throw new Error(`Plan incomplete: ${missing.join(", ")}`)
   }
 
-  export async function apply(input: z.infer<typeof Request>) {
+  export async function apply(input: z.input<typeof Request>) {
     const req = Request.parse(input)
-    const state = await HeidiState.ensure(req.task_id, req.payload.objective ? String(req.payload.objective) : "")
+    const state = await HeidiState.ensure(req.task_id, req.action === "start" ? req.payload.objective : "")
 
     if (req.action === "start") {
       state.run_id = req.run_id || state.run_id || Identifier.ascending("tool")
-      if (req.payload.objective) state.objective.text = String(req.payload.objective)
+      state.objective.text = req.payload.objective
       move(state, "DISCOVERY")
       state.last_successful_step = "start"
       state.next_transition = "DISCOVERY->PLAN_DRAFT"
@@ -123,17 +182,16 @@ export namespace HeidiBoundary {
     }
 
     if (req.action === "set_mode") {
-      const mode = Mode.parse(req.payload.mode)
-      state.mode = mode
+      if (state.mode !== req.payload.mode) {
+        throw new Error(`set_mode is invalid; mode is derived from fsm_state ${state.fsm_state}`)
+      }
     }
 
     if (req.action === "mark_item") {
-      const id = String(req.payload.id)
-      const status = z.enum(["todo", "doing", "done", "blocked"]).parse(req.payload.status)
-      const found = state.checklist.find((item) => item.id === id)
-      if (!found) throw new Error(`Checklist item not found: ${id}`)
-      found.status = status
-      state.last_successful_step = `mark_item:${id}`
+      const found = state.checklist.find((item) => item.id === req.payload.id)
+      if (!found) throw new Error(`Checklist item not found: ${req.payload.id}`)
+      found.status = req.payload.status
+      state.last_successful_step = `mark_item:${req.payload.id}`
     }
 
     if (req.action === "lock_plan") {
@@ -165,12 +223,11 @@ export namespace HeidiBoundary {
     }
 
     if (req.action === "reopen_plan") {
-      if (!req.payload.reason) throw new Error("reopen_plan requires reason")
       state.plan.locked = false
       state.objective.locked = false
       state.plan.amendments.push({
         id: Identifier.ascending("tool"),
-        reason: String(req.payload.reason),
+        reason: req.payload.reason,
         timestamp: new Date().toISOString(),
       })
       move(state, "DISCOVERY")
@@ -180,6 +237,9 @@ export namespace HeidiBoundary {
     }
 
     if (req.action === "begin_execution") {
+      if (state.fsm_state !== "PLAN_LOCKED") {
+        throw new Error(`begin_execution requires PLAN_LOCKED. Current state: ${state.fsm_state}`)
+      }
       if (!state.plan.locked) throw new Error("Plan must be locked before execution")
       await HeidiState.checkPlanDrift(req.task_id)
       move(state, "EXECUTION")
@@ -197,7 +257,7 @@ export namespace HeidiBoundary {
     }
 
     if (req.action === "block") {
-      state.block_reason = String(req.payload.reason ?? "blocked")
+      state.block_reason = req.payload.reason
       move(state, "BLOCKED")
       state.last_successful_step = "block"
       state.next_transition = "BLOCKED"

@@ -8,6 +8,17 @@ import { TaskState, VerifyState, ResumeState } from "./schema"
 import { Instance } from "@/project/instance"
 import { HeidiContext } from "./context"
 
+const StateMode = {
+  IDLE: "PLANNING",
+  DISCOVERY: "PLANNING",
+  PLAN_DRAFT: "PLANNING",
+  PLAN_LOCKED: "PLANNING",
+  EXECUTION: "EXECUTION",
+  VERIFICATION: "VERIFICATION",
+  COMPLETE: "VERIFICATION",
+  BLOCKED: "PLANNING",
+} as const satisfies Record<TaskState["fsm_state"], TaskState["mode"]>
+
 function root(sessionID: SessionID) {
   try {
     if (Instance.project.vcs) return path.join(Instance.worktree, ".opencode", "heidi", sessionID)
@@ -40,8 +51,15 @@ function contextPath(sessionID: SessionID) {
 }
 
 function verifySync(state: TaskState) {
+  state.mode = StateMode[state.fsm_state]
   if (state.fsm_state === "COMPLETE" && !state.plan.locked) {
     throw new Error("complete state requires locked plan")
+  }
+  if (["PLAN_LOCKED", "EXECUTION", "VERIFICATION", "COMPLETE"].includes(state.fsm_state) && !state.plan.locked) {
+    throw new Error(`${state.fsm_state.toLowerCase()} requires locked plan`)
+  }
+  if (state.fsm_state !== "IDLE" && !state.objective.text.trim()) {
+    throw new Error(`${state.fsm_state.toLowerCase()} requires objective.text`)
   }
 }
 
@@ -75,7 +93,9 @@ function render(state: TaskState) {
     const items = state.checklist.filter((item) => item.category === cat)
     if (items.length === 0) continue
     out.push(`#### ${cat}`)
-    out.push(...items.map((item) => `- [${item.status === "done" ? "x" : item.status === "doing" ? "/" : " "}] ${item.label}`))
+    out.push(
+      ...items.map((item) => `- [${item.status === "done" ? "x" : item.status === "doing" ? "/" : " "}] ${item.label}`),
+    )
   }
   return out.join("\n") + "\n"
 }
@@ -87,6 +107,7 @@ export namespace HeidiState {
 
   export async function ensure(sessionID: SessionID, objective: string) {
     if (await Filesystem.exists(taskPath(sessionID))) return await read(sessionID)
+    const text = objective.trim()
     const init: TaskState = {
       run_id: Identifier.ascending("tool"),
       task_id: sessionID,
@@ -94,7 +115,7 @@ export namespace HeidiState {
       mode: "PLANNING",
       objective: {
         locked: false,
-        text: objective,
+        text: text,
       },
       plan: {
         path: planPath(sessionID),
@@ -121,7 +142,7 @@ export namespace HeidiState {
       `# Implementation Plan`,
       "",
       `## Task goal`,
-      objective || "TBD",
+      text || "TBD",
       "",
       `## Background and discovered repo facts`,
       "- TBD",

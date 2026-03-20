@@ -244,13 +244,7 @@ export const SessionRoutes = lazy(() =>
           sessionID: SessionID.zod,
         }),
       ),
-      validator(
-        "json",
-        HeidiBoundary.Input.omit({ task_id: true, run_id: true }).extend({
-          run_id: z.string().optional(),
-          payload: z.record(z.string(), z.any()).default({}),
-        }),
-      ),
+      validator("json", HeidiBoundary.ClientInput),
       async (c) => {
         const sessionID = c.req.valid("param").sessionID
         const body = c.req.valid("json")
