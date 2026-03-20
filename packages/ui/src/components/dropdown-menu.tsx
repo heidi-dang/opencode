@@ -23,7 +23,7 @@ export interface DropdownMenuSubTriggerProps extends ComponentProps<typeof Kobal
 export interface DropdownMenuSubContentProps extends ComponentProps<typeof Kobalte.SubContent> {}
 
 function DropdownMenuRoot(props: DropdownMenuProps) {
-  return <Kobalte {...props} data-component="dropdown-menu" />
+  return <Kobalte modal={false} {...props} data-component="dropdown-menu" />
 }
 
 function DropdownMenuTrigger(props: ParentProps<DropdownMenuTriggerProps>) {
