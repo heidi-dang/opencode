@@ -4,6 +4,7 @@ import { streamSSE } from "hono/streaming"
 import z from "zod"
 import { BusEvent } from "@/bus/bus-event"
 import { GlobalBus } from "@/bus/global"
+import { AsyncQueue } from "@/util/queue"
 import { Instance } from "../../project/instance"
 import { Installation } from "@/installation"
 import { Log } from "../../util/log"
@@ -72,50 +73,61 @@ export const GlobalRoutes = lazy(() =>
         c.header("X-Content-Type-Options", "nosniff")
         return streamSSE(c, async (stream) => {
           const close = ServerStats.open("global")
-          const max = setTimeout(
-            () => {
-              stream.close()
-            },
-            Flag.OPENCODE_SSE_MAX_AGE_MS ?? 60 * 60 * 1000,
-          )
+          const q = new AsyncQueue<string | null>()
+          let done = false
+
+          const max = setTimeout(() => {
+            q.push(null)
+          }, Flag.OPENCODE_SSE_MAX_AGE_MS ?? 60 * 60 * 1000)
           max.unref?.()
-          stream.writeSSE({
-            data: JSON.stringify({
+
+          q.push(
+            JSON.stringify({
               payload: {
                 type: "server.connected",
                 properties: {},
               },
             }),
-          })
-          async function handler(event: any) {
-            await stream.writeSSE({
-              data: JSON.stringify(event),
-            })
-          }
-          GlobalBus.on("event", handler)
+          )
 
           // Send heartbeat every 10s to prevent stalled proxy streams.
           const heartbeat = setInterval(() => {
-            stream.writeSSE({
-              data: JSON.stringify({
+            q.push(
+              JSON.stringify({
                 payload: {
                   type: "server.heartbeat",
                   properties: {},
                 },
               }),
-            })
+            )
           }, 10_000)
 
-          await new Promise<void>((resolve) => {
-            stream.onAbort(() => {
-              clearTimeout(max)
-              clearInterval(heartbeat)
-              GlobalBus.off("event", handler)
-              close()
-              resolve()
-              log.info("global event disconnected")
-            })
-          })
+          async function handler(event: any) {
+            q.push(JSON.stringify(event))
+          }
+          GlobalBus.on("event", handler)
+
+          const stop = () => {
+            if (done) return
+            done = true
+            clearTimeout(max)
+            clearInterval(heartbeat)
+            GlobalBus.off("event", handler)
+            q.push(null)
+            close()
+            log.info("global event disconnected")
+          }
+
+          stream.onAbort(stop)
+
+          try {
+            for await (const data of q) {
+              if (data === null) return
+              await stream.writeSSE({ data })
+            }
+          } finally {
+            stop()
+          }
         })
       },
     )
