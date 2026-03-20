@@ -15,11 +15,20 @@ export const FsmState = z.enum([
 
 export const Mode = z.enum(["PLANNING", "EXECUTION", "VERIFICATION"])
 
+export const Priority = z.enum(["low", "medium", "high"])
+
 export const Item = z.object({
   id: z.string(),
   label: z.string(),
   status: z.enum(["todo", "doing", "done", "blocked"]),
   category: z.enum(["Modify", "New", "Delete", "Verify"]),
+  priority: Priority.optional().default("medium"),
+})
+
+export const Telemetry = z.object({
+  duration_ms: z.number().optional(),
+  tool_calls_count: z.number().optional(),
+  started_at: z.string().optional(),
 })
 
 export const TaskState = z.object({
@@ -73,6 +82,7 @@ export const TaskState = z.object({
     checkpoint_id: z.string().nullable(),
     failed_hypotheses: z.array(z.string()),
   }),
+  telemetry: Telemetry.optional(),
 })
 
 export const VerifyState = z.object({
@@ -87,12 +97,15 @@ export const VerifyState = z.object({
       log_ref: z.string().optional(),
     }),
   ),
-  evidence: z.object({
-    changed_files: z.array(z.string()),
-    command_summary: z.array(z.string()),
-    before_after: z.string(),
-  }),
-  warnings: z.array(z.string()),
+  evidence: z.union([
+    z.string(),
+    z.object({
+      changed_files: z.array(z.string()).default([]),
+      command_summary: z.array(z.string()).default([]),
+      before_after: z.string().optional(),
+    }),
+  ]),
+  warnings: z.array(z.string()).default([]),
   remediation: z.array(
     z.object({
       file: z.string(),
@@ -101,7 +114,7 @@ export const VerifyState = z.object({
       message: z.string(),
       next_action: z.string(),
     }),
-  ),
+  ).default([]),
   browser: z
     .object({
       required: z.boolean(),
@@ -173,7 +186,7 @@ export const ContextState = z.object({
           line: z.number(),
           rule_id: z.string(),
         }),
-      ),
+      ).default([]),
       browser: z
         .object({
           required: z.boolean(),
@@ -226,3 +239,6 @@ export type VerifyState = z.infer<typeof VerifyState>
 export type ResumeState = z.infer<typeof ResumeState>
 export type ContextState = z.infer<typeof ContextState>
 export type SyncStatus = z.infer<typeof SyncStatus>
+export type Priority = z.infer<typeof Priority>
+export type Item = z.infer<typeof Item>
+export type Telemetry = z.infer<typeof Telemetry>

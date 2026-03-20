@@ -1,0 +1,55 @@
+{
+  "session_id": "ses_2f5aae82bffeSYxKEsx4wvuxNJ",
+  "objective": "Implement Task Analytics telemetry feature: Add telemetry field to TaskState (duration_ms, tool_calls_count), capture metrics in boundary.ts, render stats in task.md Analytics section.",
+  "fsm_state": "EXECUTION",
+  "mode": "EXECUTION",
+  "plan": {
+    "path": "/home/heidi/work/opencode-main/.opencode/heidi/ses_2f5aae82bffeSYxKEsx4wvuxNJ/implementation_plan.md",
+    "locked": true
+  },
+  "summary": {
+    "title": null,
+    "body": null,
+    "files": []
+  },
+  "resume": {
+    "next_step": "EXECUTION",
+    "checkpoint_id": "1773996453230-kylzul",
+    "failed_hypotheses": []
+  },
+  "activity": {
+    "active_files": [
+      "/home/heidi/work/opencode-main/packages/opencode/src/heidi/boundary.ts"
+    ],
+    "changed_files": [
+      "/home/heidi/work/opencode-main/packages/opencode/src/heidi/schema.ts",
+      "/home/heidi/work/opencode-main/packages/opencode/src/heidi/state.ts",
+      "/home/heidi/work/opencode-main/packages/opencode/src/heidi/boundary.ts"
+    ],
+    "commands": [],
+    "validations": []
+  },
+  "verification": null,
+  "memory": {
+    "long_term": [],
+    "retrieval": []
+  },
+  "freshness": {
+    "fingerprint": "a190870a9258ee109a30ee9d921641e15ea1a7e872b692b821a1928539b55fcc",
+    "sources": {
+      "task": "begin_execution",
+      "verification": "missing",
+      "knowledge": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "messages": "75",
+      "memory": "0"
+    }
+  },
+  "sync_status": {
+    "status": "ok",
+    "last_sync_at": "2026-03-20T08:47:33.466Z",
+    "attempts": 1,
+    "last_error": null
+  },
+  "version": 2,
+  "updated_at": "2026-03-20T08:47:33.466Z"
+}

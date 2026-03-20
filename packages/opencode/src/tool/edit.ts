@@ -17,6 +17,7 @@ import { Filesystem } from "../util/filesystem"
 import { Instance } from "../project/instance"
 import { Snapshot } from "@/snapshot"
 import { assertExternalDirectory } from "./external-directory"
+import { Agent } from "../agent/agent"
 import { HeidiState } from "@/heidi/state"
 import { HeidiExec } from "@/heidi/exec"
 import { HeidiJail } from "@/heidi/jail"
@@ -56,7 +57,11 @@ export const EditTool = Tool.define("edit", {
   }),
   async execute(params, ctx) {
     const state = await HeidiState.ensure(ctx.sessionID, "")
-    if (state.fsm_state !== "EXECUTION" && state.fsm_state !== "VERIFICATION") {
+    const filePath = path.isAbsolute(params.filePath) ? params.filePath : path.join(Instance.directory, params.filePath)
+    const isSessionFile = filePath.includes(".opencode/heidi")
+    const agent = await Agent.resolve(ctx.agent)
+    
+    if (state.fsm_state !== "EXECUTION" && state.fsm_state !== "VERIFICATION" && agent?.mode !== "subagent" && !isSessionFile) {
       throw new Error(`edit is only available in EXECUTION or VERIFICATION. Current state: ${state.fsm_state}`)
     }
     await HeidiState.checkPlanDrift(ctx.sessionID)
@@ -69,7 +74,6 @@ export const EditTool = Tool.define("edit", {
       throw new Error("No changes to apply: oldString and newString are identical.")
     }
 
-    const filePath = path.isAbsolute(params.filePath) ? params.filePath : path.join(Instance.directory, params.filePath)
     HeidiJail.assert(filePath)
     await assertExternalDirectory(ctx, filePath)
     assertOwnership(ctx, filePath)

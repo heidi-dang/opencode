@@ -95,10 +95,14 @@ const Request = z.discriminatedUnion("action", [
     task_id: SessionID.zod,
     action: z.literal("add_items"),
     payload: z.object({
-      items: z.array(z.object({
-        label: z.string().min(1),
-        category: z.enum(["Modify", "New", "Delete", "Verify"]),
-      })).min(1),
+      items: z
+        .array(
+          z.object({
+            label: z.string().min(1),
+            category: z.enum(["Modify", "New", "Delete", "Verify"]),
+          }),
+        )
+        .min(1),
     }),
   }),
 ])
@@ -164,10 +168,14 @@ export namespace HeidiBoundary {
     z.object({
       action: z.literal("add_items"),
       payload: z.object({
-        items: z.array(z.object({
-          label: z.string().min(1),
-          category: z.enum(["Modify", "New", "Delete", "Verify"]),
-        })).min(1),
+        items: z
+          .array(
+            z.object({
+              label: z.string().min(1),
+              category: z.enum(["Modify", "New", "Delete", "Verify"]),
+            }),
+          )
+          .min(1),
       }),
       run_id: z.string().optional(),
     }),
@@ -192,12 +200,17 @@ export namespace HeidiBoundary {
     const req = Request.parse(input)
     const state = await HeidiState.ensure(req.task_id, req.action === "start" ? req.payload.objective : "")
 
+    // Track telemetry
+    if (!state.telemetry) state.telemetry = { tool_calls_count: 0 }
+    state.telemetry.tool_calls_count = (state.telemetry.tool_calls_count || 0) + 1
+
     if (req.action === "start") {
       if (!req.payload.objective.trim()) {
         throw new Error("Cannot start a task with an empty objective.")
       }
       state.run_id = req.run_id || state.run_id || Identifier.ascending("tool")
       state.objective.text = req.payload.objective
+      state.telemetry = { tool_calls_count: 1, started_at: new Date().toISOString() }
       move(state, "DISCOVERY")
       state.last_successful_step = "start"
       state.next_transition = "DISCOVERY->PLAN_DRAFT"
@@ -225,6 +238,7 @@ export namespace HeidiBoundary {
           label: item.label,
           status: "todo",
           category: item.category,
+          priority: "medium",
         })
       }
       state.last_successful_step = "add_items"
@@ -306,6 +320,9 @@ export namespace HeidiBoundary {
       const verify = await HeidiState.readVerification(req.task_id)
       if (!verify) throw new Error("Verification must exist before completion")
       if (verify.status !== "pass") throw new Error("Verification must pass before completion")
+      if (state.telemetry?.started_at) {
+        state.telemetry.duration_ms = Date.now() - new Date(state.telemetry.started_at).getTime()
+      }
       move(state, "COMPLETE")
       state.last_successful_step = "complete"
       state.next_transition = "NONE"

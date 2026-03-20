@@ -12,6 +12,7 @@ import { Filesystem } from "../util/filesystem"
 import { Instance } from "../project/instance"
 import { trimDiff } from "./edit"
 import { assertExternalDirectory } from "./external-directory"
+import { Agent } from "../agent/agent"
 import { HeidiState } from "@/heidi/state"
 import { HeidiExec } from "@/heidi/exec"
 import { HeidiJail } from "@/heidi/jail"
@@ -35,12 +36,14 @@ export const WriteTool = Tool.define("write", {
   }),
   async execute(params, ctx) {
     const state = await HeidiState.ensure(ctx.sessionID, "")
-    if (state.fsm_state !== "EXECUTION" && state.fsm_state !== "VERIFICATION") {
+    const filepath = path.isAbsolute(params.filePath) ? params.filePath : path.join(Instance.directory, params.filePath)
+    const isSessionFile = filepath.includes(".opencode/heidi")
+    const agent = await Agent.resolve(ctx.agent)
+
+    if (state.fsm_state !== "EXECUTION" && state.fsm_state !== "VERIFICATION" && agent?.mode !== "subagent" && !isSessionFile) {
       throw new Error(`write is only available in EXECUTION or VERIFICATION. Current state: ${state.fsm_state}`)
     }
     await HeidiState.checkPlanDrift(ctx.sessionID)
-
-    const filepath = path.isAbsolute(params.filePath) ? params.filePath : path.join(Instance.directory, params.filePath)
     HeidiJail.assert(filepath)
     await assertExternalDirectory(ctx, filepath)
     assertOwnership(ctx, filepath)

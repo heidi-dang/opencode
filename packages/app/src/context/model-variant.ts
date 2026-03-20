@@ -24,7 +24,7 @@ export function getConfiguredAgentVariant(input: { agent: Agent | undefined; mod
   if (!input.model?.variants) return undefined
   if (input.agent.model.providerID !== input.model.providerID) return undefined
   if (input.agent.model.modelID !== input.model.modelID) return undefined
-  if (!(input.agent.variant in input.model.variants)) return undefined
+  if (!(input.agent.variant in (input.model?.variants ?? {}))) return undefined
   return input.agent.variant
 }
 

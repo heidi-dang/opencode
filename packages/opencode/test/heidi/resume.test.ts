@@ -39,8 +39,8 @@ describe("heidi resume", () => {
         await enterExecution(session.id, "resume")
         let state = await HeidiState.read(session.id)
         state.checklist = [
-          { id: "1", label: "step1", status: "done", category: "Modify" },
-          { id: "2", label: "step2", status: "todo", category: "Modify" },
+          { id: "1", label: "step1", status: "done", category: "Modify", priority: "medium" },
+          { id: "2", label: "step2", status: "todo", category: "Modify", priority: "medium" },
         ]
         state.resume.next_step = "step2"
         await HeidiState.write(session.id, state)
@@ -74,8 +74,8 @@ describe("heidi resume", () => {
         // Case 2: checklist with all done, next_step should be cleared
         state = await HeidiState.read(session.id)
         state.checklist = [
-          { id: "1", label: "step1", status: "done", category: "Modify" },
-          { id: "2", label: "step2", status: "done", category: "Modify" },
+          { id: "1", label: "step1", status: "done", category: "Modify", priority: "medium" },
+          { id: "2", label: "step2", status: "done", category: "Modify", priority: "medium" },
         ]
         state.resume.next_step = "step2"
         await HeidiState.write(session.id, state)
@@ -86,8 +86,8 @@ describe("heidi resume", () => {
 
         // Case 3: checklist with some pending, next_step should be preserved
         state.checklist = [
-          { id: "1", label: "step1", status: "done", category: "Modify" },
-          { id: "2", label: "step2", status: "todo", category: "Modify" },
+          { id: "1", label: "step1", status: "done", category: "Modify", priority: "medium" },
+          { id: "2", label: "step2", status: "todo", category: "Modify", priority: "medium" },
         ]
         state.resume.next_step = "step2"
         await HeidiState.write(session.id, state)

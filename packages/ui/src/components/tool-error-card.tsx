@@ -50,6 +50,10 @@ export function ToolErrorCard(props: ToolErrorCardProps) {
     if (value.startsWith(prefix)) return value.slice(prefix.length)
     return value
   })
+  const isWarning = createMemo(() => {
+    const msg = cleaned().toLowerCase()
+    return msg.includes("verification gate failed") || msg.includes("plan incomplete") || msg.includes("plan drift detected")
+  })
 
   const subtitle = createMemo(() => {
     if (split.subtitle) return split.subtitle
@@ -75,7 +79,7 @@ export function ToolErrorCard(props: ToolErrorCardProps) {
   }
 
   return (
-    <Card {...rest} data-kind="tool-error-card" data-open={open() ? "true" : "false"} variant="error">
+    <Card {...rest} data-kind="tool-error-card" data-open={open() ? "true" : "false"} variant={isWarning() ? "warning" : "error"}>
       <Collapsible
         class="tool-collapsible"
         data-open={open() ? "true" : "false"}
@@ -85,8 +89,8 @@ export function ToolErrorCard(props: ToolErrorCardProps) {
         <Collapsible.Trigger>
           <div data-component="tool-trigger">
             <div data-slot="basic-tool-tool-trigger-content">
-              <span data-slot="basic-tool-tool-indicator" data-component="tool-error-card-icon">
-                <Icon name="circle-ban-sign" size="small" style={{ "stroke-width": 1.5 }} />
+              <span data-slot="basic-tool-tool-indicator" data-component={isWarning() ? "tool-warning-card-icon" : "tool-error-card-icon"}>
+                <Icon name={isWarning() ? "warning" : "circle-ban-sign"} size="small" style={{ "stroke-width": 1.5 }} />
               </span>
               <div data-slot="basic-tool-tool-info">
                 <div data-slot="basic-tool-tool-info-structured">

@@ -93,31 +93,63 @@ function parsePlan(text: string): TaskState["checklist"] {
   if (modify) {
     for (const line of modify[1].split("\n")) {
       const m = line.match(/^\s*-\s+(.+?)\s*(?:\(Modify\))?\s*$/)
-      if (m && m[1] !== "TBD" && m[1] !== "TBD (Modify)") items.push({ id: `mod-${items.length}`, label: m[1].trim(), status: "todo", category: "Modify" })
+      if (m && m[1] !== "TBD" && m[1] !== "TBD (Modify)")
+        items.push({
+          id: `mod-${items.length}`,
+          label: m[1].trim(),
+          status: "todo",
+          category: "Modify",
+          priority: "medium",
+        })
     }
   }
   const create = text.match(/## Files to create\s*\n([\s\S]*?)(?=##|$)/)
   if (create) {
     for (const line of create[1].split("\n")) {
       const m = line.match(/^\s*-\s+(.+?)\s*(?:\(New\))?\s*$/)
-      if (m && m[1] !== "TBD" && m[1] !== "TBD (New)") items.push({ id: `new-${items.length}`, label: m[1].trim(), status: "todo", category: "New" })
+      if (m && m[1] !== "TBD" && m[1] !== "TBD (New)")
+        items.push({
+          id: `new-${items.length}`,
+          label: m[1].trim(),
+          status: "todo",
+          category: "New",
+          priority: "medium",
+        })
     }
   }
   const verify = text.match(/## Verification plan\s*\n([\s\S]*?)(?=##|$)/)
   if (verify) {
     for (const line of verify[1].split("\n")) {
       const m = line.match(/^\s*-\s+(.+)$/)
-      if (m && m[1] !== "TBD") items.push({ id: `verify-${items.length}`, label: m[1].trim(), status: "todo", category: "Verify" })
+      if (m && m[1] !== "TBD")
+        items.push({
+          id: `verify-${items.length}`,
+          label: m[1].trim(),
+          status: "todo",
+          category: "Verify",
+          priority: "medium",
+        })
     }
   }
   const del = text.match(/## Files to delete\s*\n([\s\S]*?)(?=##|$)/)
   if (del) {
     for (const line of del[1].split("\n")) {
       const m = line.match(/^\s*-\s+(.+?)\s*(?:\(Delete\))?\s*$/)
-      if (m && m[1] !== "TBD" && m[1] !== "TBD (Delete)") items.push({ id: `del-${items.length}`, label: m[1].trim(), status: "todo", category: "Delete" })
+      if (m && m[1] !== "TBD" && m[1] !== "TBD (Delete)")
+        items.push({
+          id: `del-${items.length}`,
+          label: m[1].trim(),
+          status: "todo",
+          category: "Delete",
+          priority: "medium",
+        })
     }
   }
   return items
+}
+
+function priorityEmoji(p: string) {
+  return p === "high" ? "🔴" : p === "medium" ? "🟡" : "🟢"
 }
 
 function render(state: TaskState) {
@@ -137,13 +169,30 @@ function render(state: TaskState) {
   out.push(`- **Last Step**: ${state.last_successful_step || "None"}`)
   out.push(`- **Next Transition**: ${state.next_transition}`)
   out.push("")
+  if (state.telemetry) {
+    out.push("### Analytics")
+    if (state.telemetry.tool_calls_count !== undefined) {
+      out.push(`- **Tool Calls**: ${state.telemetry.tool_calls_count}`)
+    }
+    if (state.telemetry.duration_ms !== undefined) {
+      const secs = (state.telemetry.duration_ms / 1000).toFixed(1)
+      out.push(`- **Duration**: ${secs}s`)
+    }
+    if (state.telemetry.started_at) {
+      out.push(`- **Started**: ${state.telemetry.started_at}`)
+    }
+    out.push("")
+  }
   out.push("### Checklist")
   for (const cat of ["Modify", "New", "Delete", "Verify"]) {
     const items = state.checklist.filter((item) => item.category === cat)
     if (items.length === 0) continue
     out.push(`#### ${cat}`)
     out.push(
-      ...items.map((item) => `- [${item.status === "done" ? "x" : item.status === "doing" ? "/" : " "}] ${item.label}`),
+      ...items.map(
+        (item) =>
+          `- [${item.status === "done" ? "x" : item.status === "doing" ? "/" : " "}] ${priorityEmoji(item.priority ?? "medium")} ${item.label}`,
+      ),
     )
   }
   return out.join("\n") + "\n"
@@ -185,6 +234,9 @@ export namespace HeidiState {
         next_step: "DISCOVERY",
         checkpoint_id: null,
         failed_hypotheses: [],
+      },
+      telemetry: {
+        tool_calls_count: 0,
       },
     }
     const plan = [

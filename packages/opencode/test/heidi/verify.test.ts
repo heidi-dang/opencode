@@ -84,7 +84,7 @@ describe("heidi verify", () => {
         const session = await Session.create({})
         await enterVerification(session.id, "verify gate")
         const state = await HeidiState.read(session.id)
-        state.checklist = [{ id: "1", label: "do thing", status: "todo", category: "Modify" }]
+        state.checklist = [{ id: "1", label: "do thing", status: "todo", category: "Modify", priority: "medium" }]
         await HeidiState.write(session.id, state)
         await expect(HeidiVerify.gate(session.id)).rejects.toThrow("checklist incomplete")
       },

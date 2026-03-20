@@ -13,11 +13,16 @@ export const RunCommandTool = Tool.define("run_command", {
     "Run command with explicit profile and checkpoint-aware ledger logging. Available in EXECUTION and VERIFICATION remediation windows.",
   parameters: z.object({
     command: z.string(),
-    profile: Profile,
+    profile: z.string(),
     cwd: z.string().optional(),
     timeout: z.number().default(120000),
   }),
   async execute(params, ctx) {
+    console.log(`[DEBUG] run_command params:`, JSON.stringify(params))
+    const allowedProfiles = ["read_only", "build", "test", "format", "git_safe", "app_local"]
+    if (!allowedProfiles.includes(params.profile)) {
+      throw new Error(`Invalid profile: ${params.profile}. Expected one of: ${allowedProfiles.join(", ")}`)
+    }
     const state = await HeidiState.ensure(ctx.sessionID, "")
     const agentInfo = await Agent.get(ctx.agent)
     const isSubagent = agentInfo?.mode === "subagent"

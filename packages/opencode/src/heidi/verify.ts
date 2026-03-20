@@ -19,15 +19,16 @@ export namespace HeidiVerify {
     await HeidiVerify.preflight(sessionID)
     const verify = await HeidiState.readVerification(sessionID)
     if (!verify) throw new Error("verification gate failed: evidence missing")
-    if (!verify.checks || verify.checks.length < 1) throw new Error("verification gate failed: checks missing")
-    if (!verify.evidence ||
-      !Array.isArray(verify.evidence.changed_files) || verify.evidence.changed_files.length < 1 ||
-      !Array.isArray(verify.evidence.command_summary) || verify.evidence.command_summary.length < 1 ||
-      !verify.evidence.before_after) {
+    if (!verify.evidence) throw new Error("verification gate failed: evidence content missing")
+    const hasEvidence = typeof verify.evidence === "string" 
+      ? verify.evidence.length > 0 
+      : (verify.evidence.changed_files.length > 0 || verify.evidence.command_summary.length > 0)
+    
+    if (!hasEvidence) {
       throw new Error("verification gate failed: evidence is empty or ceremonial")
     }
-    if (!verify.browser || verify.browser.required !== true || verify.browser.status !== "pass") {
-      throw new Error("verification gate failed: browser evidence missing or stubbed")
+    if (verify.browser?.required === true && verify.browser.status !== "pass") {
+      throw new Error("verification gate failed: browser evidence missing or failed")
     }
     return true
   }

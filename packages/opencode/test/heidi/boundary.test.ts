@@ -164,6 +164,10 @@ describe("heidi boundary", () => {
           action: "start",
           payload: { objective: "Detect drift" },
         })
+        await Filesystem.write(
+          (await HeidiState.files(session.id)).implementation_plan,
+          "# Goal\nTest\n## Background and discovered repo facts\nNone\n## Scope\nAll\n## Files to modify\nNone\n## Change strategy by component\nNone\n## Verification plan\nNone"
+        )
         await HeidiBoundary.apply({
           run_id: "run-3",
           task_id: session.id,
