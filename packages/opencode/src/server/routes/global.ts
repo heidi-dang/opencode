@@ -10,6 +10,8 @@ import { Log } from "../../util/log"
 import { lazy } from "../../util/lazy"
 import { Config } from "../../config/config"
 import { errors } from "../error"
+import { Flag } from "@/flag/flag"
+import { ServerStats } from "../stats"
 
 const log = Log.create({ service: "server" })
 
@@ -69,6 +71,14 @@ export const GlobalRoutes = lazy(() =>
         c.header("X-Accel-Buffering", "no")
         c.header("X-Content-Type-Options", "nosniff")
         return streamSSE(c, async (stream) => {
+          const close = ServerStats.open("global")
+          const max = setTimeout(
+            () => {
+              stream.close()
+            },
+            Flag.OPENCODE_SSE_MAX_AGE_MS ?? 60 * 60 * 1000,
+          )
+          max.unref?.()
           stream.writeSSE({
             data: JSON.stringify({
               payload: {
@@ -98,8 +108,10 @@ export const GlobalRoutes = lazy(() =>
 
           await new Promise<void>((resolve) => {
             stream.onAbort(() => {
+              clearTimeout(max)
               clearInterval(heartbeat)
               GlobalBus.off("event", handler)
+              close()
               resolve()
               log.info("global event disconnected")
             })

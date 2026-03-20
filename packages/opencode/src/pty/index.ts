@@ -7,6 +7,7 @@ import { Instance } from "../project/instance"
 import { lazy } from "@opencode-ai/util/lazy"
 import { Shell } from "@/shell/shell"
 import { Plugin } from "@/plugin"
+import { Flag } from "@/flag/flag"
 import { PtyID } from "./schema"
 
 export namespace Pty {
@@ -14,6 +15,7 @@ export namespace Pty {
 
   const BUFFER_LIMIT = 1024 * 1024 * 2
   const BUFFER_CHUNK = 64 * 1024
+  const IDLE_MS = 2 * 60 * 60 * 1000
   const encoder = new TextEncoder()
 
   type Socket = {
@@ -88,6 +90,8 @@ export namespace Pty {
     bufferCursor: number
     cursor: number
     subscribers: Map<unknown, Socket>
+    at: number
+    timer?: ReturnType<typeof setTimeout>
   }
 
   const state = Instance.state(
@@ -115,6 +119,41 @@ export namespace Pty {
 
   export function get(id: PtyID) {
     return state().get(id)?.info
+  }
+
+  export function stats() {
+    const sessions = Array.from(state().values())
+    return {
+      sessions: sessions.length,
+      subscribers: sessions.reduce((sum, item) => sum + item.subscribers.size, 0),
+      bytes: sessions.reduce((sum, item) => sum + item.buffer.length, 0),
+    }
+  }
+
+  function clear(session: ActiveSession) {
+    if (!session.timer) return
+    clearTimeout(session.timer)
+    session.timer = undefined
+  }
+
+  function schedule(id: PtyID, session: ActiveSession) {
+    clear(session)
+    session.timer = setTimeout(() => {
+      const hit = state().get(id)
+      if (!hit || hit !== session) return
+      if (Date.now() - hit.at < (Flag.OPENCODE_PTY_IDLE_MS ?? IDLE_MS)) {
+        schedule(id, hit)
+        return
+      }
+      log.info("removing idle session", { id })
+      void remove(id)
+    }, Flag.OPENCODE_PTY_IDLE_MS ?? IDLE_MS)
+    session.timer.unref?.()
+  }
+
+  function touch(id: PtyID, session: ActiveSession) {
+    session.at = Date.now()
+    schedule(id, session)
   }
 
   export async function create(input: CreateInput) {
@@ -165,10 +204,13 @@ export namespace Pty {
       bufferCursor: 0,
       cursor: 0,
       subscribers: new Map(),
+      at: Date.now(),
     }
     state().set(id, session)
+    schedule(id, session)
     ptyProcess.onData(
       Instance.bind((chunk) => {
+        touch(id, session)
         session.cursor += chunk.length
 
         for (const [key, ws] of session.subscribers.entries()) {
@@ -212,6 +254,7 @@ export namespace Pty {
   export async function update(id: PtyID, input: UpdateInput) {
     const session = state().get(id)
     if (!session) return
+    touch(id, session)
     if (input.title) {
       session.info.title = input.title
     }
@@ -226,6 +269,7 @@ export namespace Pty {
     const session = state().get(id)
     if (!session) return
     state().delete(id)
+    clear(session)
     log.info("removing session", { id })
     try {
       session.process.kill()
@@ -244,6 +288,7 @@ export namespace Pty {
   export function resize(id: PtyID, cols: number, rows: number) {
     const session = state().get(id)
     if (session && session.info.status === "running") {
+      touch(id, session)
       session.process.resize(cols, rows)
     }
   }
@@ -251,6 +296,7 @@ export namespace Pty {
   export function write(id: PtyID, data: string) {
     const session = state().get(id)
     if (session && session.info.status === "running") {
+      touch(id, session)
       session.process.write(data)
     }
   }
@@ -270,6 +316,7 @@ export namespace Pty {
     // Optionally cleanup if the key somehow exists
     session.subscribers.delete(connectionKey)
     session.subscribers.set(connectionKey, ws)
+    touch(id, session)
 
     const cleanup = () => {
       session.subscribers.delete(connectionKey)
@@ -310,11 +357,13 @@ export namespace Pty {
     }
     return {
       onMessage: (message: string | ArrayBuffer) => {
+        touch(id, session)
         session.process.write(String(message))
       },
       onClose: () => {
         log.info("client disconnected from session", { id })
         cleanup()
+        touch(id, session)
       },
     }
   }

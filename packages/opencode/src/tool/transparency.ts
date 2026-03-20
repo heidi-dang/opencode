@@ -3,6 +3,7 @@ import { Tool } from "./tool"
 import { HeidiMemory } from "@/heidi/memory"
 import { HeidiState } from "@/heidi/state"
 import { HeidiContext } from "@/heidi/context"
+import { ServerStats } from "@/server/stats"
 
 const DESCRIPTION = `Provides a transparent view of Heidi's internal state, including current memory context, active transaction status, and recent decision history.`
 
@@ -17,6 +18,7 @@ export const TransparencyTool = Tool.define("transparency", {
       HeidiState.read(ctx.sessionID).catch(() => null),
       HeidiContext.current(ctx.sessionID).catch(() => null),
     ])
+    const stats = ServerStats.snapshot()
     const fsm = state?.fsm_state ?? "IDLE"
     const mode = state?.mode ?? "PLANNING"
     const phaseMap: Record<string, { name: string; status: string }> = {
@@ -31,14 +33,19 @@ export const TransparencyTool = Tool.define("transparency", {
     }
     const phase = phaseMap[fsm] ?? { name: "Unknown", status: fsm }
     const mem = params.scope === "context" ? [] : memory
-    const ctxLines = params.scope === "memory" ? [] : [
-      session ? `Session Context: ${session.fsm_state} (${session.mode})` : "",
-      session?.summary.body ? `Context Summary: ${session.summary.body}` : "",
-      session?.resume.next_step ? `Context Next Step: ${session.resume.next_step}` : "",
-      session?.memory.retrieval.length
-        ? `Retrieved Knowledge: ${session.memory.retrieval.map((item) => item.summary).join(" | ")}`
-        : "",
-    ]
+    const ctxLines =
+      params.scope === "memory"
+        ? []
+        : [
+            session ? `Session Context: ${session.fsm_state} (${session.mode})` : "",
+            session?.summary.body ? `Context Summary: ${session.summary.body}` : "",
+            session?.resume.next_step ? `Context Next Step: ${session.resume.next_step}` : "",
+            session?.memory.retrieval.length
+              ? `Retrieved Knowledge: ${session.memory.retrieval.map((item) => item.summary).join(" | ")}`
+              : "",
+            `Server SSE: ${stats.sse.total} active (local=${stats.sse.event}, global=${stats.sse.global}, workspace=${stats.sse.workspace})`,
+            `PTY: ${stats.pty.sessions} sessions, ${stats.pty.subscribers} subscribers, ${stats.pty.bytes} buffered bytes`,
+          ]
     return {
       title: "Heidi System Transparency Report",
       output: [
@@ -47,10 +54,18 @@ export const TransparencyTool = Tool.define("transparency", {
         "",
         `Active Phase: ${phase.name} [${phase.status}]`,
         "",
-        params.scope !== "transaction" && params.scope !== "context" ? `Long-term Memory: ${mem.length} items stored.` : "",
+        params.scope !== "transaction" && params.scope !== "context"
+          ? `Long-term Memory: ${mem.length} items stored.`
+          : "",
         params.scope !== "transaction" && params.scope !== "context" && mem.length > 0 ? "Memory Items:" : "",
         params.scope !== "transaction" && params.scope !== "context" && mem.length > 0
-          ? mem.slice(0, 5).map((item) => `  - [${item.scope}] [${item.type}] [${item.trust ?? "unknown"}] ${item.key}: ${item.content}`).join("\n")
+          ? mem
+              .slice(0, 5)
+              .map(
+                (item) =>
+                  `  - [${item.scope}] [${item.type}] [${item.trust ?? "unknown"}] ${item.key}: ${item.content}`,
+              )
+              .join("\n")
           : "",
         ...ctxLines,
         state?.resume?.checkpoint_id ? `Active Checkpoint: ${state.resume.checkpoint_id}` : "No active checkpoint.",
@@ -68,6 +83,7 @@ export const TransparencyTool = Tool.define("transparency", {
         checkpoint_id: state?.resume?.checkpoint_id ?? null,
         block_reason: state?.block_reason ?? null,
         session_context: session,
+        server_stats: stats,
       },
     }
   },

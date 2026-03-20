@@ -89,4 +89,26 @@ describe("pty", () => {
       },
     })
   })
+
+  test("removes idle sessions after timeout", async () => {
+    if (process.platform === "win32") return
+
+    const prev = process.env.OPENCODE_PTY_IDLE_MS
+    process.env.OPENCODE_PTY_IDLE_MS = "50"
+    await using dir = await tmpdir({ git: true })
+
+    try {
+      await Instance.provide({
+        directory: dir.path,
+        fn: async () => {
+          const info = await Pty.create({ command: "/bin/sh", title: "idle" })
+          await wait(() => !Pty.get(info.id), 5000)
+          expect(Pty.get(info.id)).toBeUndefined()
+        },
+      })
+    } finally {
+      if (prev === undefined) delete process.env.OPENCODE_PTY_IDLE_MS
+      else process.env.OPENCODE_PTY_IDLE_MS = prev
+    }
+  })
 })

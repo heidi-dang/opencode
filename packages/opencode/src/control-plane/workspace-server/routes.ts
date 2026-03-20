@@ -1,4 +1,6 @@
 import { GlobalBus } from "../../bus/global"
+import { Flag } from "@/flag/flag"
+import { ServerStats } from "../../server/stats"
 import { Hono } from "hono"
 import { streamSSE } from "hono/streaming"
 
@@ -7,6 +9,14 @@ export function WorkspaceServerRoutes() {
     c.header("X-Accel-Buffering", "no")
     c.header("X-Content-Type-Options", "nosniff")
     return streamSSE(c, async (stream) => {
+      const close = ServerStats.open("workspace")
+      const max = setTimeout(
+        () => {
+          stream.close()
+        },
+        Flag.OPENCODE_SSE_MAX_AGE_MS ?? 60 * 60 * 1000,
+      )
+      max.unref?.()
       const send = async (event: unknown) => {
         await stream.writeSSE({
           data: JSON.stringify(event),
@@ -23,8 +33,10 @@ export function WorkspaceServerRoutes() {
 
       await new Promise<void>((resolve) => {
         stream.onAbort(() => {
+          clearTimeout(max)
           clearInterval(heartbeat)
           GlobalBus.off("event", handler)
+          close()
           resolve()
         })
       })

@@ -48,6 +48,7 @@ import { PermissionRoutes } from "./routes/permission"
 import { GlobalRoutes } from "./routes/global"
 import { MDNS } from "./mdns"
 import { lazy } from "@/util/lazy"
+import { ServerStats } from "./stats"
 
 // @ts-ignore This global is needed to prevent ai-sdk from logging warnings to stdout https://github.com/vercel/ai/blob/2dc67e0ef538307f21368db32d5a12345d98831b/packages/ai/src/logger/log-warnings.ts#L85
 globalThis.AI_SDK_LOG_WARNINGS = false
@@ -501,6 +502,9 @@ export namespace Server {
           return c.json(await Format.status())
         },
       )
+      .get("/stats", async (c) => {
+        return c.json(ServerStats.snapshot())
+      })
       .get(
         "/event",
         describeRoute({
@@ -523,6 +527,14 @@ export namespace Server {
           c.header("X-Accel-Buffering", "no")
           c.header("X-Content-Type-Options", "nosniff")
           return streamSSE(c, async (stream) => {
+            const close = ServerStats.open("event")
+            const max = setTimeout(
+              () => {
+                stream.close()
+              },
+              Flag.OPENCODE_SSE_MAX_AGE_MS ?? 60 * 60 * 1000,
+            )
+            max.unref?.()
             stream.writeSSE({
               data: JSON.stringify({
                 type: "server.connected",
@@ -550,8 +562,10 @@ export namespace Server {
 
             await new Promise<void>((resolve) => {
               stream.onAbort(() => {
+                clearTimeout(max)
                 clearInterval(heartbeat)
                 unsub()
+                close()
                 resolve()
                 log.info("event disconnected")
               })

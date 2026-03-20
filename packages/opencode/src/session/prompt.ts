@@ -47,6 +47,7 @@ import { LLM } from "./llm"
 import { iife } from "@/util/iife"
 import { Shell } from "@/shell/shell"
 import { Truncate } from "@/tool/truncate"
+import { Output } from "@/tool/output"
 import { decodeDataUrl } from "@/util/data-url"
 
 // @ts-ignore
@@ -1937,28 +1938,31 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       },
     })
 
-    let output = ""
+    const out = await Output.create()
+    let pending = Promise.resolve()
 
     proc.stdout?.on("data", (chunk) => {
-      output += chunk.toString()
-      if (part.state.status === "running") {
+      pending = pending.then(async () => {
+        await out.append(chunk.toString())
+        if (part.state.status !== "running") return
         part.state.metadata = {
-          output: output,
+          output: out.view(Truncate.MAX_BYTES),
           description: "",
         }
         Session.updatePart(part)
-      }
+      })
     })
 
     proc.stderr?.on("data", (chunk) => {
-      output += chunk.toString()
-      if (part.state.status === "running") {
+      pending = pending.then(async () => {
+        await out.append(chunk.toString())
+        if (part.state.status !== "running") return
         part.state.metadata = {
-          output: output,
+          output: out.view(Truncate.MAX_BYTES),
           description: "",
         }
         Session.updatePart(part)
-      }
+      })
     })
 
     let aborted = false
@@ -1985,12 +1989,12 @@ NOTE: At any point in time through this workflow you should feel free to ask the
         resolve()
       })
     })
+    await pending
 
-    if (aborted) {
-      output += "\n\n" + ["<metadata>", "User aborted the command", "</metadata>"].join("\n")
-    }
+    const extra = aborted ? ["<metadata>", "User aborted the command", "</metadata>"] : []
     msg.time.completed = Date.now()
     await Session.updateMessage(msg)
+    const done = await out.done(extra)
     if (part.state.status === "running") {
       part.state = {
         status: "completed",
@@ -2001,10 +2005,11 @@ NOTE: At any point in time through this workflow you should feel free to ask the
         input: part.state.input,
         title: "",
         metadata: {
-          output,
+          output: out.view(Truncate.MAX_BYTES),
           description: "",
+          ...done.metadata,
         },
-        output,
+        output: done.output,
       }
       await Session.updatePart(part)
     }

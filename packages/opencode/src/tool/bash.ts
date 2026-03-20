@@ -13,9 +13,10 @@ import { Filesystem } from "@/util/filesystem"
 import { fileURLToPath } from "url"
 import { Flag } from "@/flag/flag.ts"
 import { Shell } from "@/shell/shell"
+import { Output } from "./output"
+import { Truncate } from "./truncate"
 
 import { BashArity } from "@/permission/arity"
-import { Truncate } from "./truncate"
 import { Plugin } from "@/plugin"
 
 const MAX_METADATA_LENGTH = 30_000
@@ -176,7 +177,8 @@ export const BashTool = Tool.define("bash", async () => {
         windowsHide: process.platform === "win32",
       })
 
-      let output = ""
+      const out = await Output.create()
+      let pending = Promise.resolve()
 
       // Initialize metadata with empty output
       ctx.metadata({
@@ -187,13 +189,14 @@ export const BashTool = Tool.define("bash", async () => {
       })
 
       const append = (chunk: Buffer) => {
-        output += chunk.toString()
-        ctx.metadata({
-          metadata: {
-            // truncate the metadata to avoid GIANT blobs of data (has nothing to do w/ what agent can access)
-            output: output.length > MAX_METADATA_LENGTH ? output.slice(0, MAX_METADATA_LENGTH) + "\n\n..." : output,
-            description: params.description,
-          },
+        pending = pending.then(async () => {
+          await out.append(chunk.toString())
+          ctx.metadata({
+            metadata: {
+              output: out.view(MAX_METADATA_LENGTH),
+              description: params.description,
+            },
+          })
         })
       }
 
@@ -241,6 +244,7 @@ export const BashTool = Tool.define("bash", async () => {
           reject(error)
         })
       })
+      await pending
 
       const resultMetadata: string[] = []
 
@@ -252,18 +256,18 @@ export const BashTool = Tool.define("bash", async () => {
         resultMetadata.push("User aborted the command")
       }
 
-      if (resultMetadata.length > 0) {
-        output += "\n\n<bash_metadata>\n" + resultMetadata.join("\n") + "\n</bash_metadata>"
-      }
+      const extra = resultMetadata.length ? ["<bash_metadata>", ...resultMetadata, "</bash_metadata>"] : []
+      const done = await out.done(extra, undefined)
 
       return {
         title: params.description,
         metadata: {
-          output: output.length > MAX_METADATA_LENGTH ? output.slice(0, MAX_METADATA_LENGTH) + "\n\n..." : output,
+          output: out.view(MAX_METADATA_LENGTH),
           exit: proc.exitCode,
           description: params.description,
+          ...done.metadata,
         },
-        output,
+        output: done.output,
       }
     },
   }

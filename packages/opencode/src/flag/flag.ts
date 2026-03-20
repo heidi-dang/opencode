@@ -46,6 +46,9 @@ export namespace Flag {
   export const OPENCODE_SERVER_PASSWORD = process.env["OPENCODE_SERVER_PASSWORD"]
   export const OPENCODE_SERVER_USERNAME = process.env["OPENCODE_SERVER_USERNAME"]
   export declare const OPENCODE_INSTANCE_TTL_MS: number | undefined
+  export declare const OPENCODE_OUTPUT_CAPTURE_MAX_BYTES: number | undefined
+  export declare const OPENCODE_PTY_IDLE_MS: number | undefined
+  export declare const OPENCODE_SSE_MAX_AGE_MS: number | undefined
   export const OPENCODE_ENABLE_QUESTION_TOOL = truthy("OPENCODE_ENABLE_QUESTION_TOOL")
 
   // Experimental
@@ -140,6 +143,30 @@ Object.defineProperty(Flag, "OPENCODE_CLIENT", {
 Object.defineProperty(Flag, "OPENCODE_INSTANCE_TTL_MS", {
   get() {
     return parseNumber("OPENCODE_INSTANCE_TTL_MS")
+  },
+  enumerable: true,
+  configurable: false,
+})
+
+Object.defineProperty(Flag, "OPENCODE_OUTPUT_CAPTURE_MAX_BYTES", {
+  get() {
+    return parseNumber("OPENCODE_OUTPUT_CAPTURE_MAX_BYTES")
+  },
+  enumerable: true,
+  configurable: false,
+})
+
+Object.defineProperty(Flag, "OPENCODE_PTY_IDLE_MS", {
+  get() {
+    return parseNumber("OPENCODE_PTY_IDLE_MS")
+  },
+  enumerable: true,
+  configurable: false,
+})
+
+Object.defineProperty(Flag, "OPENCODE_SSE_MAX_AGE_MS", {
+  get() {
+    return parseNumber("OPENCODE_SSE_MAX_AGE_MS")
   },
   enumerable: true,
   configurable: false,
