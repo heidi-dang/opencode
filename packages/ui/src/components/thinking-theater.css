@@ -340,7 +340,19 @@
 [data-slot="usage-cost"] {
   font-weight: var(--font-weight-bold);
   color: rgba(var(--phase-thinking), 0.9);
-  transition: color 0.3s ease-in-out, transform 0.2s ease-out;
+  transition:
+    color 0.3s ease-in-out,
+    transform 0.2s ease-out;
+}
+
+[data-slot="usage-pr-unavailable"] {
+  display: inline;
+  margin-left: 4px;
+  font-size: 0.7em;
+  font-weight: var(--font-weight-normal);
+  color: var(--text-weaker);
+  opacity: 0.75;
+  cursor: help;
 }
 
 [data-slot="usage-pr-progress"] {
@@ -359,12 +371,24 @@
 }
 
 /* Phase-specific usage colors */
-[data-phase="planning"] [data-slot="usage-cost"] { color: rgba(var(--phase-planning), 0.9); }
-[data-phase="editing"] [data-slot="usage-cost"] { color: rgba(var(--phase-editing), 0.9); }
-[data-phase="focused"] [data-slot="usage-cost"] { color: rgba(var(--phase-editing), 1); }
-[data-phase="testing"] [data-slot="usage-cost"] { color: rgba(var(--phase-testing), 0.9); }
-[data-phase="verifying"] [data-slot="usage-cost"] { color: rgba(var(--phase-verifying), 0.9); }
-[data-phase="success"] [data-slot="usage-cost"] { color: rgba(var(--phase-success), 0.9); }
+[data-phase="planning"] [data-slot="usage-cost"] {
+  color: rgba(var(--phase-planning), 0.9);
+}
+[data-phase="editing"] [data-slot="usage-cost"] {
+  color: rgba(var(--phase-editing), 0.9);
+}
+[data-phase="focused"] [data-slot="usage-cost"] {
+  color: rgba(var(--phase-editing), 1);
+}
+[data-phase="testing"] [data-slot="usage-cost"] {
+  color: rgba(var(--phase-testing), 0.9);
+}
+[data-phase="verifying"] [data-slot="usage-cost"] {
+  color: rgba(var(--phase-verifying), 0.9);
+}
+[data-phase="success"] [data-slot="usage-cost"] {
+  color: rgba(var(--phase-success), 0.9);
+}
 
 @media (max-width: 540px) {
   [data-slot="theater-content"] {
