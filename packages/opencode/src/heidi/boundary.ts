@@ -197,6 +197,51 @@ export namespace HeidiBoundary {
     if (missing.length) throw new Error(`Plan incomplete: ${missing.join(", ")}`)
   }
 
+  async function lock(task_id: SessionID) {
+    const state = await HeidiState.read(task_id)
+    if (state.fsm_state === "DISCOVERY") {
+      move(state, "PLAN_DRAFT")
+      await HeidiState.write(task_id, state)
+    }
+    requirePlan(state)
+    await HeidiState.setPlanHash(task_id)
+    const next = await HeidiState.read(task_id)
+    next.objective.locked = true
+    next.plan.locked = true
+    move(next, "PLAN_LOCKED")
+    next.last_successful_step = "lock_plan"
+    next.next_transition = "PLAN_LOCKED->EXECUTION"
+    next.resume.next_step = "begin_execution"
+    await HeidiState.write(task_id, next)
+    await HeidiState.updateResume(task_id)
+    return next
+  }
+
+  async function execution(task_id: SessionID) {
+    const state = await HeidiState.read(task_id)
+    if (state.fsm_state === "DISCOVERY" || state.fsm_state === "PLAN_DRAFT") {
+      const plan = await HeidiState.planStatus(task_id)
+      if (!plan.ready) {
+        throw new Error(
+          `begin_execution requires a complete implementation plan. Missing sections: ${plan.missing.join(", ")}. Next action: lock_plan after updating the plan.`,
+        )
+      }
+      await lock(task_id)
+    }
+    const next = await HeidiState.read(task_id)
+    if (next.fsm_state !== "PLAN_LOCKED") {
+      throw new Error(`begin_execution requires PLAN_LOCKED. Current state: ${next.fsm_state}. Next action: lock_plan`)
+    }
+    await HeidiState.checkPlanDrift(task_id)
+    move(next, "EXECUTION")
+    next.last_successful_step = "begin_execution"
+    next.next_transition = "EXECUTION->VERIFICATION"
+    next.resume.next_step = "EXECUTION"
+    await HeidiState.write(task_id, next)
+    await HeidiState.updateResume(task_id)
+    return next
+  }
+
   export async function apply(input: z.input<typeof Request>) {
     const req = Request.parse(input)
     const state = await HeidiState.ensure(req.task_id, req.action === "start" ? req.payload.objective : "")
@@ -223,7 +268,7 @@ export namespace HeidiBoundary {
       move(state, "DISCOVERY")
       state.last_successful_step = "start"
       state.next_transition = "DISCOVERY->PLAN_DRAFT"
-      state.resume.next_step = "DISCOVERY"
+      state.resume.next_step = "write_plan"
       state.block_reason = null
     }
 
@@ -254,21 +299,7 @@ export namespace HeidiBoundary {
     }
 
     if (req.action === "lock_plan") {
-      if (state.fsm_state === "DISCOVERY") {
-        move(state, "PLAN_DRAFT")
-        await HeidiState.write(req.task_id, state)
-      }
-      requirePlan(state)
-      await HeidiState.setPlanHash(req.task_id)
-      const next = await HeidiState.read(req.task_id)
-      next.objective.locked = true
-      next.plan.locked = true
-      move(next, "PLAN_LOCKED")
-      next.last_successful_step = "lock_plan"
-      next.next_transition = "PLAN_LOCKED->EXECUTION"
-      next.resume.next_step = "begin_execution"
-      await HeidiState.write(req.task_id, next)
-      await HeidiState.updateResume(req.task_id)
+      const next = await lock(req.task_id)
       const artifacts = await HeidiState.files(req.task_id)
       await Bus.publish(Event.Updated, { task_id: req.task_id, mode: next.mode, fsm_state: next.fsm_state })
       return Response.parse({
@@ -292,18 +323,21 @@ export namespace HeidiBoundary {
       move(state, "DISCOVERY")
       state.last_successful_step = "reopen_plan"
       state.next_transition = "DISCOVERY->PLAN_DRAFT"
-      state.resume.next_step = "DISCOVERY"
+      state.resume.next_step = "write_plan"
     }
 
     if (req.action === "begin_execution") {
-      if (state.fsm_state !== "PLAN_LOCKED") {
-        throw new Error(`begin_execution requires PLAN_LOCKED. Current state: ${state.fsm_state}`)
-      }
-      await HeidiState.checkPlanDrift(req.task_id)
-      move(state, "EXECUTION")
-      state.last_successful_step = "begin_execution"
-      state.next_transition = "EXECUTION->VERIFICATION"
-      state.resume.next_step = "EXECUTION"
+      const next = await execution(req.task_id)
+      const artifacts = await HeidiState.files(req.task_id)
+      await Bus.publish(Event.Updated, { task_id: req.task_id, mode: next.mode, fsm_state: next.fsm_state })
+      return Response.parse({
+        ok: true,
+        fsm_state: next.fsm_state,
+        mode: next.mode,
+        task_json_version: 1,
+        artifacts,
+        error: null,
+      })
     }
 
     if (req.action === "request_verification") {

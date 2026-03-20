@@ -16,14 +16,8 @@ export async function enterExecution(sessionID: SessionID, objective: string) {
   await startTask(sessionID, objective)
   await Filesystem.write(
     (await HeidiState.files(sessionID)).implementation_plan,
-    "# Goal\nTest\n## Background and discovered repo facts\nNone\n## Scope\nAll\n## Files to modify\n- test.ts\n## Change strategy by component\nNone\n## Verification plan\n- test"
+    "# Goal\nTest\n## Background and discovered repo facts\nNone\n## Scope\nAll\n## Files to modify\n- test.ts\n## Change strategy by component\nNone\n## Verification plan\n- test",
   )
-  await HeidiBoundary.apply({
-    run_id: `run-${sessionID}`,
-    task_id: sessionID,
-    action: "lock_plan",
-    payload: {},
-  })
   await HeidiBoundary.apply({
     run_id: `run-${sessionID}`,
     task_id: sessionID,

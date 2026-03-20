@@ -19,6 +19,14 @@ const StateMode = {
   BLOCKED: "PLANNING",
 } as const satisfies Record<TaskState["fsm_state"], TaskState["mode"]>
 
+const PLAN_SECTIONS = [
+  "Background and discovered repo facts",
+  "Scope",
+  "Files to modify",
+  "Change strategy by component",
+  "Verification plan",
+]
+
 function root(sessionID: SessionID) {
   try {
     if (Instance.project.vcs) return path.join(Instance.worktree, ".opencode", "heidi", sessionID)
@@ -72,14 +80,7 @@ async function syncctx(sessionID: SessionID) {
 }
 
 function validatePlan(text: string) {
-  const sections = [
-    "Background and discovered repo facts",
-    "Scope",
-    "Files to modify",
-    "Change strategy by component",
-    "Verification plan",
-  ]
-  const tbd = sections.filter((s) => {
+  const tbd = PLAN_SECTIONS.filter((s) => {
     const re = new RegExp(`## ${s}\\s*\\n([\\s\\S]*?)(?=##|$)`)
     const match = text.match(re)
     if (!match) return true
@@ -89,6 +90,31 @@ function validatePlan(text: string) {
     return /^\s*-?\s*TBD/im.test(body)
   })
   if (tbd.length > 0) throw new Error(`Plan incomplete — sections still TBD: ${tbd.join(", ")}`)
+}
+
+function planIssues(text: string) {
+  return PLAN_SECTIONS.filter((s) => {
+    const re = new RegExp(`## ${s}\\s*\\n([\\s\\S]*?)(?=##|$)`)
+    const match = text.match(re)
+    if (!match) return true
+    const body = match[1]?.trim() ?? ""
+    if (!body) return true
+    if (/^none$/im.test(body)) return false
+    return /^\s*-?\s*TBD/im.test(body)
+  })
+}
+
+function next(state: TaskState, pending: string[], ready: boolean) {
+  if (state.fsm_state === "IDLE") return "start"
+  if (state.fsm_state === "DISCOVERY" || state.fsm_state === "PLAN_DRAFT") {
+    return ready ? "lock_plan" : "write_plan"
+  }
+  if (state.fsm_state === "PLAN_LOCKED") return "begin_execution"
+  if (state.fsm_state === "EXECUTION") return pending.length === 0 ? "request_verification" : "EXECUTION"
+  if (state.fsm_state === "VERIFICATION") return "complete"
+  if (state.fsm_state === "COMPLETE") return "done"
+  if (state.fsm_state === "BLOCKED") return "blocked"
+  return state.resume.next_step ?? undefined
 }
 
 function parsePlan(text: string): TaskState["checklist"] {
@@ -340,6 +366,16 @@ export namespace HeidiState {
     return state
   }
 
+  export async function planStatus(sessionID: SessionID) {
+    const text = await Filesystem.readText(planPath(sessionID)).catch(() => "")
+    const missing = planIssues(text)
+    return {
+      text,
+      missing,
+      ready: missing.length === 0,
+    }
+  }
+
   export async function writeVerification(sessionID: SessionID, verify: VerifyState) {
     await Filesystem.writeJson(verifyPath(sessionID), VerifyState.parse(verify))
     await syncctx(sessionID)
@@ -368,12 +404,11 @@ export namespace HeidiState {
     const state = await read(sessionID)
     const done = state.checklist.filter((item) => item.status === "done").map((item) => item.id)
     const pending = state.checklist.filter((item) => item.status !== "done").map((item) => item.id)
-    let next = state.resume.next_step
-    if (state.checklist.length > 0 && pending.length === 0) {
-      next = undefined
-      state.resume.next_step = undefined
-      await write(sessionID, state)
-    }
+    const plan =
+      state.fsm_state === "DISCOVERY" || state.fsm_state === "PLAN_DRAFT" ? await planStatus(sessionID) : undefined
+    const step = next(state, pending, plan?.ready ?? false)
+    state.resume.next_step = step
+    await write(sessionID, state)
     await writeResume(sessionID, {
       run_id: state.run_id,
       task_id: state.task_id,
@@ -386,7 +421,7 @@ export namespace HeidiState {
       edited_files: state.changed_files,
       last_validations: state.verification_commands,
       failed_hypotheses: state.resume.failed_hypotheses,
-      next_step: typeof next === "string" ? next : undefined,
+      next_step: typeof step === "string" ? step : undefined,
       checkpoint_ref: state.resume.checkpoint_id,
       narrative: `Heidi is in ${state.fsm_state} state (Mode: ${state.mode}). Completed ${done.length} items. Next transition: ${state.next_transition}. Last successful step: ${state.last_successful_step || "init"}.`,
     })

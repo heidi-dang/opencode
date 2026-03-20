@@ -8,6 +8,7 @@ import { Provider } from "../provider/provider"
 import { Instance } from "../project/instance"
 import { type SessionID, MessageID, PartID } from "../session/schema"
 import EXIT_DESCRIPTION from "./plan-exit.txt"
+import { HeidiBoundary } from "@/heidi/boundary"
 
 async function getLastModel(sessionID: SessionID) {
   for await (const item of MessageV2.stream(sessionID)) {
@@ -40,6 +41,13 @@ export const PlanExitTool = Tool.define("plan_exit", {
 
     const answer = answers[0]?.[0]
     if (answer === "No") throw new Question.RejectedError()
+
+    await HeidiBoundary.apply({
+      run_id: ctx.callID || undefined,
+      task_id: ctx.sessionID,
+      action: "begin_execution",
+      payload: {},
+    })
 
     const model = await getLastModel(ctx.sessionID)
 

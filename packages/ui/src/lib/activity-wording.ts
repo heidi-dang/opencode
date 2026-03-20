@@ -124,6 +124,13 @@ export const BOUNDARY_LOCK: Wording[] = [
   { title: "Sealed the plan", subtitle: "Time to build" },
 ]
 
+export const BOUNDARY_EXECUTION: Wording[] = [
+  { title: "Starting execution", subtitle: "Plan is ready to build" },
+  { title: "Crossing into build mode", subtitle: "Turning plan into changes" },
+  { title: "Execution is underway", subtitle: "Applying the approved plan" },
+  { title: "Beginning implementation", subtitle: "Leaving planning behind" },
+]
+
 export const BOUNDARY_COMPLETE: Wording[] = [
   { title: "Wrapped this task", subtitle: "Ready for handoff" },
   { title: "Mission complete", subtitle: "All items checked off" },

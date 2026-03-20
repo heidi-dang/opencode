@@ -8,14 +8,31 @@
  */
 
 import {
-  BASH_TYPECHECK, BASH_TEST, BASH_BUILD, BASH_LINT, BASH_GIT, BASH_GENERIC,
-  EDIT_RUNNING, EDIT_DONE,
-  WRITE_RUNNING, WRITE_DONE,
-  VERIFY_PASS, VERIFY_FAIL, VERIFY_RUNNING,
-  BOUNDARY_START, BOUNDARY_LOCK, BOUNDARY_COMPLETE, BOUNDARY_VERIFY, BOUNDARY_GENERIC,
-  SEARCH_RUNNING, READ_RUNNING,
-  CONTEXT_GATHERING, CONTEXT_DONE,
-  WEB_FETCH, WEB_SEARCH,
+  BASH_TYPECHECK,
+  BASH_TEST,
+  BASH_BUILD,
+  BASH_LINT,
+  BASH_GIT,
+  BASH_GENERIC,
+  EDIT_RUNNING,
+  EDIT_DONE,
+  WRITE_RUNNING,
+  WRITE_DONE,
+  VERIFY_PASS,
+  VERIFY_FAIL,
+  VERIFY_RUNNING,
+  BOUNDARY_START,
+  BOUNDARY_LOCK,
+  BOUNDARY_EXECUTION,
+  BOUNDARY_COMPLETE,
+  BOUNDARY_VERIFY,
+  BOUNDARY_GENERIC,
+  SEARCH_RUNNING,
+  READ_RUNNING,
+  CONTEXT_GATHERING,
+  CONTEXT_DONE,
+  WEB_FETCH,
+  WEB_SEARCH,
   SUBAGENT_RUNNING,
   PATCH_RUNNING,
   type Wording,
@@ -49,19 +66,15 @@ function pending(status?: string) {
 function category(cmd: string): string {
   const lower = (cmd || "").toLowerCase()
   if (lower.includes("typecheck") || lower.includes("tsc") || lower.includes("tsgo")) return "typecheck"
-  if (lower.includes("test") || lower.includes("vitest") || lower.includes("jest") || lower.includes("bun test")) return "test"
+  if (lower.includes("test") || lower.includes("vitest") || lower.includes("jest") || lower.includes("bun test"))
+    return "test"
   if (lower.includes("build") || lower.includes("compile")) return "build"
   if (lower.includes("lint") || lower.includes("eslint") || lower.includes("biome")) return "lint"
   if (lower.includes("git ")) return "git"
   return "generic"
 }
 
-export function humanize(
-  tool: string,
-  input: Record<string, unknown>,
-  status?: string,
-  idx = 0,
-): ActivityInfo {
+export function humanize(tool: string, input: Record<string, unknown>, status?: string, idx = 0): ActivityInfo {
   const seed = `${tool}:${idx}`
   const running = pending(status)
 
@@ -129,6 +142,7 @@ export function humanize(
       const variants: Record<string, Wording[]> = {
         start: BOUNDARY_START,
         lock_plan: BOUNDARY_LOCK,
+        begin_execution: BOUNDARY_EXECUTION,
         complete: BOUNDARY_COMPLETE,
         request_verification: BOUNDARY_VERIFY,
       }

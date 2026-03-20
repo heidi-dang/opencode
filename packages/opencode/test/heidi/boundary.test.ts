@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test"
 import { tmpdir } from "../fixture/fixture"
 import { Instance } from "../../src/project/instance"
 import { Session } from "../../src/session"
@@ -8,8 +8,21 @@ import { Filesystem } from "../../src/util/filesystem"
 import { TaskBoundaryTool } from "../../src/tool/task_boundary"
 import { MessageID } from "../../src/session/schema"
 import { enterVerification } from "../fixture/heidi"
+import { PlanExitTool } from "../../src/tool/plan"
+import * as QuestionModule from "../../src/question"
+import { MessageV2 } from "../../src/session/message-v2"
 
 describe("heidi boundary", () => {
+  let ask: ReturnType<typeof spyOn>
+
+  beforeEach(() => {
+    ask = spyOn(QuestionModule.Question, "ask")
+  })
+
+  afterEach(() => {
+    ask.mockRestore()
+  })
+
   test("valid lifecycle writes artifacts", async () => {
     await using tmp = await tmpdir({ git: true })
     await Instance.provide({
@@ -68,20 +81,56 @@ describe("heidi boundary", () => {
     })
   })
 
-  test("invalid transition rejects begin_execution before plan lock", async () => {
+  test("begin_execution auto-locks a complete plan from discovery", async () => {
     await using tmp = await tmpdir({ git: true })
     await Instance.provide({
       directory: tmp.path,
       fn: async () => {
         const session = await Session.create({})
+        await HeidiBoundary.apply({
+          run_id: "run-2",
+          task_id: session.id,
+          action: "start",
+          payload: { objective: "Auto-lock and execute" },
+        })
+        await Filesystem.write(
+          (await HeidiState.files(session.id)).implementation_plan,
+          "# Goal\nTest\n## Background and discovered repo facts\nNone\n## Scope\nAll\n## Files to modify\n- test.ts\n## Change strategy by component\nNone\n## Verification plan\n- test",
+        )
+        const result = await HeidiBoundary.apply({
+          run_id: "run-2",
+          task_id: session.id,
+          action: "begin_execution",
+          payload: {},
+        })
+        expect(result.fsm_state).toBe("EXECUTION")
+        const state = await HeidiState.read(session.id)
+        expect(state.plan.locked).toBe(true)
+        expect(state.objective.locked).toBe(true)
+      },
+    })
+  })
+
+  test("begin_execution gives guided error when plan is incomplete", async () => {
+    await using tmp = await tmpdir({ git: true })
+    await Instance.provide({
+      directory: tmp.path,
+      fn: async () => {
+        const session = await Session.create({})
+        await HeidiBoundary.apply({
+          run_id: "run-2b",
+          task_id: session.id,
+          action: "start",
+          payload: { objective: "Explain next step" },
+        })
         await expect(
           HeidiBoundary.apply({
-            run_id: "run-2",
+            run_id: "run-2b",
             task_id: session.id,
             action: "begin_execution",
             payload: {},
           }),
-        ).rejects.toThrow(/PLAN_LOCKED/)
+        ).rejects.toThrow(/Missing sections: .*Next action: lock_plan/i)
       },
     })
   })
@@ -166,7 +215,7 @@ describe("heidi boundary", () => {
         })
         await Filesystem.write(
           (await HeidiState.files(session.id)).implementation_plan,
-          "# Goal\nTest\n## Background and discovered repo facts\nNone\n## Scope\nAll\n## Files to modify\nNone\n## Change strategy by component\nNone\n## Verification plan\nNone"
+          "# Goal\nTest\n## Background and discovered repo facts\nNone\n## Scope\nAll\n## Files to modify\nNone\n## Change strategy by component\nNone\n## Verification plan\nNone",
         )
         await HeidiBoundary.apply({
           run_id: "run-3",
@@ -217,6 +266,180 @@ describe("heidi boundary", () => {
         expect(state.task_id).toBe(session.id)
         expect(state.run_id).toMatch(/^tool_/)
         expect(state.fsm_state).toBe("DISCOVERY")
+        expect(state.resume.next_step).toBe("write_plan")
+      },
+    })
+  })
+
+  test("task boundary tool begin_execution auto-locks complete plan", async () => {
+    await using tmp = await tmpdir({ git: true })
+    await Instance.provide({
+      directory: tmp.path,
+      fn: async () => {
+        const session = await Session.create({})
+        const tool = await TaskBoundaryTool.init()
+        await tool.execute(
+          {
+            action: "start",
+            payload: { objective: "Tool path execution" },
+          },
+          {
+            sessionID: session.id,
+            messageID: MessageID.make("msg_test-task-boundary-exec"),
+            callID: "call_test-task-boundary-exec",
+            agent: "heidi",
+            abort: AbortSignal.any([]),
+            messages: [],
+            metadata: () => {},
+            ask: async () => {},
+          },
+        )
+        await Filesystem.write(
+          (await HeidiState.files(session.id)).implementation_plan,
+          "# Goal\nTest\n## Background and discovered repo facts\nNone\n## Scope\nAll\n## Files to modify\n- test.ts\n## Change strategy by component\nNone\n## Verification plan\n- test",
+        )
+        const result = await tool.execute(
+          {
+            action: "begin_execution",
+            payload: {},
+          },
+          {
+            sessionID: session.id,
+            messageID: MessageID.make("msg_test-task-boundary-exec"),
+            callID: "call_test-task-boundary-exec",
+            agent: "heidi",
+            abort: AbortSignal.any([]),
+            messages: [],
+            metadata: () => {},
+            ask: async () => {},
+          },
+        )
+        expect(result.metadata.fsm_state).toBe("EXECUTION")
+      },
+    })
+  })
+
+  test("task boundary tool begin_execution preserves guided error", async () => {
+    await using tmp = await tmpdir({ git: true })
+    await Instance.provide({
+      directory: tmp.path,
+      fn: async () => {
+        const session = await Session.create({})
+        const tool = await TaskBoundaryTool.init()
+        await tool.execute(
+          {
+            action: "start",
+            payload: { objective: "Tool path error" },
+          },
+          {
+            sessionID: session.id,
+            messageID: MessageID.make("msg_test-task-boundary-err"),
+            callID: "call_test-task-boundary-err",
+            agent: "heidi",
+            abort: AbortSignal.any([]),
+            messages: [],
+            metadata: () => {},
+            ask: async () => {},
+          },
+        )
+        await expect(
+          tool.execute(
+            {
+              action: "begin_execution",
+              payload: {},
+            },
+            {
+              sessionID: session.id,
+              messageID: MessageID.make("msg_test-task-boundary-err"),
+              callID: "call_test-task-boundary-err",
+              agent: "heidi",
+              abort: AbortSignal.any([]),
+              messages: [],
+              metadata: () => {},
+              ask: async () => {},
+            },
+          ),
+        ).rejects.toThrow(/Missing sections: .*Next action: lock_plan/i)
+      },
+    })
+  })
+
+  test("plan_exit begins execution before switching to build agent", async () => {
+    await using tmp = await tmpdir({ git: true })
+    await Instance.provide({
+      directory: tmp.path,
+      fn: async () => {
+        const session = await Session.create({})
+        await HeidiBoundary.apply({
+          run_id: "run-plan-exit",
+          task_id: session.id,
+          action: "start",
+          payload: { objective: "Plan exit handoff" },
+        })
+        await Filesystem.write(
+          (await HeidiState.files(session.id)).implementation_plan,
+          "# Goal\nTest\n## Background and discovered repo facts\nNone\n## Scope\nAll\n## Files to modify\n- test.ts\n## Change strategy by component\nNone\n## Verification plan\n- test",
+        )
+        ask.mockResolvedValueOnce([["Yes"]])
+        const tool = await PlanExitTool.init()
+        await tool.execute(
+          {},
+          {
+            sessionID: session.id,
+            messageID: MessageID.make("msg_plan_exit"),
+            callID: "call_plan_exit",
+            agent: "plan",
+            abort: AbortSignal.any([]),
+            messages: [],
+            metadata: () => {},
+            ask: async () => {},
+          },
+        )
+        const state = await HeidiState.read(session.id)
+        expect(state.fsm_state).toBe("EXECUTION")
+        const msgs = await Session.messages({ sessionID: session.id, limit: 1 })
+        expect(msgs[0]?.parts.some((part) => part.type === "text" && "synthetic" in part && part.synthetic)).toBe(true)
+      },
+    })
+  })
+
+  test("plan_exit does not switch agent when begin_execution fails", async () => {
+    await using tmp = await tmpdir({ git: true })
+    await Instance.provide({
+      directory: tmp.path,
+      fn: async () => {
+        const session = await Session.create({})
+        await HeidiBoundary.apply({
+          run_id: "run-plan-exit-fail",
+          task_id: session.id,
+          action: "start",
+          payload: { objective: "Plan exit blocked" },
+        })
+        ask.mockResolvedValueOnce([["Yes"]])
+        const tool = await PlanExitTool.init()
+        await expect(
+          tool.execute(
+            {},
+            {
+              sessionID: session.id,
+              messageID: MessageID.make("msg_plan_exit_fail"),
+              callID: "call_plan_exit_fail",
+              agent: "plan",
+              abort: AbortSignal.any([]),
+              messages: [],
+              metadata: () => {},
+              ask: async () => {},
+            },
+          ),
+        ).rejects.toThrow(/Missing sections: .*Next action: lock_plan/i)
+        const state = await HeidiState.read(session.id)
+        expect(state.fsm_state).toBe("DISCOVERY")
+        const msgs = await Array.fromAsync(MessageV2.stream(session.id))
+        expect(
+          msgs
+            .flatMap((msg) => msg.parts)
+            .some((part) => part.type === "text" && "synthetic" in part && part.synthetic),
+        ).toBe(false)
       },
     })
   })
