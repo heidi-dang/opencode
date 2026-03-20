@@ -24,16 +24,23 @@ export const TaskBoundaryTool = Tool.define("task_boundary", {
     id: z.string().optional(),
     status: z.enum(["todo", "doing", "done", "blocked"]).optional(),
     reason: z.string().trim().optional(),
-    items: z.array(z.object({
-      label: z.string().min(1),
-      category: z.enum(["Modify", "New", "Delete", "Verify"]),
-    })).optional(),
-    payload: z.any().optional(), // backward compatibility if needed
+    items: z
+      .array(
+        z.object({
+          label: z.string().min(1),
+          category: z.enum(["Modify", "New", "Delete", "Verify"]),
+        }),
+      )
+      .optional(),
+    payload: z.unknown().optional(),
     run_id: z.string().optional(),
-    task_id: z.string().regex(/^ses.*/).optional(),
+    task_id: z
+      .string()
+      .regex(/^ses.*/)
+      .optional(),
   }),
   async execute(params, ctx) {
-    const objective = params.action === "start" ? params.objective ?? "" : ""
+    const objective = params.action === "start" ? (params.objective ?? "") : ""
     const state = await HeidiState.ensure(ctx.sessionID, objective)
     const payload = params.payload ?? {
       objective: params.objective,
@@ -43,12 +50,14 @@ export const TaskBoundaryTool = Tool.define("task_boundary", {
       reason: params.reason,
       items: params.items,
     }
-    const result = await HeidiBoundary.apply({
-      action: params.action as any,
+    const input = {
+      action: params.action,
       payload,
       run_id: params.run_id ?? state.run_id,
       task_id: ctx.sessionID,
-    })
+    }
+    const parsed = HeidiBoundary.Input.parse(input)
+    const result = await HeidiBoundary.apply(parsed)
     return {
       title: `${result.fsm_state} ${result.mode}`,
       metadata: result,

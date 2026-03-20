@@ -12,7 +12,7 @@ describe("heidi discovery", () => {
       directory: tmp.path,
       fn: async () => {
         const session = await Session.create({})
-        await HeidiDiscovery.start(session.id)
+        await HeidiDiscovery.start(session.id, "Discovery objective")
         for (let i = 0; i < 8; i++) {
           await HeidiDiscovery.action(session.id, `k-${i}`)
         }

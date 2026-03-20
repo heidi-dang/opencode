@@ -72,9 +72,23 @@ async function syncctx(sessionID: SessionID) {
 }
 
 function validatePlan(text: string) {
-  // Lenient validation: warn but never throw
-  // Heidi can lock imperfect plans and iterate
-  return
+  const sections = [
+    "Background and discovered repo facts",
+    "Scope",
+    "Files to modify",
+    "Change strategy by component",
+    "Verification plan",
+  ]
+  const tbd = sections.filter((s) => {
+    const re = new RegExp(`## ${s}\\s*\\n([\\s\\S]*?)(?=##|$)`)
+    const match = text.match(re)
+    if (!match) return true
+    const body = match[1]?.trim() ?? ""
+    if (!body) return true
+    if (/^none$/im.test(body)) return false
+    return /^\s*-?\s*TBD/im.test(body)
+  })
+  if (tbd.length > 0) throw new Error(`Plan incomplete — sections still TBD: ${tbd.join(", ")}`)
 }
 
 function parsePlan(text: string): TaskState["checklist"] {

@@ -228,8 +228,9 @@ export namespace HeidiBoundary {
     }
 
     if (req.action === "set_mode") {
-      // mode is derived from fsm_state — just accept it silently
-      // so Heidi never stalls on a set_mode call
+      if (state.mode !== req.payload.mode) {
+        throw new Error(`set_mode is invalid; mode is derived from fsm_state ${state.fsm_state}`)
+      }
     }
 
     if (req.action === "mark_item") {
@@ -295,32 +296,10 @@ export namespace HeidiBoundary {
     }
 
     if (req.action === "begin_execution") {
-      // Auto-lock from PLAN_DRAFT or DISCOVERY so Heidi never stalls
-      if (state.fsm_state === "DISCOVERY") {
-        move(state, "PLAN_DRAFT")
-      }
-      if (state.fsm_state === "PLAN_DRAFT") {
-        try {
-          await HeidiState.write(req.task_id, state)
-          await HeidiState.setPlanHash(req.task_id)
-          const locked = await HeidiState.read(req.task_id)
-          locked.objective.locked = true
-          locked.plan.locked = true
-          move(locked, "PLAN_LOCKED")
-          await HeidiState.write(req.task_id, locked)
-          // Re-read after auto-lock
-          Object.assign(state, await HeidiState.read(req.task_id))
-        } catch {
-          // If plan validation fails, still allow execution
-          state.objective.locked = true
-          state.plan.locked = true
-          move(state, "PLAN_LOCKED")
-        }
-      }
       if (state.fsm_state !== "PLAN_LOCKED") {
         throw new Error(`begin_execution requires PLAN_LOCKED. Current state: ${state.fsm_state}`)
       }
-      await HeidiState.checkPlanDrift(req.task_id).catch(() => {})
+      await HeidiState.checkPlanDrift(req.task_id)
       move(state, "EXECUTION")
       state.last_successful_step = "begin_execution"
       state.next_transition = "EXECUTION->VERIFICATION"

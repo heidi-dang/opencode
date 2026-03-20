@@ -4,8 +4,11 @@ import { HeidiState } from "./state"
 const LIMIT = 8
 
 export namespace HeidiDiscovery {
-  export async function start(sessionID: SessionID) {
-    const state = await HeidiState.ensure(sessionID, "")
+  export async function start(sessionID: SessionID, objective: string) {
+    const state = await HeidiState.ensure(sessionID, objective)
+    if (!state.objective.text.trim()) {
+      throw new Error("discovery requires objective.text")
+    }
     if (state.fsm_state === "IDLE") {
       state.fsm_state = "DISCOVERY"
       state.mode = "PLANNING"
