@@ -109,6 +109,12 @@ export namespace HeidiRetrieval {
     if (files.length > 0) return { kind: "path", result: files.slice(0, 20) }
 
     const rg = await Ripgrep.filepath()
+    if (!rg) {
+      return {
+        kind: "text",
+        result: [] as string[],
+      }
+    }
     const p = Bun.spawn([rg, "-n", "-m", "20", "--no-messages", query, root], { stdout: "pipe", stderr: "pipe" })
     const out = await new Response(p.stdout).text()
     await p.exited

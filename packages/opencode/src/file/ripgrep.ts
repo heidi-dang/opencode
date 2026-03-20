@@ -137,70 +137,10 @@ export namespace Ripgrep {
     const filepath = path.join(Global.Path.bin, "rg" + (process.platform === "win32" ? ".exe" : ""))
 
     if (!(await Filesystem.exists(filepath))) {
-      const platformKey = `${process.arch}-${process.platform}` as keyof typeof PLATFORM
-      const config = PLATFORM[platformKey]
-      if (!config) throw new UnsupportedPlatformError({ platform: platformKey })
-
-      const version = "14.1.1"
-      const filename = `ripgrep-${version}-${config.platform}.${config.extension}`
-      const url = `https://github.com/BurntSushi/ripgrep/releases/download/${version}/${filename}`
-
-      const response = await fetch(url)
-      if (!response.ok) throw new DownloadFailedError({ url, status: response.status })
-
-      const arrayBuffer = await response.arrayBuffer()
-      const archivePath = path.join(Global.Path.bin, filename)
-      await Filesystem.write(archivePath, Buffer.from(arrayBuffer))
-      if (config.extension === "tar.gz") {
-        const args = ["tar", "-xzf", archivePath, "--strip-components=1"]
-
-        if (platformKey.endsWith("-darwin")) args.push("--include=*/rg")
-        if (platformKey.endsWith("-linux")) args.push("--wildcards", "*/rg")
-
-        const proc = Process.spawn(args, {
-          cwd: Global.Path.bin,
-          stderr: "pipe",
-          stdout: "pipe",
-        })
-        const exit = await proc.exited
-        if (exit !== 0) {
-          const stderr = proc.stderr ? await text(proc.stderr) : ""
-          throw new ExtractionFailedError({
-            filepath,
-            stderr,
-          })
-        }
+      log.warn("rg binary missing; using javascript fallback", { filepath })
+      return {
+        filepath: undefined,
       }
-      if (config.extension === "zip") {
-        const zipFileReader = new ZipReader(new BlobReader(new Blob([arrayBuffer])))
-        const entries = await zipFileReader.getEntries()
-        let rgEntry: any
-        for (const entry of entries) {
-          if (entry.filename.endsWith("rg.exe")) {
-            rgEntry = entry
-            break
-          }
-        }
-
-        if (!rgEntry) {
-          throw new ExtractionFailedError({
-            filepath: archivePath,
-            stderr: "rg.exe not found in zip archive",
-          })
-        }
-
-        const rgBlob = await rgEntry.getData(new BlobWriter())
-        if (!rgBlob) {
-          throw new ExtractionFailedError({
-            filepath: archivePath,
-            stderr: "Failed to extract rg.exe from zip archive",
-          })
-        }
-        await Filesystem.write(filepath, Buffer.from(await rgBlob.arrayBuffer()))
-        await zipFileReader.close()
-      }
-      await fs.unlink(archivePath)
-      if (!platformKey.endsWith("-win32")) await fs.chmod(filepath, 0o755)
     }
 
     return {
@@ -213,6 +153,28 @@ export namespace Ripgrep {
     return filepath
   }
 
+  async function collect(input: { cwd: string; hidden?: boolean; maxDepth?: number; signal?: AbortSignal }) {
+    const out: string[] = []
+    const walk = async (dir: string, depth: number) => {
+      input.signal?.throwIfAborted()
+      if (input.maxDepth !== undefined && depth > input.maxDepth) return
+      const rows = await fs.readdir(dir, { withFileTypes: true })
+      for (const row of rows) {
+        input.signal?.throwIfAborted()
+        if (row.name === ".git") continue
+        if (input.hidden === false && row.name.startsWith(".")) continue
+        const abs = path.join(dir, row.name)
+        if (row.isDirectory()) {
+          await walk(abs, depth + 1)
+          continue
+        }
+        out.push(path.relative(input.cwd, abs))
+      }
+    }
+    await walk(input.cwd, 0)
+    return out
+  }
+
   export async function* files(input: {
     cwd: string
     glob?: string[]
@@ -223,7 +185,16 @@ export namespace Ripgrep {
   }) {
     input.signal?.throwIfAborted()
 
-    const args = [await filepath(), "--files", "--glob=!.git/*"]
+    const bin = await filepath()
+    if (!bin) {
+      const files = await collect(input)
+      for (const file of files) {
+        if (file) yield file
+      }
+      return
+    }
+
+    const args = [bin, "--files", "--glob=!.git/*"]
     if (input.follow) args.push("--follow")
     if (input.hidden !== false) args.push("--hidden")
     if (input.maxDepth !== undefined) args.push(`--max-depth=${input.maxDepth}`)
@@ -339,7 +310,9 @@ export namespace Ripgrep {
     limit?: number
     follow?: boolean
   }) {
-    const args = [`${await filepath()}`, "--json", "--hidden", "--glob=!.git/*"]
+    const bin = await filepath()
+    if (!bin) return []
+    const args = [bin, "--json", "--hidden", "--glob=!.git/*"]
     if (input.follow) args.push("--follow")
 
     if (input.glob) {

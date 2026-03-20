@@ -40,6 +40,13 @@ export const GrepTool = Tool.define("grep", {
     await assertExternalDirectory(ctx, searchPath, { kind: "directory" })
 
     const rgPath = await Ripgrep.filepath()
+    if (!rgPath) {
+      return {
+        title: params.pattern,
+        metadata: { matches: 0, truncated: false },
+        output: "No files found",
+      }
+    }
     const args = ["-nH", "--hidden", "--no-messages", "--field-match-separator=|", "--regexp", params.pattern]
     if (params.include) {
       args.push("--glob", params.include)
