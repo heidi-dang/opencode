@@ -94,6 +94,10 @@
     "type": "git",
     "url": "https://github.com/anomalyco/opencode"
   },
+  "opencode": {
+    "preferredNode": "v24.13.1",
+    "minimumNode": "22.12.0"
+  },
   "license": "MIT",
   "prettier": {
     "semi": false,

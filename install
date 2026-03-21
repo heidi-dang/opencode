@@ -19,6 +19,7 @@ Options:
     -b, --binary <path>     Install from a local binary instead of downloading
         --local-repo        Install from current local repository (for development)
         --local-ui          Build and use local WebUI assets alongside local-repo
+        --dry-run           Show planned changes without mutating anything
         --no-modify-path    Don't modify shell config files (.zshrc, .bashrc, etc.)
 
 Examples:
@@ -33,6 +34,7 @@ no_modify_path=false
 binary_path=""
 local_repo=false
 local_ui=false
+dry_run=false
 health_lines=""
 health_bun="pending"
 health_node="pending"
@@ -44,6 +46,25 @@ health_shell="pending"
 health_wrapper="pending"
 health_ui_dir="pending"
 shell_config_file=""
+runtime_root=""
+run_ts=""
+run_dir=""
+run_log=""
+log_dir=""
+health_json=""
+snapshot_pre=""
+snapshot_post=""
+compare_json=""
+lock_backup=""
+pre_git_status=""
+preferred_node_version=""
+minimum_node_version=""
+node_action="unchanged"
+current_shell=""
+repair_actions=""
+compare_status="pending"
+compare_summary=""
+log_keep=10
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -82,6 +103,10 @@ while [[ $# -gt 0 ]]; do
             local_repo=true
             shift
             ;;
+        --dry-run)
+            dry_run=true
+            shift
+            ;;
         *)
             echo -e "${ORANGE}Warning: Unknown option '$1'${NC}" >&2
             shift
@@ -91,6 +116,24 @@ done
 
 INSTALL_DIR=$HOME/.opencode/bin
 mkdir -p "$INSTALL_DIR"
+XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-$HOME/.config}
+
+runtime_root="$HOME/.opencode/install"
+log_dir="$runtime_root/logs"
+run_ts=$(date +%Y%m%d%H%M%S)
+run_dir="$runtime_root/runs/$run_ts"
+run_log="$log_dir/install-$run_ts.log"
+health_json="$run_dir/install-health.json"
+snapshot_pre="$run_dir/install-snapshot-pre.json"
+snapshot_post="$run_dir/install-snapshot-post.json"
+compare_json="$run_dir/install-compare.json"
+mkdir -p "$INSTALL_DIR" "$log_dir" "$run_dir"
+ln -sfn "$run_log" "$log_dir/latest.log"
+
+if [ -z "${OPENCODE_INSTALL_LOGGING:-}" ]; then
+    export OPENCODE_INSTALL_LOGGING=1
+    exec > >(tee -a "$run_log") 2>&1
+fi
 
 # If --binary is provided, skip all download/detection logic
 if [ -n "$binary_path" ]; then
@@ -242,6 +285,403 @@ print_message() {
     echo -e "${color}${message}${NC}"
 }
 
+json_escape() {
+    python3 - <<'PY' "$1"
+import json, sys
+print(json.dumps(sys.argv[1]))
+PY
+}
+
+record_action() {
+    local msg=$1
+    if [ -n "$repair_actions" ]; then
+        repair_actions="$repair_actions|$msg"
+        return
+    fi
+    repair_actions="$msg"
+}
+
+trim_logs() {
+    if [ ! -d "$log_dir" ]; then
+        return
+    fi
+    python3 - <<'PY' "$log_dir" "$log_keep"
+import os, sys
+root = sys.argv[1]
+keep = int(sys.argv[2])
+files = sorted(
+    [os.path.join(root, x) for x in os.listdir(root) if x.startswith("install-") and x.endswith(".log")],
+    key=os.path.getmtime,
+    reverse=True,
+)
+for path in files[keep:]:
+    try:
+        os.remove(path)
+    except FileNotFoundError:
+        pass
+PY
+}
+
+trim_runs() {
+    local runs="$runtime_root/runs"
+    if [ ! -d "$runs" ]; then
+        return
+    fi
+    python3 - <<'PY' "$runs" "$log_keep"
+import os, shutil, sys
+root = sys.argv[1]
+keep = int(sys.argv[2])
+dirs = sorted(
+    [os.path.join(root, x) for x in os.listdir(root) if os.path.isdir(os.path.join(root, x))],
+    key=os.path.getmtime,
+    reverse=True,
+)
+for path in dirs[keep:]:
+    shutil.rmtree(path, ignore_errors=True)
+PY
+}
+
+runtime_finalize() {
+    trim_logs
+    trim_runs
+}
+
+preferred_node() {
+    local root=$1
+    python3 - <<'PY' "$root/package.json"
+import json, sys
+with open(sys.argv[1], "r", encoding="utf-8") as f:
+    data = json.load(f)
+print(data.get("opencode", {}).get("preferredNode", ""))
+PY
+}
+
+minimum_node() {
+    local root=$1
+    python3 - <<'PY' "$root/package.json"
+import json, sys
+with open(sys.argv[1], "r", encoding="utf-8") as f:
+    data = json.load(f)
+print(data.get("opencode", {}).get("minimumNode", ""))
+PY
+}
+
+hash_file() {
+    local file=$1
+    if [ ! -f "$file" ]; then
+        printf ""
+        return
+    fi
+    md5sum "$file" | cut -d' ' -f1
+}
+
+git_dirty() {
+    if ! git rev-parse --git-dir >/dev/null 2>&1; then
+        printf ""
+        return
+    fi
+    git status --porcelain=v1
+}
+
+resolve_pkg() {
+    local root=$1
+    local spec=$2
+    bun -e 'import { createRequire } from "node:module"; import fs from "node:fs"; const root = process.argv[1]; const spec = process.argv[2]; const req = createRequire(root + "/packages/opencode/package.json"); const file = req.resolve(spec + "/package.json"); const pkg = JSON.parse(fs.readFileSync(file, "utf8")); console.log(JSON.stringify({ version: pkg.version || "", file }))' "$root" "$spec" 2>/dev/null || true
+}
+
+shell_candidates() {
+    case $1 in
+        fish)
+            printf "%s\n" "$HOME/.config/fish/config.fish"
+            ;;
+        zsh)
+            printf "%s\n" "${ZDOTDIR:-$HOME}/.zshrc" "${ZDOTDIR:-$HOME}/.zshenv" "$XDG_CONFIG_HOME/zsh/.zshrc" "$XDG_CONFIG_HOME/zsh/.zshenv"
+            ;;
+        bash)
+            printf "%s\n" "$HOME/.bashrc" "$HOME/.bash_profile" "$HOME/.profile" "$XDG_CONFIG_HOME/bash/.bashrc" "$XDG_CONFIG_HOME/bash/.bash_profile"
+            ;;
+        ash)
+            printf "%s\n" "$HOME/.ashrc" "$HOME/.profile"
+            ;;
+        sh)
+            printf "%s\n" "$HOME/.profile"
+            ;;
+        *)
+            printf "%s\n" "$HOME/.bashrc" "$HOME/.bash_profile" "$HOME/.profile"
+            ;;
+    esac
+}
+
+pick_shell_config() {
+    local shell=$1
+    local first=""
+    while IFS= read -r file; do
+        [ -z "$first" ] && first=$file
+        if [ -f "$file" ]; then
+            printf "%s" "$file"
+            return
+        fi
+    done <<EOF
+$(shell_candidates "$shell")
+EOF
+    printf "%s" "$first"
+}
+
+managed_block() {
+    case $1 in
+        fish)
+            printf "# >>> opencode managed >>>\nfish_add_path %s\n# <<< opencode managed <<<\n" "$INSTALL_DIR"
+            ;;
+        *)
+            printf "# >>> opencode managed >>>\nexport PATH=%s:\$PATH\n# <<< opencode managed <<<\n" "$INSTALL_DIR"
+            ;;
+    esac
+}
+
+managed_node_block() {
+    case $1 in
+        fish)
+            printf "# >>> opencode node managed >>>\nfish_add_path %s\n# <<< opencode node managed <<<\n" "$HOME/.local/node/bin"
+            ;;
+        *)
+            printf "# >>> opencode node managed >>>\nexport PATH=\"%s:\$PATH\"\n# <<< opencode node managed <<<\n" "$HOME/.local/node/bin"
+            ;;
+    esac
+}
+
+managed_ui_block() {
+    local shell=$1
+    local ui=$2
+    case $shell in
+        fish)
+            printf "# >>> opencode ui managed >>>\nset -gx OPENCODE_UI_DIR %s\n# <<< opencode ui managed <<<\n" "$ui"
+            ;;
+        *)
+            printf "# >>> opencode ui managed >>>\nexport OPENCODE_UI_DIR=\"%s\"\n# <<< opencode ui managed <<<\n" "$ui"
+            ;;
+    esac
+}
+
+write_block() {
+    local file=$1
+    local marker=$2
+    local body=$3
+    [ -z "$file" ] && return 1
+    if [ "$dry_run" = true ]; then
+        print_message info "${MUTED}[dry-run] would update ${NC}$file${MUTED} block ${NC}$marker"
+        return 0
+    fi
+    python3 - <<'PY' "$file" "$marker" "$body"
+import pathlib, sys
+path = pathlib.Path(sys.argv[1])
+marker = sys.argv[2]
+body = sys.argv[3]
+start = f"# >>> {marker} >>>"
+end = f"# <<< {marker} <<<"
+text = path.read_text(encoding="utf-8") if path.exists() else ""
+lines = text.splitlines()
+out = []
+i = 0
+while i < len(lines):
+    if lines[i].strip() == start:
+        i += 1
+        while i < len(lines) and lines[i].strip() != end:
+            i += 1
+        if i < len(lines):
+            i += 1
+        continue
+    out.append(lines[i])
+    i += 1
+if out and out[-1] != "":
+    out.append("")
+out.extend(body.strip("\n").splitlines())
+out.append("")
+path.parent.mkdir(parents=True, exist_ok=True)
+path.write_text("\n".join(out), encoding="utf-8")
+PY
+}
+
+capture_snapshot() {
+    local out=$1
+    local root=${2:-$PWD}
+    local shell_cfg=$3
+    local dr=$(resolve_pkg "$root" "drizzle-orm")
+    local pd=$(resolve_pkg "$root" "@pierre/diffs")
+    local dirty=""
+    local branch=""
+    local commit=""
+    if git -C "$root" rev-parse --git-dir >/dev/null 2>&1; then
+        dirty=$(git -C "$root" status --porcelain=v1)
+        branch=$(git -C "$root" rev-parse --abbrev-ref HEAD)
+        commit=$(git -C "$root" rev-parse HEAD)
+    fi
+    python3 - <<'PY' "$out" "$root" "$run_ts" "$current_shell" "$shell_cfg" "$INSTALL_DIR" "$run_log" "$health_json" "$snapshot_pre" "$snapshot_post" "$compare_json" "$dr" "$pd" "$preferred_node_version" "$minimum_node_version" "$node_action" "$local_repo" "$local_ui" "$dry_run" "$no_modify_path" "$repair_actions" "$branch" "$commit" "$dirty"
+import json, os, pathlib, subprocess, sys
+out, root, ts, shell_name, shell_cfg, install_dir, run_log, health_json, pre_path, post_path, compare_json, dr, pd, preferred, minimum, node_action, local_repo, local_ui, dry_run, no_modify_path, repair, branch, commit, dirty = sys.argv[1:25]
+def sh(cmd):
+    try:
+        return subprocess.check_output(cmd, text=True).strip()
+    except Exception:
+        return ""
+def md5(path):
+    p = pathlib.Path(path)
+    if not p.exists() or not p.is_file():
+        return ""
+    import hashlib
+    return hashlib.md5(p.read_bytes()).hexdigest()
+def parse_pkg(raw):
+    if not raw:
+        return {"version": "", "file": ""}
+    try:
+        return json.loads(raw)
+    except Exception:
+        return {"version": "", "file": ""}
+data = {
+    "timestamp": ts,
+    "machine": {
+        "uname": sh(["uname", "-a"]),
+        "os": sh(["uname", "-s"]),
+        "arch": sh(["uname", "-m"]),
+    },
+    "tools": {
+        "bun": {"path": sh(["bash", "-lc", "command -v bun || true"]), "version": sh(["bash", "-lc", "bun --version 2>/dev/null || true"])},
+        "node": {"path": sh(["bash", "-lc", "command -v node || true"]), "version": sh(["bash", "-lc", "node --version 2>/dev/null || true"]), "preferred": preferred, "minimum": minimum, "action": node_action},
+        "python3": {"path": sh(["bash", "-lc", "command -v python3 || true"]), "version": sh(["bash", "-lc", "python3 --version 2>/dev/null || true"])},
+        "git": {"path": sh(["bash", "-lc", "command -v git || true"]), "version": sh(["bash", "-lc", "git --version 2>/dev/null || true"])},
+    },
+    "repo": {
+        "root": root,
+        "branch": branch,
+        "commit": commit,
+        "dirty": dirty.splitlines() if dirty else [],
+        "hashes": {
+            "bun.lock": md5(os.path.join(root, "bun.lock")),
+            "package.json": md5(os.path.join(root, "package.json")),
+            "packages/opencode/package.json": md5(os.path.join(root, "packages/opencode/package.json")),
+            "packages/app/package.json": md5(os.path.join(root, "packages/app/package.json")),
+        },
+    },
+    "deps": {
+        "drizzle": parse_pkg(dr),
+        "pierre": parse_pkg(pd),
+        "pierre_worker": os.path.join(parse_pkg(pd).get("file", "").rsplit("/package.json", 1)[0], "dist/worker/worker.js") if parse_pkg(pd).get("file") else "",
+    },
+    "shell": {
+        "name": shell_name,
+        "config": shell_cfg,
+        "path_contains_install": install_dir in os.environ.get("PATH", "").split(":") if os.environ.get("PATH") else False,
+        "opencode_ui_dir": os.environ.get("OPENCODE_UI_DIR", ""),
+    },
+    "artifacts": {
+        "install_dir": install_dir,
+        "wrapper": sh(["bash", "-lc", "command -v opencode || true"]),
+        "log": run_log,
+        "health_json": health_json,
+        "snapshot_pre": pre_path,
+        "snapshot_post": post_path,
+        "compare_json": compare_json,
+    },
+    "run": {
+        "local_repo": local_repo == "true",
+        "local_ui": local_ui == "true",
+        "dry_run": dry_run == "true",
+        "no_modify_path": no_modify_path == "true",
+        "repair_actions": repair.split("|") if repair else [],
+    },
+}
+pathlib.Path(out).parent.mkdir(parents=True, exist_ok=True)
+pathlib.Path(out).write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+PY
+}
+
+write_health_json() {
+    python3 - <<'PY' "$health_json" "$run_ts" "$run_log" "$snapshot_pre" "$snapshot_post" "$compare_json" "$health_lines" "$health_bun" "$health_node" "$health_lock" "$health_deps" "$health_ocode" "$health_webui" "$health_shell" "$health_wrapper" "$health_ui_dir" "$compare_status" "$compare_summary" "$dry_run" "$repair_actions"
+import json, pathlib, sys
+path, ts, log, pre, post, compare, lines, bun, node, lock, deps, ocode, webui, shell, wrapper, ui, compare_status, compare_summary, dry_run, repair = sys.argv[1:21]
+data = {
+    "timestamp": ts,
+    "dry_run": dry_run == "true",
+    "checks": {
+        "bun": bun,
+        "node": node,
+        "lock": lock,
+        "deps": deps,
+        "opencode_build": ocode,
+        "webui_build": webui,
+        "shell": shell,
+        "wrapper": wrapper,
+        "ui_dir": ui,
+    },
+    "health_lines": [line for line in lines.split("\\n") if line],
+    "artifacts": {
+        "log": log,
+        "snapshot_pre": pre,
+        "snapshot_post": post,
+        "compare": compare,
+    },
+    "compare": {
+        "status": compare_status,
+        "summary": compare_summary,
+    },
+    "actions": repair.split("|") if repair else [],
+}
+pathlib.Path(path).write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+PY
+}
+
+compare_snapshots() {
+    python3 - <<'PY' "$snapshot_pre" "$snapshot_post" "$compare_json"
+import json, pathlib, sys
+pre = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+post = json.loads(pathlib.Path(sys.argv[2]).read_text(encoding="utf-8"))
+out = pathlib.Path(sys.argv[3])
+changes = []
+status = "pass"
+def note(kind, field, before, after, level):
+    global status
+    changes.append({"kind": kind, "field": field, "before": before, "after": after, "level": level})
+    if level == "regression":
+        status = "fail"
+    elif level == "warning" and status == "pass":
+        status = "warn"
+if pre["machine"] != post["machine"]:
+    note("machine", "machine", pre["machine"], post["machine"], "regression")
+if pre["repo"]["branch"] != post["repo"]["branch"]:
+    note("repo", "branch", pre["repo"]["branch"], post["repo"]["branch"], "regression")
+if pre["repo"]["commit"] != post["repo"]["commit"]:
+    note("repo", "commit", pre["repo"]["commit"], post["repo"]["commit"], "regression")
+if pre["repo"]["dirty"] != post["repo"]["dirty"]:
+    note("repo", "dirty", pre["repo"]["dirty"], post["repo"]["dirty"], "regression")
+for key, value in pre["repo"]["hashes"].items():
+    after = post["repo"]["hashes"].get(key)
+    if value != after:
+        note("repo", key, value, after, "regression")
+if pre["deps"]["drizzle"]["version"] != post["deps"]["drizzle"]["version"]:
+    note("deps", "drizzle.version", pre["deps"]["drizzle"]["version"], post["deps"]["drizzle"]["version"], "regression")
+if pre["deps"]["pierre"]["version"] != post["deps"]["pierre"]["version"]:
+    note("deps", "pierre.version", pre["deps"]["pierre"]["version"], post["deps"]["pierre"]["version"], "regression")
+if pre["tools"]["bun"]["version"] != post["tools"]["bun"]["version"]:
+    note("tools", "bun.version", pre["tools"]["bun"]["version"], post["tools"]["bun"]["version"], "regression")
+if pre["tools"]["node"]["preferred"] and post["tools"]["node"]["version"] != pre["tools"]["node"]["preferred"]:
+    note("tools", "node.version", pre["tools"]["node"]["preferred"], post["tools"]["node"]["version"], "warning")
+summary = "No unexpected drift"
+if changes:
+    summary = f"{len(changes)} compared changes"
+data = {"status": status, "summary": summary, "changes": changes}
+out.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+print(status)
+print(summary)
+PY
+}
+
+run_cmd() {
+    if [ "$dry_run" = true ]; then
+        print_message info "${MUTED}[dry-run] would run:${NC} $*"
+        return 0
+    fi
+    "$@"
+}
+
 check_version() {
     if command -v opencode >/dev/null 2>&1; then
         opencode_path=$(which opencode)
@@ -384,19 +824,27 @@ upgrade_node() {
             ;;
     esac
 
-    print_message info "${MUTED}Fetching latest Node LTS from nodejs.org...${NC}"
+    print_message info "${MUTED}Preparing preferred Node runtime...${NC}"
 
-    local version
-    version=$(curl -sL "https://nodejs.org/dist/index.json" | \
-        sed -n 's/.*"version":"v\([^"]*\)".*"lts":"\([^"]*\)".*/\1 \2/p' | \
-        awk '$2 != "false" {print $1; exit}')
+    local version="$preferred_node_version"
     if [ -z "$version" ]; then
-        print_message error "Failed to fetch latest Node LTS version"
+        version=$(curl -sL "https://nodejs.org/dist/index.json" | \
+            sed -n 's/.*"version":"v\([^"]*\)".*"lts":"\([^"]*\)".*/\1 \2/p' | \
+            awk '$2 != "false" {print $1; exit}')
+    fi
+    if [ -z "$version" ]; then
+        print_message error "Failed to determine preferred Node version"
         return 1
     fi
     version=${version#v}
 
     print_message info "${MUTED}Upgrading Node to v$version...${NC}"
+    record_action "node-upgrade:v$version"
+
+    if [ "$dry_run" = true ]; then
+        node_action="would-upgrade"
+        return 0
+    fi
 
     mkdir -p "$dest"
     local url="https://nodejs.org/dist/v${version}/node-v${version}-${arch}.tar.xz"
@@ -412,15 +860,14 @@ upgrade_node() {
 
     # Add to shell config
     local node_bin="$dest/bin"
-    local export_line="export PATH=\"\$HOME/.local/node/bin:\$PATH\""
-
-    for cfg in "$HOME/.bashrc" "$HOME/.zshrc"; do
-        if [ -f "$cfg" ]; then
-            if ! grep -q "$node_bin" "$cfg" 2>/dev/null; then
-                printf '\n%s\n' "$export_line" >> "$cfg"
-            fi
-        fi
-    done
+    local cfg
+    while IFS= read -r cfg; do
+        [ -z "$cfg" ] && continue
+        write_block "$cfg" "opencode node managed" "$(managed_node_block "$current_shell")"
+        break
+    done <<EOF
+$(shell_candidates "$current_shell")
+EOF
 
     # Re-export for this script session
     export PATH="$node_bin:$PATH"
@@ -433,6 +880,7 @@ upgrade_node() {
     fi
 
     print_message info "Node upgraded to $new_node at $node_bin"
+    node_action="upgraded"
     return 0
 }
 
@@ -457,17 +905,17 @@ check_node() {
     got=$(node --version 2>/dev/null || true)
     local major
     major=$(ver_norm "$got" | cut -d. -f1)
+    if [ -n "$preferred_node_version" ] && [ "$got" = "$preferred_node_version" ]; then
+        health_node="pass"
+        health_add pass "Node" "$got (preferred)"
+        return 0
+    fi
     if [ "$major" -gt "22" ]; then
         health_node="pass"
         health_add pass "Node" "$got"
         return 0
     fi
-    if [ "$major" = "22" ] && ver_ge "$got" "22.12.0"; then
-        health_node="pass"
-        health_add pass "Node" "$got"
-        return 0
-    fi
-    if [ "$major" = "20" ] && ver_ge "$got" "20.19.0"; then
+    if [ -n "$minimum_node_version" ] && ver_ge "$got" "$minimum_node_version"; then
         health_node="pass"
         health_add pass "Node" "$got"
         return 0
@@ -506,6 +954,11 @@ clear_bun() {
 }
 
 install_deps() {
+    record_action "bun-install-frozen"
+    if [ "$dry_run" = true ]; then
+        print_message info "${MUTED}[dry-run] would verify and install dependencies from bun.lock${NC}"
+        return 0
+    fi
     if [ "$os" = "windows" ]; then
         bun install --frozen-lockfile --linker hoisted
         return $?
@@ -520,37 +973,44 @@ check_deps() {
     dv=$(catalog_version "$root" "drizzle-orm")
     pv=$(catalog_version "$root" "@pierre/diffs")
 
-    # drizzle-orm: check workspace packages' node_modules first, then root node_modules; exclude .bun cache
-    local dp="$root/packages/opencode/node_modules/drizzle-orm"
-    if [ ! -f "$dp/package.json" ]; then
-        dp=$(find "$root/node_modules" -path "*/.bun/*" -prune -o -name "drizzle-orm" -type d -print 2>/dev/null | head -1)
-    fi
-    if [ -z "$dp" ] || [ ! -f "$dp/package.json" ]; then
+    local dr pj got pdir
+    dr=$(resolve_pkg "$root" "drizzle-orm")
+    pj=$(python3 - <<'PY' "$dr"
+import json, sys
+raw = sys.argv[1]
+if not raw:
+    print("")
+else:
+    print(json.loads(raw).get("file", ""))
+PY
+)
+    if [ -z "$pj" ] || [ ! -f "$pj" ]; then
         health_deps="fail"
         health_add fail "Dependencies" "drizzle-orm package missing"
         return 1
     fi
-    local got
-    got=$(bun -e 'const f=JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); console.log(f.version||"")' "$dp/package.json" 2>/dev/null || true)
+    got=$(bun -e 'const f=JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); console.log(f.version||"")' "$pj" 2>/dev/null || true)
     if [ -n "$dv" ] && [ "$got" != "$dv" ]; then
         health_deps="fail"
         health_add fail "Dependencies" "drizzle-orm version mismatch (expected $dv got $got)"
         return 1
     fi
 
-    # @pierre/diffs: find package.json in .bun bundled cache or root node_modules
-    # worker is at dist/worker/worker.js (exports map: ./worker/worker.js -> ./dist/worker/worker.js)
-    local pj
-    pj=$(find "$root/node_modules/.bun" -path "*/@pierre/diffs/package.json" 2>/dev/null | head -1)
-    if [ -z "$pj" ]; then
-        pj=$(find "$root/node_modules" -path "*/@pierre/diffs/package.json" 2>/dev/null | grep -v ".bun" | head -1)
-    fi
+    dr=$(resolve_pkg "$root" "@pierre/diffs")
+    pj=$(python3 - <<'PY' "$dr"
+import json, sys
+raw = sys.argv[1]
+if not raw:
+    print("")
+else:
+    print(json.loads(raw).get("file", ""))
+PY
+)
     if [ -z "$pj" ]; then
         health_deps="fail"
         health_add fail "Dependencies" "@pierre/diffs package not found"
         return 1
     fi
-    local pdir
     pdir=$(dirname "$pj")
     if [ ! -f "$pdir/dist/worker/worker.js" ]; then
         health_deps="fail"
@@ -576,8 +1036,17 @@ fail_local() {
     local msg=$1
     print_message error "$msg"
     if [ "$local_repo" = true ]; then
+        if [ -n "${REPO_ROOT:-}" ] && [ -f "$snapshot_pre" ]; then
+            capture_snapshot "$snapshot_post" "$REPO_ROOT" "$shell_config_file"
+            local cmp_result
+            cmp_result=$(compare_snapshots)
+            compare_status=$(printf "%s" "$cmp_result" | sed -n '1p')
+            compare_summary=$(printf "%s" "$cmp_result" | sed -n '2p')
+        fi
+        write_health_json
         print_health
     fi
+    runtime_finalize
     exit 1
 }
 
@@ -704,6 +1173,8 @@ install_from_binary() {
     health_deps="warn"
     health_ocode="warn"
     health_webui="warn"
+    compare_status="warn"
+    compare_summary="Binary installs do not use local repo comparison"
 }
 
 install_from_local_repo() {
@@ -734,9 +1205,21 @@ install_from_local_repo() {
     print_message info "${MUTED}Building local version...${NC}"
 
     cd "$REPO_ROOT"
+    preferred_node_version=$(preferred_node "$REPO_ROOT")
+    minimum_node_version=$(minimum_node "$REPO_ROOT")
+    current_shell=$(shell_detect)
+    shell_config_file=$(pick_shell_config "$current_shell")
+    pre_git_status=$(git_dirty)
+    if [ -n "$pre_git_status" ]; then
+        health_add warn "Dirty repo" "Pre-existing tracked changes detected before install"
+    fi
+    capture_snapshot "$snapshot_pre" "$REPO_ROOT" "$shell_config_file"
     require_lock "$REPO_ROOT" || fail_local "Missing required lockfile"
     check_bun "$REPO_ROOT" || fail_local "Bun environment check failed"
     check_node || fail_local "Node environment check failed"
+
+    lock_backup="$run_dir/bun.lock.before"
+    cp "$REPO_ROOT/bun.lock" "$lock_backup"
 
     print_message info "${MUTED}Running deterministic bun install at root...${NC}"
     if ! install_deps; then
@@ -759,7 +1242,10 @@ install_from_local_repo() {
         fi
     fi
 
-    if bun run --cwd packages/opencode build; then
+    if [ "$dry_run" = true ]; then
+        health_ocode="warn"
+        health_add warn "OpenCode build" "Skipped due to --dry-run"
+    elif bun run --cwd packages/opencode build -- --skip-install; then
         health_ocode="pass"
         health_add pass "OpenCode build" "packages/opencode build succeeded"
     else
@@ -768,7 +1254,12 @@ install_from_local_repo() {
         fail_local "Failed to build the project"
     fi
 
-    if [ "$local_ui" = true ]; then
+    if [ "$local_ui" = true ] && [ "$dry_run" = true ]; then
+        health_webui="warn"
+        health_add warn "WebUI build" "Skipped due to --dry-run"
+        health_ui_dir="warn"
+        health_add warn "WebUI output" "Skipped due to --dry-run"
+    elif [ "$local_ui" = true ]; then
         print_message info "${MUTED}Building WebUI assets...${NC}"
         if bun run --cwd packages/app build; then
             health_webui="pass"
@@ -797,7 +1288,12 @@ install_from_local_repo() {
     fi
 
     # Create a wrapper script that calls local development version
-    cat > "${INSTALL_DIR}/opencode" <<WRAPPER
+    if [ "$dry_run" = true ]; then
+        print_message info "${MUTED}[dry-run] would write development wrapper to ${NC}${INSTALL_DIR}/opencode"
+        health_wrapper="warn"
+        health_add warn "Wrapper" "Skipped due to --dry-run"
+    else
+        cat > "${INSTALL_DIR}/opencode" <<WRAPPER
 #!/usr/bin/env bash
 # OpenCode local development wrapper
 REPO_ROOT="$REPO_ROOT"
@@ -812,12 +1308,27 @@ else
     exit 1
 fi
 WRAPPER
-    
-    chmod 755 "${INSTALL_DIR}/opencode"
-    health_wrapper="pass"
-    health_add pass "Wrapper" "${INSTALL_DIR}/opencode"
-    print_message info "${MUTED}Created development wrapper${NC}"
-    
+        chmod 755 "${INSTALL_DIR}/opencode"
+        health_wrapper="pass"
+        health_add pass "Wrapper" "${INSTALL_DIR}/opencode"
+        print_message info "${MUTED}Created development wrapper${NC}"
+    fi
+
+    if [ "$dry_run" != true ] && ! cmp -s "$lock_backup" "$REPO_ROOT/bun.lock"; then
+        cp "$lock_backup" "$REPO_ROOT/bun.lock"
+        record_action "restore-bun-lock"
+        print_message warning "${ORANGE}Restore:${NC} bun.lock restored to pre-install snapshot"
+    fi
+
+    capture_snapshot "$snapshot_post" "$REPO_ROOT" "$shell_config_file"
+    local cmp_result
+    cmp_result=$(compare_snapshots)
+    compare_status=$(printf "%s" "$cmp_result" | sed -n '1p')
+    compare_summary=$(printf "%s" "$cmp_result" | sed -n '2p')
+    if [ "$compare_status" = "fail" ]; then
+        fail_local "Post-install environment comparison detected regressions"
+    fi
+
     specific_version="local"
     print_message info "${MUTED}Local install completed successfully!${NC}"
 }
@@ -828,7 +1339,11 @@ elif [ -n "$binary_path" ]; then
     install_from_binary
 else
     check_version
-    download_and_install
+    if [ "$dry_run" = true ]; then
+        print_message info "${MUTED}[dry-run] would download and install ${NC}$specific_version"
+    else
+        download_and_install
+    fi
 fi
 
 
@@ -848,72 +1363,23 @@ add_to_path() {
     fi
 }
 
-XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-$HOME/.config}
-
-current_shell=$(shell_detect)
-case $current_shell in
-    fish)
-        config_files="$HOME/.config/fish/config.fish"
-    ;;
-    zsh)
-        config_files="${ZDOTDIR:-$HOME}/.zshrc ${ZDOTDIR:-$HOME}/.zshenv $XDG_CONFIG_HOME/zsh/.zshrc $XDG_CONFIG_HOME/zsh/.zshenv"
-    ;;
-    bash)
-        config_files="$HOME/.bashrc $HOME/.bash_profile $HOME/.profile $XDG_CONFIG_HOME/bash/.bashrc $XDG_CONFIG_HOME/bash/.bash_profile"
-    ;;
-    ash)
-        config_files="$HOME/.ashrc $HOME/.profile /etc/profile"
-    ;;
-    sh)
-        config_files="$HOME/.ashrc $HOME/.profile /etc/profile"
-    ;;
-    *)
-        # Default case if none of the above matches
-        config_files="$HOME/.bashrc $HOME/.bash_profile $XDG_CONFIG_HOME/bash/.bashrc $XDG_CONFIG_HOME/bash/.bash_profile"
-    ;;
-esac
+if [ -z "$current_shell" ]; then
+    current_shell=$(shell_detect)
+fi
 
 if [[ "$no_modify_path" != "true" ]]; then
-    config_file=""
-    for file in $config_files; do
-        if [[ -f $file ]]; then
-            config_file=$file
-            break
-        fi
-    done
+    config_file=$(pick_shell_config "$current_shell")
     if [[ -z $config_file ]]; then
         health_shell="warn"
         health_add warn "Shell config" "No writable config found for $current_shell"
         print_message warning "No config file found for $current_shell. You may need to manually add to PATH:"
         print_message info "  export PATH=$INSTALL_DIR:\$PATH"
         shell_config_file="(manual)"
-    elif [[ ":$PATH:" != *":$INSTALL_DIR:"* ]]; then
-        case $current_shell in
-            fish)
-                add_to_path "$config_file" "fish_add_path $INSTALL_DIR"
-            ;;
-            zsh)
-                add_to_path "$config_file" "export PATH=$INSTALL_DIR:\$PATH"
-            ;;
-            bash)
-                add_to_path "$config_file" "export PATH=$INSTALL_DIR:\$PATH"
-            ;;
-            ash)
-                add_to_path "$config_file" "export PATH=$INSTALL_DIR:\$PATH"
-            ;;
-            sh)
-                add_to_path "$config_file" "export PATH=$INSTALL_DIR:\$PATH"
-            ;;
-            *)
-                export PATH=$INSTALL_DIR:$PATH
-                print_message warning "Manually add the directory to $config_file (or similar):"
-                print_message info "  export PATH=$INSTALL_DIR:\$PATH"
-            ;;
-        esac
-        shell_config_file="$config_file"
-        health_shell="pass"
-        health_add pass "Shell config" "$config_file"
     else
+        write_block "$config_file" "opencode managed" "$(managed_block "$current_shell")"
+        if [ "$dry_run" != true ]; then
+            export PATH=$INSTALL_DIR:$PATH
+        fi
         shell_config_file="$config_file"
         health_shell="pass"
         health_add pass "Shell config" "$config_file"
@@ -921,20 +1387,14 @@ if [[ "$no_modify_path" != "true" ]]; then
 
     if [[ "$local_ui" = true ]]; then
         ui_path="$REPO_ROOT/packages/app/dist"
-        if [[ -f $config_file ]]; then
-            if ! grep -q "OPENCODE_UI_DIR" "$config_file"; then
-                echo -e "\n# opencode local ui" >> "$config_file"
-                echo "export OPENCODE_UI_DIR=\"$ui_path\"" >> "$config_file"
-                print_message info "${MUTED}Added ${NC}OPENCODE_UI_DIR ${MUTED}to ${NC}$config_file"
-                health_ui_dir="pass"
-                health_add pass "OPENCODE_UI_DIR" "$config_file"
-            else
-                # Update existing
-                sed -i "s|export OPENCODE_UI_DIR=.*|export OPENCODE_UI_DIR=\"$ui_path\"|" "$config_file"
-                print_message info "${MUTED}Updated ${NC}OPENCODE_UI_DIR ${MUTED}in ${NC}$config_file"
-                health_ui_dir="pass"
-                health_add pass "OPENCODE_UI_DIR" "$config_file"
+        if [[ -n $config_file ]]; then
+            write_block "$config_file" "opencode ui managed" "$(managed_ui_block "$current_shell" "$ui_path")"
+            if [ "$dry_run" != true ]; then
+                export OPENCODE_UI_DIR="$ui_path"
             fi
+            print_message info "${MUTED}Managed ${NC}OPENCODE_UI_DIR ${MUTED}in ${NC}$config_file"
+            health_ui_dir="pass"
+            health_add pass "OPENCODE_UI_DIR" "$config_file"
         else
             health_ui_dir="warn"
             health_add warn "OPENCODE_UI_DIR" "No shell config file to update automatically"
@@ -954,9 +1414,31 @@ if [ -n "${GITHUB_ACTIONS-}" ] && [ "${GITHUB_ACTIONS}" == "true" ]; then
     print_message info "Added $INSTALL_DIR to \$GITHUB_PATH"
 fi
 
+if [ "$local_repo" != true ] && [ ! -f "$snapshot_pre" ]; then
+    capture_snapshot "$snapshot_post" "$PWD" "$shell_config_file"
+fi
+
+if [ -f "$snapshot_pre" ] && [ -f "$snapshot_post" ] && [ -z "$compare_summary" ]; then
+    cmp_result=$(compare_snapshots)
+    compare_status=$(printf "%s" "$cmp_result" | sed -n '1p')
+    compare_summary=$(printf "%s" "$cmp_result" | sed -n '2p')
+elif [ -z "$compare_summary" ]; then
+    compare_status="warn"
+    compare_summary="Comparison skipped (no pre-install snapshot)"
+fi
+
+write_health_json
+
 if [ "$local_repo" = true ]; then
     print_health
 fi
+
+print_message info "${MUTED}Install log:${NC} $run_log"
+print_message info "${MUTED}Health JSON:${NC} $health_json"
+if [ -f "$compare_json" ]; then
+    print_message info "${MUTED}Compare JSON:${NC} $compare_json"
+fi
+runtime_finalize
 
 echo -e ""
 echo -e "${MUTED}                    ${NC}             ▄     "
