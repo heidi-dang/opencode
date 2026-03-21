@@ -1,6 +1,8 @@
 import type { WorkflowAudioEvent } from "@opencode-ai/workflow-audio"
 
-export function createAudioPlayer(onEvent: (entry: { cue: string; status: "played" | "blocked"; note?: string }) => void) {
+export function createAudioPlayer(
+  onEvent: (entry: { cue: string; status: "played" | "blocked"; note?: string }) => void,
+) {
   const warm = new Set<string>()
 
   return {
@@ -18,7 +20,7 @@ export function createAudioPlayer(onEvent: (entry: { cue: string; status: "playe
       if (typeof Audio === "undefined") return
       const audio = new Audio(url)
       audio.preload = "auto"
-      audio.volume = Math.max(0, Math.min(1, volume / 100))
+      audio.volume = Math.max(0, Math.min(1, volume))
       try {
         await audio.play()
         onEvent({ cue: info.cue, status: "played" })

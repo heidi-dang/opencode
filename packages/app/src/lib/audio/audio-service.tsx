@@ -6,7 +6,7 @@ import { useSettings } from "@/context/settings"
 import { AudioDebug } from "./audio-debug"
 import { createAudioPlayer } from "./audio-player"
 import { createAudioQueue } from "./audio-queue"
-import { cueSrc } from "./audio-settings"
+import { cueSrc, routeDir } from "./audio-settings"
 import { createAudioStore } from "./audio-store"
 
 export function parseWorkflowAudioEvent(event: { details?: { type?: string; properties?: unknown } }) {
@@ -21,9 +21,10 @@ export function WorkflowAudioService() {
   const settings = useSettings()
   const store = createAudioStore()
   const player = createAudioPlayer((entry) => store.push({ ...entry, time: Date.now() }))
+  const dir = () => (typeof window === "undefined" ? undefined : routeDir(window.location.pathname))
   const queue = createAudioQueue({
     play: (info) => {
-      player.play(info, cueSrc(settings.workflowAudio.pack(), info.cue), settings.workflowAudio.volume() / 100)
+      player.play(info, cueSrc(settings.workflowAudio.pack(), info.cue, dir()), settings.workflowAudio.volume() / 100)
     },
     onEvent: (entry) => store.push({ ...entry, time: Date.now() }),
     enabled: () => settings.workflowAudio.enabled(),
@@ -31,7 +32,7 @@ export function WorkflowAudioService() {
 
   createEffect(() => {
     const pack = settings.workflowAudio.pack()
-    player.preload(cue_ids.map((cue) => cueSrc(pack, cue as CueID)))
+    player.preload(cue_ids.map((cue) => cueSrc(pack, cue as CueID, dir())))
   })
 
   const unsub = globalSDK.event.listen((event) => {
