@@ -34,6 +34,7 @@ test("heidi stress > file lock conflict", async () => {
             description: "conflict test",
             prompt: "edit agent.ts",
             subagent_type: "api_architect",
+            isolated: false,
             ownership: { mode: "exclusive_edit", files: [file] },
           },
           ctx,
