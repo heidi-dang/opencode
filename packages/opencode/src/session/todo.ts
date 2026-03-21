@@ -1,5 +1,6 @@
 import { BusEvent } from "@/bus/bus-event"
 import { Bus } from "@/bus"
+import { WorkflowAudioRuntime } from "@/audio/runtime-hooks"
 import { SessionID } from "./schema"
 import z from "zod"
 import { Database, eq, asc } from "../storage/db"
@@ -41,6 +42,7 @@ export namespace Todo {
         )
         .run()
     })
+    WorkflowAudioRuntime.ensure()
     Bus.publish(Event.Updated, input)
   }
 

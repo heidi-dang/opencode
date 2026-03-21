@@ -1,0 +1,107 @@
+{
+  "generated_at": "2026-03-21T04:59:30.159Z",
+  "provider": {
+    "name": "stub-local",
+    "available": false,
+    "note": "Provider backend not configured. Falling back to local ambience renderer."
+  },
+  "engine": "music-engine",
+  "metrics": {
+    "duration_ms": 6400,
+    "sample_rate": 48000,
+    "channels": 2,
+    "peak": 0.4499,
+    "rms": 0.1405,
+    "loudness": -17.05,
+    "spectral_centroid": 2979.03,
+    "tail_ms": 0,
+    "transient_sharpness": 0.0505,
+    "clipping_detected": false,
+    "loop_seam_quality": 0.9663,
+    "harshness": 0.4256,
+    "muddiness": 0,
+    "waveform": [
+      0.05,
+      0.0255,
+      0.0407,
+      0.0567,
+      0.0762,
+      0.096,
+      0.1159,
+      0.1209,
+      0.14,
+      0.1494,
+      0.1467,
+      0.1458,
+      0.1434,
+      0.1495,
+      0.1474,
+      0.1431,
+      0.1464,
+      0.1463,
+      0.153,
+      0.1439,
+      0.1446,
+      0.1471,
+      0.1463,
+      0.151,
+      0.1443,
+      0.1454,
+      0.1454,
+      0.1419,
+      0.1215,
+      0.1065,
+      0.0933,
+      0.0778,
+      0.0643,
+      0.0403,
+      0.0244,
+      0.0082
+    ]
+  },
+  "score": {
+    "total": 91.87,
+    "breakdown": {
+      "duration": 100,
+      "seam": 96.63000000000001,
+      "texture": 85.104,
+      "width": 86.2
+    },
+    "notes": []
+  },
+  "spec": {
+    "mode": "ambience",
+    "cue_name": "focused_ambient_loop_for_autonomous_coding_with_",
+    "style_family": "ambient",
+    "prompt": "Focused ambient loop for autonomous coding with low fatigue, soft pulse, and restrained cinematic texture",
+    "duration_ms": 6400,
+    "intensity": 0.34,
+    "brightness": 0.42,
+    "stereo_width": 0.78,
+    "variation_count": 3,
+    "sample_rate": 48000,
+    "format": "wav",
+    "output_dir": "/home/heidi/work/opencode-vscode/packages/app/public/audio/generated",
+    "seed": 3208914845,
+    "layers": [
+      "drone_bed",
+      "scan_blips",
+      "pulse_loop"
+    ],
+    "emotion": [
+      "autonomous"
+    ],
+    "avoid": [
+      "stock notification",
+      "cheap ding",
+      "arcade",
+      "cartoon"
+    ],
+    "targets": {
+      "peak_dbfs": -1,
+      "tail_ms": 1536,
+      "brightness": 0.42,
+      "fullness": 0.66
+    }
+  }
+}

@@ -103,10 +103,11 @@ export function soundSrc(id: string | undefined) {
   return soundById[id as SoundID]
 }
 
-export function playSound(src: string | undefined) {
+export function playSound(src: string | undefined, volume = 1) {
   if (typeof Audio === "undefined") return
   if (!src) return
   const audio = new Audio(src)
+  audio.volume = Math.max(0, Math.min(1, volume))
   audio.play().catch(() => undefined)
 
   // Return a cleanup function to pause the sound.

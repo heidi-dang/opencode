@@ -58,6 +58,14 @@ import { TestFailureTool } from "./test_failure"
 import { CreateAndRunTaskTool, ListTasksTool } from "./create_task"
 
 import { ApplyPatchTool } from "./apply_patch"
+import {
+  AudioAnalyzeTool,
+  AudioEditTool,
+  AudioGenerateTool,
+  AudioLayerTool,
+  AudioNormalizeTool,
+  AudioPackagePreviewTool,
+} from "./audio"
 import { Glob } from "../util/glob"
 import { pathToFileURL } from "url"
 
@@ -194,6 +202,12 @@ export namespace ToolRegistry {
       TestFailureTool,
       CreateAndRunTaskTool,
       ListTasksTool,
+      AudioGenerateTool,
+      AudioEditTool,
+      AudioLayerTool,
+      AudioNormalizeTool,
+      AudioAnalyzeTool,
+      AudioPackagePreviewTool,
       ...(Flag.OPENCODE_EXPERIMENTAL_LSP_TOOL ? [LspTool] : []),
       ...(config.experimental?.batch_tool === true ? [BatchTool] : []),
       ...(Flag.OPENCODE_EXPERIMENTAL_PLAN_MODE && Flag.OPENCODE_CLIENT === "cli" ? [PlanExitTool] : []),

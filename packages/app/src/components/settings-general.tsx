@@ -11,6 +11,7 @@ import { useLanguage } from "@/context/language"
 import { usePlatform } from "@/context/platform"
 import { useSettings, monoFontFamily } from "@/context/settings"
 import { playSound, SOUND_OPTIONS } from "@/utils/sound"
+import { PACK_OPTIONS } from "@/lib/audio/audio-settings"
 import { Link } from "./link"
 import { SettingsList } from "./settings-list"
 
@@ -29,12 +30,12 @@ const stopDemoSound = () => {
   demoSoundState.cleanup = undefined
 }
 
-const playDemoSound = (src: string | undefined) => {
+const playDemoSound = (src: string | undefined, volume = 1) => {
   stopDemoSound()
   if (!src) return
 
   demoSoundState.timeout = setTimeout(() => {
-    demoSoundState.cleanup = playSound(src)
+    demoSoundState.cleanup = playSound(src, volume)
   }, 100)
 }
 
@@ -145,6 +146,8 @@ export const SettingsGeneral: Component = () => {
 
   const noneSound = { id: "none", label: "sound.option.none", src: undefined } as const
   const soundOptions = [noneSound, ...SOUND_OPTIONS]
+
+  const packOptions = PACK_OPTIONS
 
   const soundSelectProps = (
     enabled: () => boolean,
@@ -388,48 +391,17 @@ export const SettingsGeneral: Component = () => {
 
       <SettingsList>
         <SettingsRow
-          title={language.t("settings.general.sounds.agent.title")}
-          description={language.t("settings.general.sounds.agent.description")}
+          title="Workflow audio"
+          description="Enable the native workflow cue system for runtime and app events"
         >
-          <Select
-            data-action="settings-sounds-agent"
-            {...soundSelectProps(
-              () => settings.sounds.agentEnabled(),
-              () => settings.sounds.agent(),
-              (value) => settings.sounds.setAgentEnabled(value),
-              (id) => settings.sounds.setAgent(id),
-            )}
-          />
+          <Switch checked={settings.workflowAudio.enabled()} onChange={(checked) => settings.workflowAudio.setEnabled(checked)} />
         </SettingsRow>
 
         <SettingsRow
-          title={language.t("settings.general.sounds.permissions.title")}
-          description={language.t("settings.general.sounds.permissions.description")}
+          title="Audio lab"
+          description="Pack selection, level tuning, debug overlay, and full cue auditioning live in the dedicated Audio Lab tab"
         >
-          <Select
-            data-action="settings-sounds-permissions"
-            {...soundSelectProps(
-              () => settings.sounds.permissionsEnabled(),
-              () => settings.sounds.permissions(),
-              (value) => settings.sounds.setPermissionsEnabled(value),
-              (id) => settings.sounds.setPermissions(id),
-            )}
-          />
-        </SettingsRow>
-
-        <SettingsRow
-          title={language.t("settings.general.sounds.errors.title")}
-          description={language.t("settings.general.sounds.errors.description")}
-        >
-          <Select
-            data-action="settings-sounds-errors"
-            {...soundSelectProps(
-              () => settings.sounds.errorsEnabled(),
-              () => settings.sounds.errors(),
-              (value) => settings.sounds.setErrorsEnabled(value),
-              (id) => settings.sounds.setErrors(id),
-            )}
-          />
+          <span class="text-12-medium text-text-link">Use the Audio Lab tab</span>
         </SettingsRow>
       </SettingsList>
     </div>
