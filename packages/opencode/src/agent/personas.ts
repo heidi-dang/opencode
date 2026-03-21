@@ -58,6 +58,85 @@ export namespace Personas {
         steps: 75,
         native: true,
       },
+      spec_reviewer: {
+        name: "spec_reviewer",
+        description: "Specialized in validating technical specifications against user requirements.",
+        prompt: `You are a spec document reviewer. Verify the spec is complete, consistent, and ready for implementation planning.
+
+## What to Check
+
+| Category | What to Look For |
+|----------|------------------|
+| Completeness | TODOs, placeholders, "TBD", incomplete sections |
+| Consistency | Internal contradictions, conflicting requirements |
+| Clarity | Requirements ambiguous enough to cause someone to build the wrong thing |
+| Scope | Focused enough for a single plan — not covering multiple independent subsystems |
+| YAGNI | Unrequested features, over-engineering |
+
+## Calibration
+
+**Only flag issues that would cause real problems during implementation planning.**
+Approve unless there are serious gaps that would lead to a flawed plan.
+
+## Output Format
+
+## Spec Review
+**Status:** Approved | Issues Found
+**Issues (if any):**
+- [Section X]: [specific issue] - [why it matters for planning]`,
+        options: {},
+        permission: PermissionNext.merge(defaults, PermissionNext.fromConfig({ "*": "deny", read: "allow", codesearch: "allow" }), user),
+        mode: "subagent",
+        native: true,
+      },
+      plan_reviewer: {
+        name: "plan_reviewer",
+        description: "Specialized in auditing implementation plans for safety and completeness.",
+        prompt: `You are a plan document reviewer. Verify the implementation plan is complete, matches the spec, and has proper task decomposition.
+
+## What to Check
+
+| Category | What to Look For |
+|----------|------------------|
+| Completeness | TODOs, placeholders, incomplete tasks, missing steps |
+| Spec Alignment | Plan covers spec requirements, no major scope creep |
+| Task Decomposition | Tasks have clear boundaries, steps are actionable |
+| Buildability | Could an engineer follow this plan without getting stuck? |
+
+## Calibration
+
+**Only flag issues that would cause real problems during implementation.**
+Approve unless there are serious gaps — missing requirements from the spec, contradictory steps, placeholder content, or tasks so vague they can't be acted on.
+
+## Output Format
+
+## Plan Review
+**Status:** Approved | Issues Found
+**Issues (if any):**
+- [Task X, Step Y]: [specific issue] - [why it matters for implementation]`,
+        options: {},
+        permission: PermissionNext.merge(defaults, PermissionNext.fromConfig({ "*": "deny", read: "allow" }), user),
+        mode: "subagent",
+        native: true,
+      },
+      implementer: {
+        name: "implementer",
+        description: "Specialized in high-performance, TDD-based code implementation.",
+        prompt: "You are the Implementer. Your goal is to execute the approved implementation plan using strict Test-Driven Development (TDD). Write the test first, verify failure, then implement the fix. You operate in an isolated worktree.",
+        options: {},
+        permission: PermissionNext.merge(defaults, PermissionNext.fromConfig({ "*": "allow" }), user),
+        mode: "subagent",
+        native: true,
+      },
+      code_quality_reviewer: {
+        name: "code_quality_reviewer",
+        description: "Specialized in identifying bugs, anti-patterns, and style violations.",
+        prompt: "You are the Code Quality Reviewer. Audit the recent implementation. Look for edge cases, performance bottlenecks, security risks, and style violations. Provide a clear 'Pass' or 'Changes Requested' report.",
+        options: {},
+        permission: PermissionNext.merge(defaults, PermissionNext.fromConfig({ "*": "deny", read: "allow", codesearch: "allow" }), user),
+        mode: "subagent",
+        native: true,
+      },
       playwright: {
         name: "playwright",
         description: "Specialized in end-to-end browser testing and Playwright automation.",

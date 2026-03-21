@@ -24,6 +24,7 @@ export namespace Skill {
   const EXTERNAL_SKILL_PATTERN = "skills/**/SKILL.md"
   const OPENCODE_SKILL_PATTERN = "{skill,skills}/**/SKILL.md"
   const SKILL_PATTERN = "**/SKILL.md"
+  const BUILTIN_SKILLS_DIR = path.resolve(import.meta.dirname, "../../skills")
 
   export const Info = z.object({
     name: z.string(),
@@ -142,6 +143,11 @@ export namespace Skill {
 
       for (const dir of await Config.directories()) {
         await scan(state, dir, OPENCODE_SKILL_PATTERN)
+      }
+
+      if (await Filesystem.isDir(BUILTIN_SKILLS_DIR)) {
+        log.debug("loading builtin skills", { dir: BUILTIN_SKILLS_DIR })
+        await scan(state, BUILTIN_SKILLS_DIR, SKILL_PATTERN, { scope: "builtin" })
       }
 
       const cfg = await Config.get()
