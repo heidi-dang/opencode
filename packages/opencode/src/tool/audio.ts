@@ -53,7 +53,10 @@ export const AudioGenerateTool = Tool.define("audio.generate", {
             score: result.best.score,
             metrics: result.best.metrics,
           },
-          variants: result.variants.map((item) => ({ file: item.file, score: item.score.total })),
+          variants: result.variants.map((item: { file: string; score: { total: number } }) => ({
+            file: item.file,
+            score: item.score.total,
+          })),
         },
         null,
         2,

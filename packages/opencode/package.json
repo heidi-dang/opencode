@@ -101,6 +101,8 @@
     "@opencode-ai/script": "workspace:*",
     "@opencode-ai/sdk": "workspace:*",
     "@opencode-ai/util": "workspace:*",
+    "@opencode-ai/workflow-audio": "workspace:*",
+    "@opencode-ai/audio-tools": "workspace:*",
     "@openrouter/ai-sdk-provider": "1.5.4",
     "@opentui/core": "0.1.87",
     "@opentui/solid": "0.1.87",
