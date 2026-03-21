@@ -1,0 +1,145 @@
+{
+  "pack": "minimal-pro",
+  "format": "wav",
+  "sample_rate": 48000,
+  "bit_depth": 16,
+  "channels": 2,
+  "notes": "Premium cyber-control-plane workflow audio pack rendered procedurally from a shared timbre palette.",
+  "cues": [
+    {
+      "file": "wake_chirp.wav",
+      "event": "agent.start",
+      "purpose": "Rising cyber wake cue that locks the system in.",
+      "duration_ms": 198,
+      "sample_rate": 48000,
+      "peak": 0.6328,
+      "rms": 0.1741
+    },
+    {
+      "file": "idle_glow.wav",
+      "event": "agent.idle",
+      "purpose": "Soft standby settle that suggests controlled quiet state.",
+      "duration_ms": 278,
+      "sample_rate": 48000,
+      "peak": 0.3565,
+      "rms": 0.1169
+    },
+    {
+      "file": "tick_in.wav",
+      "event": "tool.start",
+      "purpose": "Dry mechanical micro-click for tool start.",
+      "duration_ms": 56,
+      "sample_rate": 48000,
+      "peak": 0.1872,
+      "rms": 0.0513
+    },
+    {
+      "file": "tick_out.wav",
+      "event": "tool.done",
+      "purpose": "Dry finish tick with a slight positive tail.",
+      "duration_ms": 82,
+      "sample_rate": 48000,
+      "peak": 0.2317,
+      "rms": 0.0926
+    },
+    {
+      "file": "plan_mark.wav",
+      "event": "plan.ready",
+      "purpose": "Two-step glassy checkpoint cue for plan readiness.",
+      "duration_ms": 214,
+      "sample_rate": 48000,
+      "peak": 0.5169,
+      "rms": 0.1535
+    },
+    {
+      "file": "pulse_soft.wav",
+      "event": "heartbeat",
+      "purpose": "Very quiet heartbeat scanner ping for low-fatigue life signal.",
+      "duration_ms": 104,
+      "sample_rate": 48000,
+      "peak": 0.107,
+      "rms": 0.0476
+    },
+    {
+      "file": "attention_bell.wav",
+      "event": "needs.input",
+      "purpose": "Bright crystal-clear bell for immediate human attention.",
+      "duration_ms": 356,
+      "sample_rate": 48000,
+      "peak": 0.7932,
+      "rms": 0.2473
+    },
+    {
+      "file": "warn_fall.wav",
+      "event": "warning",
+      "purpose": "Restrained falling caution cue for degraded state.",
+      "duration_ms": 224,
+      "sample_rate": 48000,
+      "peak": 0.41,
+      "rms": 0.1436
+    },
+    {
+      "file": "hard_stop.wav",
+      "event": "blocked",
+      "purpose": "Short clipped dissonant barrier cue for real workflow stop.",
+      "duration_ms": 288,
+      "sample_rate": 48000,
+      "peak": 0.7308,
+      "rms": 0.2001
+    },
+    {
+      "file": "glitch_triplet.wav",
+      "event": "loop.detected",
+      "purpose": "Irregular diagnostic triplet for loops and repetition.",
+      "duration_ms": 302,
+      "sample_rate": 48000,
+      "peak": 0.4278,
+      "rms": 0.1103
+    },
+    {
+      "file": "resolve_up.wav",
+      "event": "success",
+      "purpose": "Polished upward completion cue for successful resolution.",
+      "duration_ms": 312,
+      "sample_rate": 48000,
+      "peak": 0.5615,
+      "rms": 0.1274
+    },
+    {
+      "file": "combo_1_soft.wav",
+      "event": "combo.1",
+      "purpose": "Subtle first momentum cue with minimal reward pressure.",
+      "duration_ms": 146,
+      "sample_rate": 48000,
+      "peak": 0.2674,
+      "rms": 0.0876
+    },
+    {
+      "file": "combo_2_rise.wav",
+      "event": "combo.2",
+      "purpose": "Brighter second-step momentum cue with restraint.",
+      "duration_ms": 194,
+      "sample_rate": 48000,
+      "peak": 0.4011,
+      "rms": 0.1097
+    },
+    {
+      "file": "combo_3_resolve.wav",
+      "event": "combo.3",
+      "purpose": "Layered combo cue that signals autonomous streak strength.",
+      "duration_ms": 268,
+      "sample_rate": 48000,
+      "peak": 0.5169,
+      "rms": 0.1256
+    },
+    {
+      "file": "bravo_max.wav",
+      "event": "combo.max",
+      "purpose": "Hero prestige cue for rare high-confidence autonomous win chains.",
+      "duration_ms": 582,
+      "sample_rate": 48000,
+      "peak": 0.7397,
+      "rms": 0.1447
+    }
+  ]
+}

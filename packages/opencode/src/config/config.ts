@@ -1196,6 +1196,11 @@ export namespace Config {
           url: z.string().optional().describe("Enterprise URL"),
         })
         .optional(),
+      audio: z
+        .object({
+          enabled: z.boolean().optional().describe("Enable or disable native runtime audio cues (default: true)")
+        })
+        .optional(),
       compaction: z
         .object({
           auto: z.boolean().optional().describe("Enable automatic compaction when context is full (default: true)"),

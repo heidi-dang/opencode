@@ -36,6 +36,7 @@ import { TuiEvent } from "./event"
 import { KVProvider, useKV } from "./context/kv"
 import { Provider } from "@/provider/provider"
 import { ArgsProvider, useArgs, type Args } from "./context/args"
+import { playNativeCue } from "@/audio/native"
 import open from "open"
 import { writeHeapSnapshot } from "v8"
 import { PromptRefProvider, usePromptRef } from "./context/prompt"
@@ -738,6 +739,17 @@ function App() {
     })
   })
 
+  // Get config from context (passed as prop to App via TuiConfigProvider)
+  // Fallback to true if not found
+  const tuiConfig = (window as any)?.tuiConfig || { audio_enabled: true }
+  sdk.event.on("workflow.audio", (evt) => {
+    // Respect TUI config audio_enabled (default true)
+    if (kv.get("audio_enabled", tuiConfig.audio_enabled ?? true)) {
+      void playNativeCue(evt.properties.cue)
+    }
+  })
+
+  // Add a toggle to the TUI system menu
   return (
     <box
       width={dimensions().width}
@@ -761,8 +773,32 @@ function App() {
           <Session />
         </Match>
       </Switch>
+      {/* System menu toggle for audio cues */}
+      <box top={0} left={0} width={40} height={1}>
+        <text>
+          {kv.get("audio_enabled", tuiConfig.audio_enabled ?? true)
+            ? "[A]udio cues: ON (press A to toggle)"
+            : "[A]udio cues: OFF (press A to toggle)"}
+        </text>
+      </box>
     </box>
   )
+  // Keyboard shortcut to toggle audio_enabled
+  useKeyboard((evt) => {
+    // Only toggle if 'a' is pressed with no shift (no other modifiers are present in opentui KeyEvent)
+    if (evt.name === "a" && !evt.shift) {
+      kv.set("audio_enabled", !kv.get("audio_enabled", tuiConfig.audio_enabled ?? true))
+      toast.show({
+        message: kv.get("audio_enabled", tuiConfig.audio_enabled ?? true)
+          ? "Audio cues enabled"
+          : "Audio cues disabled",
+        variant: "info",
+        duration: 2000,
+      })
+      evt.preventDefault()
+      evt.stopPropagation()
+    }
+  })
 }
 
 function ErrorComponent(props: {

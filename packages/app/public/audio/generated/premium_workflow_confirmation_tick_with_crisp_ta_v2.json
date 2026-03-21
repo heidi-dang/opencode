@@ -1,0 +1,111 @@
+{
+  "generated_at": "2026-03-21T04:59:29.571Z",
+  "provider": {
+    "name": "procedural-local",
+    "available": true
+  },
+  "engine": "sfx-engine",
+  "metrics": {
+    "duration_ms": 420,
+    "sample_rate": 48000,
+    "channels": 2,
+    "peak": 0.8615,
+    "rms": 0.0681,
+    "loudness": -23.34,
+    "spectral_centroid": 11625.5,
+    "tail_ms": 371,
+    "transient_sharpness": 1.1174,
+    "clipping_detected": false,
+    "loop_seam_quality": 0.8576,
+    "harshness": 1,
+    "muddiness": 0,
+    "waveform": [
+      0.27,
+      0.1081,
+      0.0526,
+      0.1139,
+      0.0073,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "score": {
+    "total": 52.4,
+    "breakdown": {
+      "duration": 100,
+      "tail": 0,
+      "clarity": 65,
+      "transient": 100,
+      "non_annoyance": 25,
+      "brightness": 0,
+      "distinctiveness": 75,
+      "prestige": 0
+    },
+    "notes": [
+      "reduce harsh highs",
+      "shorten tail"
+    ]
+  },
+  "spec": {
+    "mode": "sfx",
+    "cue_name": "premium_workflow_confirmation_tick_with_crisp_ta",
+    "style_family": "premium-ui",
+    "prompt": "Premium workflow confirmation tick with crisp tactile attack and short polished tail",
+    "duration_ms": 420,
+    "intensity": 0.62,
+    "brightness": 0.58,
+    "stereo_width": 0.32,
+    "variation_count": 4,
+    "sample_rate": 48000,
+    "format": "wav",
+    "output_dir": "/home/heidi/work/opencode-vscode/packages/app/public/audio/generated",
+    "seed": 2157256537,
+    "layers": [
+      "metal_click"
+    ],
+    "emotion": [
+      "autonomous"
+    ],
+    "avoid": [
+      "stock notification",
+      "cheap ding",
+      "arcade",
+      "cartoon"
+    ],
+    "targets": {
+      "peak_dbfs": -1,
+      "tail_ms": 101,
+      "brightness": 0.58,
+      "fullness": 0.66
+    }
+  }
+}

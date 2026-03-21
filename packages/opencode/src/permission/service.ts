@@ -1,5 +1,6 @@
 import { Bus } from "@/bus"
 import { BusEvent } from "@/bus/bus-event"
+import { WorkflowAudioRuntime } from "@/audio/runtime-hooks"
 import { Config } from "@/config/config"
 import { InstanceContext } from "@/effect/instance-context"
 import { ProjectID } from "@/project/schema"
@@ -167,6 +168,7 @@ export namespace Permission {
 
         const deferred = yield* Deferred.make<void, RejectedError | CorrectedError>()
         pending.set(id, { info, deferred })
+        WorkflowAudioRuntime.ensure()
         void Bus.publish(Event.Asked, info)
         return yield* Effect.ensuring(
           Deferred.await(deferred),

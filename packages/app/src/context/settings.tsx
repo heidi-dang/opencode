@@ -2,6 +2,7 @@ import { createStore, reconcile } from "solid-js/store"
 import { createEffect, createMemo } from "solid-js"
 import { createSimpleContext } from "@opencode-ai/ui/context"
 import { persisted } from "@/utils/persist"
+import type { PackID } from "@opencode-ai/workflow-audio/types"
 
 export interface NotificationSettings {
   agent: boolean
@@ -16,6 +17,13 @@ export interface SoundSettings {
   permissions: string
   errorsEnabled: boolean
   errors: string
+}
+
+export interface WorkflowAudioSettings {
+  enabled: boolean
+  pack: PackID
+  volume: number
+  debug: boolean
 }
 
 export interface Settings {
@@ -40,6 +48,7 @@ export interface Settings {
   }
   notifications: NotificationSettings
   sounds: SoundSettings
+  workflowAudio: WorkflowAudioSettings
 }
 
 const defaultSettings: Settings = {
@@ -74,6 +83,12 @@ const defaultSettings: Settings = {
     permissions: "staplebops-02",
     errorsEnabled: true,
     errors: "nope-03",
+  },
+  workflowAudio: {
+    enabled: true,
+    pack: "minimal-pro",
+    volume: 70,
+    debug: false,
   },
 }
 
@@ -234,6 +249,24 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         errors: withFallback(() => store.sounds?.errors, defaultSettings.sounds.errors),
         setErrors(value: string) {
           setStore("sounds", "errors", value)
+        },
+      },
+      workflowAudio: {
+        enabled: withFallback(() => store.workflowAudio?.enabled, defaultSettings.workflowAudio.enabled),
+        setEnabled(value: boolean) {
+          setStore("workflowAudio", "enabled", value)
+        },
+        pack: withFallback(() => store.workflowAudio?.pack, defaultSettings.workflowAudio.pack),
+        setPack(value: PackID) {
+          setStore("workflowAudio", "pack", value)
+        },
+        volume: withFallback(() => store.workflowAudio?.volume, defaultSettings.workflowAudio.volume),
+        setVolume(value: number) {
+          setStore("workflowAudio", "volume", value)
+        },
+        debug: withFallback(() => store.workflowAudio?.debug, defaultSettings.workflowAudio.debug),
+        setDebug(value: boolean) {
+          setStore("workflowAudio", "debug", value)
         },
       },
     }

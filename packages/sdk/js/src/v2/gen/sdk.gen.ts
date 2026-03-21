@@ -2216,20 +2216,81 @@ export class Task extends HeyApiClient {
       sessionID: string
       directory?: string
       workspace?: string
-      action?:
-        | "start"
-        | "set_mode"
-        | "mark_item"
-        | "lock_plan"
-        | "reopen_plan"
-        | "begin_execution"
-        | "request_verification"
-        | "block"
-        | "complete"
-      payload?: {
-        [key: string]: unknown
-      }
-      run_id?: string
+      body?:
+        | {
+            action: "start"
+            payload: {
+              objective: string
+            }
+            run_id?: string
+          }
+        | {
+            action: "set_mode"
+            payload: {
+              mode: "PLANNING" | "EXECUTION" | "VERIFICATION"
+            }
+            run_id?: string
+          }
+        | {
+            action: "mark_item"
+            payload: {
+              id: string
+              status: "todo" | "doing" | "done" | "blocked"
+            }
+            run_id?: string
+          }
+        | {
+            action: "lock_plan"
+            payload?: {
+              [key: string]: unknown
+            }
+            run_id?: string
+          }
+        | {
+            action: "reopen_plan"
+            payload: {
+              reason: string
+            }
+            run_id?: string
+          }
+        | {
+            action: "begin_execution"
+            payload?: {
+              [key: string]: unknown
+            }
+            run_id?: string
+          }
+        | {
+            action: "request_verification"
+            payload?: {
+              [key: string]: unknown
+            }
+            run_id?: string
+          }
+        | {
+            action: "block"
+            payload: {
+              reason: string
+            }
+            run_id?: string
+          }
+        | {
+            action: "complete"
+            payload?: {
+              [key: string]: unknown
+            }
+            run_id?: string
+          }
+        | {
+            action: "add_items"
+            payload: {
+              items: Array<{
+                label: string
+                category: "Modify" | "New" | "Delete" | "Verify"
+              }>
+            }
+            run_id?: string
+          }
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -2241,9 +2302,7 @@ export class Task extends HeyApiClient {
             { in: "path", key: "sessionID" },
             { in: "query", key: "directory" },
             { in: "query", key: "workspace" },
-            { in: "body", key: "action" },
-            { in: "body", key: "payload" },
-            { in: "body", key: "run_id" },
+            { key: "body", map: "body" },
           ],
         },
       ],
@@ -2865,6 +2924,10 @@ export class Session2 extends HeyApiClient {
         topK?: number
         topP?: number
       }
+      path?: {
+        cwd: string
+        root: string
+      }
       parts?: Array<TextPartInput | FilePartInput | AgentPartInput | SubtaskPartInput>
     },
     options?: Options<never, ThrowOnError>,
@@ -2886,6 +2949,7 @@ export class Session2 extends HeyApiClient {
             { in: "body", key: "system" },
             { in: "body", key: "variant" },
             { in: "body", key: "options" },
+            { in: "body", key: "path" },
             { in: "body", key: "parts" },
           ],
         },
@@ -3003,6 +3067,10 @@ export class Session2 extends HeyApiClient {
         topK?: number
         topP?: number
       }
+      path?: {
+        cwd: string
+        root: string
+      }
       parts?: Array<TextPartInput | FilePartInput | AgentPartInput | SubtaskPartInput>
     },
     options?: Options<never, ThrowOnError>,
@@ -3024,6 +3092,7 @@ export class Session2 extends HeyApiClient {
             { in: "body", key: "system" },
             { in: "body", key: "variant" },
             { in: "body", key: "options" },
+            { in: "body", key: "path" },
             { in: "body", key: "parts" },
           ],
         },
