@@ -58,6 +58,13 @@ import { TestFailureTool } from "./test_failure"
 import { CreateAndRunTaskTool, ListTasksTool } from "./create_task"
 
 import { ApplyPatchTool } from "./apply_patch"
+import { VexorTool } from "./vexor"
+import { VariantAnalysisTool } from "./variant"
+import { AuditorTool } from "./auditor"
+import { WikiTool } from "./wiki"
+import { LighthouseTool } from "./lighthouse"
+import { PlaywrightTool } from "./playwright"
+import { DynamicSkillTool } from "./dynamic_skill"
 import { Glob } from "../util/glob"
 import { pathToFileURL } from "url"
 
@@ -194,6 +201,13 @@ export namespace ToolRegistry {
       TestFailureTool,
       CreateAndRunTaskTool,
       ListTasksTool,
+      VexorTool,
+      VariantAnalysisTool,
+      AuditorTool,
+      WikiTool,
+      LighthouseTool,
+      PlaywrightTool,
+      DynamicSkillTool,
       ...(Flag.OPENCODE_EXPERIMENTAL_LSP_TOOL ? [LspTool] : []),
       ...(config.experimental?.batch_tool === true ? [BatchTool] : []),
       ...(Flag.OPENCODE_EXPERIMENTAL_PLAN_MODE && Flag.OPENCODE_CLIENT === "cli" ? [PlanExitTool] : []),

@@ -101,6 +101,25 @@ async function retrieval(sessionID: SessionID) {
   }
 }
 
+export namespace ContextManager {
+  export const MAX_MEMORY_TOKENS = 4000
+
+  export function prune(items: any[], sessionID: string) {
+    let currentWeight = 0
+    const pruned = []
+    for (const item of items) {
+      const weight = Math.ceil(item.content.length / 4) + 50
+      if (currentWeight + weight > MAX_MEMORY_TOKENS) {
+        HeidiTelemetry.debug(sessionID, "context.manager.evicted:" + String(item.key))
+        continue
+      }
+      currentWeight += weight
+      pruned.push(item)
+    }
+    return pruned
+  }
+}
+
 export namespace HeidiContext {
   export function pathFor(sessionID: SessionID) {
     return file(sessionID)
@@ -121,15 +140,15 @@ export namespace HeidiContext {
       retrieval(sessionID),
       HeidiState.readVerification(sessionID),
     ])
-    const recent = memory
+    const rawMemory = memory
       .filter((item) => item.trust !== "unsafe" && item.session_id === sessionID)
-      .slice(0, 8)
       .map((item) => ({
         scope: item.scope ?? "project",
         type: item.type,
         key: item.key,
-        content: clip(item.content, 300),
+        content: clip(item.content, 1500),
       }))
+    const recent = ContextManager.prune(rawMemory, sessionID)
     const sum = summary(msgs)
     return ContextState.parse({
       session_id: sessionID,

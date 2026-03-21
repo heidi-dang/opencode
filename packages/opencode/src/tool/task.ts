@@ -181,9 +181,10 @@ export const TaskTool = Tool.define("task", async (ctx) => {
           metadata: {
             sessionId: session.id,
             model,
-            lane: params.lane,
+            lane: params.lane ?? "implementation",
             ownership: params.ownership,
             worktree: worktreePath,
+            is_hierarchical_subagent: true, // @subagent-driven-development
           },
         })
 
@@ -252,9 +253,11 @@ export const TaskTool = Tool.define("task", async (ctx) => {
         const text = result.parts.findLast((x) => x.type === "text")?.text ?? ""
         const finished = Date.now()
 
+        const failed = !text.trim() || text.includes("ContextOverflowError") || text.includes("Failed to complete")
         const output = [
           `task_id: ${session.id} (for resuming to continue this task if needed)`,
           "",
+          failed ? "\n> [!WARNING]\n> Task failed. @prompt-engineer protocol: The subagent payload was ambiguous or missing context. Refine constraints and retry.\n" : "",
           "<task_result>",
           text,
           "</task_result>",

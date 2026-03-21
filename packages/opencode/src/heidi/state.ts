@@ -64,8 +64,13 @@ function contextPath(sessionID: SessionID) {
 
 function verifySync(state: TaskState) {
   state.mode = StateMode[state.fsm_state]
-  if (state.fsm_state === "COMPLETE" && !state.plan.locked) {
-    throw new Error("complete state requires locked plan")
+  if (state.fsm_state === "COMPLETE") {
+    if (!state.plan.locked) throw new Error("complete state requires locked plan")
+    // @verification-before-completion rule
+    const verifyItems = state.checklist.filter((i) => i.category === "Verify")
+    if (verifyItems.length > 0 && verifyItems.some((i) => i.status !== "done")) {
+      throw new Error("verification-before-completion rule violated: Cannot transition to COMPLETE while verification items are pending.")
+    }
   }
   if (["PLAN_LOCKED", "EXECUTION", "VERIFICATION", "COMPLETE"].includes(state.fsm_state) && !state.plan.locked) {
     throw new Error(`${state.fsm_state.toLowerCase()} requires locked plan`)
@@ -102,17 +107,34 @@ function planIssues(text: string) {
   })
 }
 
-function next(state: TaskState, pending: string[], ready: boolean) {
-  if (state.fsm_state === "IDLE") return "start"
-  if (state.fsm_state === "DISCOVERY" || state.fsm_state === "PLAN_DRAFT") {
-    return ready ? "lock_plan" : "write_plan"
+export namespace HeidiGraph {
+  export function route(state: TaskState, pending: string[], ready: boolean, verificationPassed: boolean): string | undefined {
+    const current = state.fsm_state
+    if (current === "IDLE") return "start"
+    if (current === "DISCOVERY" || current === "PLAN_DRAFT") {
+      return ready ? "lock_plan" : "write_plan"
+    }
+    if (current === "PLAN_LOCKED") return "begin_execution"
+    if (current === "EXECUTION") {
+      // Autonomous Backtracking: If blocked, cycle back to discovery
+      if (state.block_reason?.includes("LangGraph cycle")) return "fallback_to_discovery"
+      return pending.length === 0 ? "request_verification" : "EXECUTION"
+    }
+    if (current === "VERIFICATION") {
+      // LangGraph Loop: Back to execution if verification fails or is incomplete
+      if (!verificationPassed && pending.length > 0) return "EXECUTION"
+      return "complete"
+    }
+    if (current === "COMPLETE") return "done"
+    if (current === "BLOCKED") return "blocked"
+    return state.resume.next_step ?? undefined
   }
-  if (state.fsm_state === "PLAN_LOCKED") return "begin_execution"
-  if (state.fsm_state === "EXECUTION") return pending.length === 0 ? "request_verification" : "EXECUTION"
-  if (state.fsm_state === "VERIFICATION") return "complete"
-  if (state.fsm_state === "COMPLETE") return "done"
-  if (state.fsm_state === "BLOCKED") return "blocked"
-  return state.resume.next_step ?? undefined
+}
+
+function next(state: TaskState, pending: string[], ready: boolean) {
+  const verifyItems = state.checklist.filter((i) => i.category === "Verify")
+  const verified = verifyItems.length > 0 ? verifyItems.every((i) => i.status === "done") : true
+  return HeidiGraph.route(state, pending, ready, verified)
 }
 
 function parsePlan(text: string): TaskState["checklist"] {

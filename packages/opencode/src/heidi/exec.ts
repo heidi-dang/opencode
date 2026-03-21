@@ -197,6 +197,16 @@ export namespace HeidiExec {
       if (checkpoint) {
         await rollback(sessionID, checkpoint)
       }
+      // Autonomous backtracking cycle
+      state.resume.failed_hypotheses.push(input.cmd)
+      if (state.resume.failed_hypotheses.length > 3) {
+        state.block_reason = "Execution fails repeatedly. LangGraph cycle forcing back to planning."
+      }
+    } else {
+      state.resume.failed_hypotheses = []
+      if (state.block_reason?.includes("LangGraph cycle")) {
+        state.block_reason = null
+      }
     }
     await HeidiState.write(sessionID, state)
     await HeidiState.updateResume(sessionID)
