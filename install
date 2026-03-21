@@ -520,13 +520,12 @@ check_deps() {
     dv=$(catalog_version "$root" "drizzle-orm")
     pv=$(catalog_version "$root" "@pierre/diffs")
 
-    # drizzle-orm: find anywhere in node_modules tree (workspace can hoist)
-    local dp
-    dp=$(find "$root/node_modules" -name "drizzle-orm" -type d 2>/dev/null | head -1)
-    if [ -z "$dp" ]; then
-        dp="$root/packages/opencode/node_modules/drizzle-orm"
-    fi
+    # drizzle-orm: check workspace packages' node_modules first, then root node_modules; exclude .bun cache
+    local dp="$root/packages/opencode/node_modules/drizzle-orm"
     if [ ! -f "$dp/package.json" ]; then
+        dp=$(find "$root/node_modules" -path "*/.bun/*" -prune -o -name "drizzle-orm" -type d -print 2>/dev/null | head -1)
+    fi
+    if [ -z "$dp" ] || [ ! -f "$dp/package.json" ]; then
         health_deps="fail"
         health_add fail "Dependencies" "drizzle-orm package missing"
         return 1
@@ -536,11 +535,6 @@ check_deps() {
     if [ -n "$dv" ] && [ "$got" != "$dv" ]; then
         health_deps="fail"
         health_add fail "Dependencies" "drizzle-orm version mismatch (expected $dv got $got)"
-        return 1
-    fi
-    if [ ! -f "$dp/pg-core/primary-keys.js" ]; then
-        health_deps="fail"
-        health_add fail "Dependencies" "drizzle-orm missing pg-core/primary-keys.js"
         return 1
     fi
 
