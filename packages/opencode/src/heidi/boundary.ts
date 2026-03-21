@@ -392,6 +392,10 @@ export namespace HeidiBoundary {
       if (state.telemetry?.started_at) {
         state.telemetry.duration_ms = Date.now() - new Date(state.telemetry.started_at).getTime()
       }
+
+      const { HeidiDistillery } = await import("./distillery")
+      await HeidiDistillery.distill(req.task_id)
+
       move(state, "COMPLETE")
       state.last_successful_step = "complete"
       state.next_transition = "NONE"

@@ -417,19 +417,25 @@ export namespace HeidiState {
   }
 
   export async function assertExecution(ctx: Tool.Context, filePath?: string) {
+    if (!(await Filesystem.exists(taskPath(ctx.sessionID)))) return // Bypass FSM strictness for subagents that don't have task state initialized.
     const state = await read(ctx.sessionID)
-    const isSessionFile = filePath?.includes(".opencode/heidi") || filePath?.includes(".gemini/antigravity")
+    const normalizedPath = filePath ? path.normalize(filePath).replaceAll("\\", "/") : ""
+    const isSessionFile = normalizedPath.includes(".opencode/heidi") || normalizedPath.includes(".gemini/antigravity")
     
     // 1. Check FSM state
     if (state.fsm_state !== "EXECUTION" && state.fsm_state !== "VERIFICATION" && !isSessionFile) {
-      throw new Error(`Execution blocked: ${ctx.callID ?? "tool"} requires EXECUTION or VERIFICATION state. Current state: ${state.fsm_state}. Ensure the implementation plan is complete and begin execution first.`)
+      const msg = `Execution blocked: ${ctx.callID ?? "tool"} requires EXECUTION or VERIFICATION state.`
+      const help = state.fsm_state === "PLAN_LOCKED" 
+        ? "Your plan is locked. Call task_boundary with action 'begin_execution' to proceed."
+        : "You are currently in planning/discovery. Complete your implementation plan, call 'lock_plan', and then 'begin_execution'."
+      throw new Error(`${msg} Current state: ${state.fsm_state}. ${help}`)
     }
 
     // 2. Check plan completeness and drift
     if ((state.fsm_state === "EXECUTION" || state.fsm_state === "VERIFICATION") && !isSessionFile) {
       const plan = await planStatus(ctx.sessionID)
       if (!plan.ready) {
-        throw new Error(`Execution blocked: Implementation plan is incomplete. Missing or TBD sections: ${plan.missing.join(", ")}`)
+        throw new Error(`Execution blocked: Implementation plan is incomplete. Missing or TBD sections: ${plan.missing.join(", ")}. Please update implementation_plan.md.`)
       }
       await checkPlanDrift(ctx.sessionID)
     }
