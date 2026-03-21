@@ -169,7 +169,7 @@ async function overflow(page: Page, file: string) {
   }
 }
 
-async function openReviewFile(page: Parameters<typeof test>[0]["page"], file: string) {
+async function openReviewFile(page: Page, file: string) {
   const row = page.locator(`[data-file="${file}"]`).first()
   await expect(row).toBeVisible()
   await row.hover()
@@ -187,7 +187,7 @@ async function openReviewFile(page: Parameters<typeof test>[0]["page"], file: st
   return viewer
 }
 
-async function fileComment(page: Parameters<typeof test>[0]["page"], note: string) {
+async function fileComment(page: Page, note: string) {
   const viewer = page.locator('[data-component="file"][data-mode="text"]').first()
   await expect(viewer).toBeVisible()
 
@@ -211,14 +211,14 @@ async function fileComment(page: Parameters<typeof test>[0]["page"], note: strin
   await expect(viewer.locator('[data-slot="line-comment-tools"]').first()).toBeVisible()
 }
 
-async function fileOverflow(page: Parameters<typeof test>[0]["page"]) {
+async function fileOverflow(page: Page) {
   const viewer = page.locator('[data-component="file"][data-mode="text"]').first()
   const view = page.locator('[role="tabpanel"] .scroll-view__viewport').first()
   const pop = viewer.locator('[data-slot="line-comment-popover"][data-inline-body]').first()
   const tools = viewer.locator('[data-slot="line-comment-tools"]').first()
 
   const [width, viewBox, popBox, toolsBox] = await Promise.all([
-    view.evaluate((el) => el.scrollWidth - el.clientWidth),
+    view.evaluate((el: HTMLElement) => el.scrollWidth - el.clientWidth),
     view.boundingBox(),
     pop.boundingBox(),
     tools.boundingBox(),
