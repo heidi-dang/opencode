@@ -6,6 +6,8 @@ import { SessionID, MessageID } from "../session/schema"
 import { MessageV2 } from "../session/message-v2"
 import { Identifier } from "../id/id"
 import { Agent } from "../agent/agent"
+import { Worktree } from "../util/worktree"
+import { Instance } from "../project/instance"
 import { SessionPrompt } from "../session/prompt"
 import { Provider } from "../provider/provider"
 import { iife } from "@/util/iife"
@@ -45,6 +47,10 @@ const parameters = z.object({
       "This should only be set if you mean to resume a previous task (you can pass a prior task_id and the task will continue the same subagent session as before instead of creating a fresh one)",
     )
     .optional(),
+  isolated: z
+    .boolean()
+    .describe("If true, the task will run in a separate Git Worktree to prevent interference with the main workspace")
+    .default(false),
   command: z.string().describe("The command that triggered this task").optional(),
 })
 
@@ -71,7 +77,7 @@ export const TaskTool = Tool.define("task", async (ctx) => {
       const config = await Config.get()
       const owned =
         params.ownership?.mode === "exclusive_edit"
-          ? params.ownership.files.map((file) => file.replaceAll("\\", "/"))
+          ? params.ownership.files.map((file: string) => file.replaceAll("\\", "/"))
           : []
       if (owned.length) {
         const conflicts = acquireLocks(owned)
@@ -79,8 +85,19 @@ export const TaskTool = Tool.define("task", async (ctx) => {
           throw new Error(`File lock conflict: ${conflicts.join(", ")} already being edited by another subagent`)
       }
       let locked = owned.length > 0
+      let worktreePath: string | undefined
 
       try {
+        const agent = await Agent.resolve(params.subagent_type)
+        if (!agent) throw new Error(`Unknown agent type: ${params.subagent_type} is not a valid agent type`)
+
+        // Setup Worktree if requested or if it's the implementer
+        if (params.isolated || agent.name === "implementer") {
+          const taskId = ctx.sessionID.substring(0, 8)
+          const result = await Worktree.add(taskId, Instance.worktree)
+          worktreePath = result.path
+        }
+
         // Skip permission check when user explicitly invoked via @ or command subtask
         if (!ctx.extra?.bypassAgentCheck) {
           await ctx.ask({
@@ -94,10 +111,7 @@ export const TaskTool = Tool.define("task", async (ctx) => {
           })
         }
 
-        const agent = await Agent.resolve(params.subagent_type)
-        if (!agent) throw new Error(`Unknown agent type: ${params.subagent_type} is not a valid agent type`)
-
-        const hasTaskPermission = agent.permission.some((rule) => rule.permission === "task")
+        const hasTaskPermission = agent.permission.some((rule: any) => rule.permission === "task")
 
         const session = await iife(async () => {
           if (params.task_id) {
@@ -136,7 +150,7 @@ export const TaskTool = Tool.define("task", async (ctx) => {
                       action: "deny" as const,
                     },
                   ]),
-              ...(config.experimental?.primary_tools?.map((t) => ({
+              ...(config.experimental?.primary_tools?.map((t: string) => ({
                 pattern: "*",
                 action: "allow" as const,
                 permission: t,
@@ -159,6 +173,9 @@ export const TaskTool = Tool.define("task", async (ctx) => {
           return { modelID: def.modelID, providerID: def.providerID }
         })
 
+        const cwd = worktreePath ?? Instance.directory
+        const root = worktreePath ?? Instance.worktree
+
         ctx.metadata({
           title: params.description,
           metadata: {
@@ -166,6 +183,7 @@ export const TaskTool = Tool.define("task", async (ctx) => {
             model,
             lane: params.lane,
             ownership: params.ownership,
+            worktree: worktreePath,
           },
         })
 
@@ -184,6 +202,9 @@ export const TaskTool = Tool.define("task", async (ctx) => {
           "You MUST NOT use phrases like 'say generate to begin' or 'let me know when ready'.",
           "Analyze the provided context and execute your task immediately and completely.",
           "If information is missing, make the most reasonable assumption and proceed.",
+          worktreePath
+            ? `NOTE: You are working in an ISOLATED WORKTREE at ${worktreePath}. All file operations should be relative to this root.`
+            : "",
         ].join("\n")
         promptParts.unshift({ type: "text", text: autonomy })
 
@@ -192,7 +213,7 @@ export const TaskTool = Tool.define("task", async (ctx) => {
         const depth = Math.min(6, Math.max(3, Math.ceil(relevant.length * 0.15)))
         const recent = relevant
           .slice(-depth)
-          .flatMap((m) => m.parts.filter((p) => p.type === "text").map((p) => (p as any).text))
+          .flatMap((m) => m.parts.filter((p) => p.type === "text").map((p: any) => p.text))
           .filter(Boolean)
           .join("\n---\n")
         if (recent) {
@@ -208,6 +229,7 @@ export const TaskTool = Tool.define("task", async (ctx) => {
         }
 
         const started = Date.now()
+        // @ts-ignore - path is not yet in PromptInput but we will add it or handle it via context
         const result = await SessionPrompt.prompt({
           messageID,
           sessionID: session.id,
@@ -220,9 +242,11 @@ export const TaskTool = Tool.define("task", async (ctx) => {
             todowrite: false,
             todoread: false,
             ...(hasTaskPermission ? {} : { task: false }),
-            ...Object.fromEntries((config.experimental?.primary_tools ?? []).map((t) => [t, false])),
+            ...Object.fromEntries((config.experimental?.primary_tools ?? []).map((t: string) => [t, false])),
           },
           parts: promptParts,
+          // @ts-ignore
+          path: { cwd, root },
         })
 
         const text = result.parts.findLast((x) => x.type === "text")?.text ?? ""
@@ -253,6 +277,13 @@ export const TaskTool = Tool.define("task", async (ctx) => {
         }
       } finally {
         if (locked) releaseLocks(owned)
+        if (worktreePath) {
+          try {
+            await Worktree.remove(worktreePath, Instance.worktree)
+          } catch (err) {
+            HeidiTelemetry.warn(ctx.sessionID, "task.worktree_cleanup", err)
+          }
+        }
         locked = false
       }
     },
