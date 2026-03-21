@@ -33,6 +33,17 @@ no_modify_path=false
 binary_path=""
 local_repo=false
 local_ui=false
+health_lines=""
+health_bun="pending"
+health_node="pending"
+health_lock="pending"
+health_deps="pending"
+health_ocode="pending"
+health_webui="pending"
+health_shell="pending"
+health_wrapper="pending"
+health_ui_dir="pending"
+shell_config_file=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -247,6 +258,254 @@ check_version() {
     fi
 }
 
+health_add() {
+    local state=$1
+    local label=$2
+    local detail=${3:-""}
+    local icon=""
+    case "$state" in
+        pass) icon="✅" ;;
+        warn) icon="⚠️" ;;
+        fail) icon="❌" ;;
+        *) icon="•" ;;
+    esac
+    if [ -n "$detail" ]; then
+        health_lines="${health_lines}${icon} ${label}: ${detail}\n"
+        return
+    fi
+    health_lines="${health_lines}${icon} ${label}\n"
+}
+
+print_health() {
+    print_message info "\n${MUTED}Environment health report${NC}"
+    printf "%b" "$health_lines"
+    if [ "$health_bun" = "pass" ] && [ "$health_node" = "pass" ] && [ "$health_lock" = "pass" ] && [ "$health_deps" = "pass" ] && [ "$health_ocode" = "pass" ] && { [ "$local_ui" != "true" ] || [ "$health_webui" = "pass" ]; } && [ "$health_shell" = "pass" ] && [ "$health_wrapper" = "pass" ]; then
+        print_message info "${MUTED}Status:${NC} Best supported environment verified for opencode${local_ui:+ and WebUI}."
+        return
+    fi
+    print_message warning "${ORANGE}Status:${NC} Installed, but environment checks need attention."
+}
+
+ver_norm() {
+    local v=${1#v}
+    v=${v%%-*}
+    v=${v%%+*}
+    printf "%s" "$v"
+}
+
+ver_ge() {
+    local a
+    local b
+    a=$(ver_norm "$1")
+    b=$(ver_norm "$2")
+    local a1 a2 a3 b1 b2 b3
+    IFS='.' read -r a1 a2 a3 <<EOF
+$a
+EOF
+    IFS='.' read -r b1 b2 b3 <<EOF
+$b
+EOF
+    a1=${a1:-0}; a2=${a2:-0}; a3=${a3:-0}
+    b1=${b1:-0}; b2=${b2:-0}; b3=${b3:-0}
+    if [ "$a1" -gt "$b1" ]; then return 0; fi
+    if [ "$a1" -lt "$b1" ]; then return 1; fi
+    if [ "$a2" -gt "$b2" ]; then return 0; fi
+    if [ "$a2" -lt "$b2" ]; then return 1; fi
+    if [ "$a3" -ge "$b3" ]; then return 0; fi
+    return 1
+}
+
+bun_expected() {
+    local root=$1
+    sed -n 's/.*"packageManager"[[:space:]]*:[[:space:]]*"bun@\([^"]*\)".*/\1/p' "$root/package.json" | head -1
+}
+
+catalog_version() {
+    local root=$1
+    local key=$2
+    bun -e 'const f=JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); const k=process.argv[2]; console.log((f.workspaces&&f.workspaces.catalog&&f.workspaces.catalog[k])||"")' "$root/package.json" "$key" 2>/dev/null || true
+}
+
+require_lock() {
+    local root=$1
+    if [ -f "$root/bun.lock" ]; then
+        health_lock="pass"
+        health_add pass "Lockfile" "$root/bun.lock present"
+        return 0
+    fi
+    health_lock="fail"
+    health_add fail "Lockfile" "bun.lock is required for deterministic local install"
+    print_message error "Missing bun.lock in $root"
+    return 1
+}
+
+check_bun() {
+    local root=$1
+    if ! command -v bun >/dev/null 2>&1; then
+        health_bun="fail"
+        health_add fail "Bun" "bun is not installed"
+        print_message error "bun is required. Install bun@$(bun_expected "$root") and retry."
+        return 1
+    fi
+    local expect
+    local got
+    expect=$(bun_expected "$root")
+    got=$(bun --version 2>/dev/null || true)
+    if [ -z "$expect" ] || [ -z "$got" ]; then
+        health_bun="fail"
+        health_add fail "Bun" "Unable to verify bun version"
+        print_message error "Unable to determine Bun version requirement"
+        return 1
+    fi
+    local e_major g_major
+    e_major=$(ver_norm "$expect" | cut -d. -f1)
+    g_major=$(ver_norm "$got" | cut -d. -f1)
+    if [ "$e_major" != "$g_major" ] || ! ver_ge "$got" "$expect"; then
+        health_bun="fail"
+        health_add fail "Bun" "Expected >=$expect (major $e_major), found $got"
+        print_message error "Bun version mismatch. Required bun@$expect or compatible caret range. Found bun@$got"
+        return 1
+    fi
+    health_bun="pass"
+    health_add pass "Bun" "$got (expected >=$expect)"
+    return 0
+}
+
+check_node() {
+    if [ "$local_ui" != "true" ]; then
+        health_node="pass"
+        health_add pass "Node" "Not required (local-ui disabled)"
+        return 0
+    fi
+    if ! command -v node >/dev/null 2>&1; then
+        health_node="fail"
+        health_add fail "Node" "node is not installed"
+        print_message error "Node.js is required for WebUI build (Vite 7). Install Node >=20.19 or >=22.12"
+        return 1
+    fi
+    local got
+    got=$(node --version 2>/dev/null || true)
+    local major
+    major=$(ver_norm "$got" | cut -d. -f1)
+    if [ "$major" -gt "22" ]; then
+        health_node="pass"
+        health_add pass "Node" "$got"
+        return 0
+    fi
+    if [ "$major" = "22" ] && ver_ge "$got" "22.12.0"; then
+        health_node="pass"
+        health_add pass "Node" "$got"
+        return 0
+    fi
+    if [ "$major" = "20" ] && ver_ge "$got" "20.19.0"; then
+        health_node="pass"
+        health_add pass "Node" "$got"
+        return 0
+    fi
+    health_node="fail"
+    health_add fail "Node" "$got is too old for Vite 7 (need >=20.19 or >=22.12)"
+    print_message error "Node.js $got is unsupported for WebUI build. Please upgrade Node to >=20.19 or >=22.12 and rerun ./install --local-ui"
+    return 1
+}
+
+clear_repo() {
+    local root=$1
+    print_message warning "${ORANGE}Repair:${NC} clearing repo dependency state"
+    rm -rf "$root/node_modules" "$root/packages/opencode/node_modules" "$root/packages/app/node_modules" "$root/packages/ui/node_modules"
+    rm -rf "$root/packages/opencode/dist" "$root/packages/app/dist"
+}
+
+clear_bun() {
+    local dir
+    dir=$(bun pm cache 2>/dev/null || true)
+    if [ -n "$dir" ] && [ -d "$dir" ]; then
+        print_message warning "${ORANGE}Repair:${NC} clearing Bun cache at $dir"
+        rm -rf "$dir"
+    fi
+}
+
+install_deps() {
+    if [ "$os" = "windows" ]; then
+        bun install --frozen-lockfile --linker hoisted
+        return $?
+    fi
+    bun install --frozen-lockfile
+}
+
+check_deps() {
+    local root=$1
+    local dv
+    local pv
+    dv=$(catalog_version "$root" "drizzle-orm")
+    pv=$(catalog_version "$root" "@pierre/diffs")
+
+    # drizzle-orm: find anywhere in node_modules tree (workspace can hoist)
+    local dp
+    dp=$(find "$root/node_modules" -name "drizzle-orm" -type d 2>/dev/null | head -1)
+    if [ -z "$dp" ]; then
+        dp="$root/packages/opencode/node_modules/drizzle-orm"
+    fi
+    if [ ! -f "$dp/package.json" ]; then
+        health_deps="fail"
+        health_add fail "Dependencies" "drizzle-orm package missing"
+        return 1
+    fi
+    local got
+    got=$(bun -e 'const f=JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); console.log(f.version||"")' "$dp/package.json" 2>/dev/null || true)
+    if [ -n "$dv" ] && [ "$got" != "$dv" ]; then
+        health_deps="fail"
+        health_add fail "Dependencies" "drizzle-orm version mismatch (expected $dv got $got)"
+        return 1
+    fi
+    if [ ! -f "$dp/pg-core/primary-keys.js" ]; then
+        health_deps="fail"
+        health_add fail "Dependencies" "drizzle-orm missing pg-core/primary-keys.js"
+        return 1
+    fi
+
+    # @pierre/diffs: find package.json in .bun bundled cache or root node_modules
+    # worker is at dist/worker/worker.js (exports map: ./worker/worker.js -> ./dist/worker/worker.js)
+    local pj
+    pj=$(find "$root/node_modules/.bun" -path "*/@pierre/diffs/package.json" 2>/dev/null | head -1)
+    if [ -z "$pj" ]; then
+        pj=$(find "$root/node_modules" -path "*/@pierre/diffs/package.json" 2>/dev/null | grep -v ".bun" | head -1)
+    fi
+    if [ -z "$pj" ]; then
+        health_deps="fail"
+        health_add fail "Dependencies" "@pierre/diffs package not found"
+        return 1
+    fi
+    local pdir
+    pdir=$(dirname "$pj")
+    if [ ! -f "$pdir/dist/worker/worker.js" ]; then
+        health_deps="fail"
+        health_add fail "Dependencies" "@pierre/diffs dist/worker/worker.js missing"
+        return 1
+    fi
+    health_deps="pass"
+    health_add pass "Dependencies" "drizzle-orm@$got and @pierre/diffs@$pv integrity verified"
+    return 0
+}
+
+shell_detect() {
+    local p=""
+    p=$(ps -p "$PPID" -o comm= 2>/dev/null | tr -d '[:space:]' || true)
+    p=$(basename "$p")
+    case "$p" in
+        bash|zsh|fish|ash|sh) echo "$p"; return ;;
+    esac
+    basename "${SHELL:-sh}"
+}
+
+fail_local() {
+    local msg=$1
+    print_message error "$msg"
+    if [ "$local_repo" = true ]; then
+        print_health
+    fi
+    exit 1
+}
+
 unbuffered_sed() {
     if echo | sed -u -e "" >/dev/null 2>&1; then
         sed -nu "$@"
@@ -362,6 +621,14 @@ install_from_binary() {
     print_message info "\n${MUTED}Installing ${NC}opencode ${MUTED}from: ${NC}$binary_path"
     cp "$binary_path" "${INSTALL_DIR}/opencode"
     chmod 755 "${INSTALL_DIR}/opencode"
+    health_wrapper="pass"
+    health_add pass "Wrapper" "${INSTALL_DIR}/opencode"
+    health_bun="warn"
+    health_node="warn"
+    health_lock="warn"
+    health_deps="warn"
+    health_ocode="warn"
+    health_webui="warn"
 }
 
 install_from_local_repo() {
@@ -390,30 +657,60 @@ install_from_local_repo() {
     fi
     
     print_message info "${MUTED}Building local version...${NC}"
-    
-    # Build the project
+
     cd "$REPO_ROOT"
-    print_message info "${MUTED}Running bun install at root...${NC}"
-    if ! bun install; then
-        print_message error "Failed to run bun install"
-        exit 1
+    require_lock "$REPO_ROOT" || fail_local "Missing required lockfile"
+    check_bun "$REPO_ROOT" || fail_local "Bun environment check failed"
+    check_node || fail_local "Node environment check failed"
+
+    print_message info "${MUTED}Running deterministic bun install at root...${NC}"
+    if ! install_deps; then
+        print_message warning "${ORANGE}Install failed, running repair cycle...${NC}"
+        clear_repo "$REPO_ROOT"
+        clear_bun
+        if ! install_deps; then
+            health_deps="fail"
+            health_add fail "Dependencies" "install failed even after repair"
+            fail_local "Failed to run bun install after repair"
+        fi
     fi
-    if ! bun run --cwd packages/opencode build; then
-        print_message error "Failed to build the project"
-        exit 1
+
+    if ! check_deps "$REPO_ROOT"; then
+        print_message warning "${ORANGE}Dependency integrity failed, repairing...${NC}"
+        clear_repo "$REPO_ROOT"
+        clear_bun
+        if ! install_deps || ! check_deps "$REPO_ROOT"; then
+            fail_local "Dependency integrity checks failed after repair"
+        fi
     fi
-    
+
+    if bun run --cwd packages/opencode build; then
+        health_ocode="pass"
+        health_add pass "OpenCode build" "packages/opencode build succeeded"
+    else
+        health_ocode="fail"
+        health_add fail "OpenCode build" "packages/opencode build failed"
+        fail_local "Failed to build the project"
+    fi
+
     if [ "$local_ui" = true ]; then
         print_message info "${MUTED}Building WebUI assets...${NC}"
-        if ! bun run --cwd packages/app build; then
-            print_message error "Failed to build WebUI assets"
-            exit 1
+        if bun run --cwd packages/app build; then
+            health_webui="pass"
+            health_add pass "WebUI build" "packages/app build succeeded"
+        else
+            health_webui="fail"
+            health_add fail "WebUI build" "packages/app build failed"
+            fail_local "Failed to build WebUI assets"
         fi
         UI_PATH="$REPO_ROOT/packages/app/dist"
         if [ ! -d "$UI_PATH" ]; then
-            print_message error "WebUI build did not produce $UI_PATH"
-            exit 1
+            health_webui="fail"
+            health_add fail "WebUI output" "$UI_PATH not found"
+            fail_local "WebUI build did not produce $UI_PATH"
         fi
+        health_ui_dir="pass"
+        health_add pass "WebUI output" "$UI_PATH"
     fi
 
     print_message info "${MUTED}Installing locally built version...${NC}"
@@ -442,6 +739,8 @@ fi
 WRAPPER
     
     chmod 755 "${INSTALL_DIR}/opencode"
+    health_wrapper="pass"
+    health_add pass "Wrapper" "${INSTALL_DIR}/opencode"
     print_message info "${MUTED}Created development wrapper${NC}"
     
     specific_version="local"
@@ -476,7 +775,7 @@ add_to_path() {
 
 XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-$HOME/.config}
 
-current_shell=$(basename "$SHELL")
+current_shell=$(shell_detect)
 case $current_shell in
     fish)
         config_files="$HOME/.config/fish/config.fish"
@@ -508,8 +807,11 @@ if [[ "$no_modify_path" != "true" ]]; then
         fi
     done
     if [[ -z $config_file ]]; then
+        health_shell="warn"
+        health_add warn "Shell config" "No writable config found for $current_shell"
         print_message warning "No config file found for $current_shell. You may need to manually add to PATH:"
         print_message info "  export PATH=$INSTALL_DIR:\$PATH"
+        shell_config_file="(manual)"
     elif [[ ":$PATH:" != *":$INSTALL_DIR:"* ]]; then
         case $current_shell in
             fish)
@@ -533,6 +835,13 @@ if [[ "$no_modify_path" != "true" ]]; then
                 print_message info "  export PATH=$INSTALL_DIR:\$PATH"
             ;;
         esac
+        shell_config_file="$config_file"
+        health_shell="pass"
+        health_add pass "Shell config" "$config_file"
+    else
+        shell_config_file="$config_file"
+        health_shell="pass"
+        health_add pass "Shell config" "$config_file"
     fi
 
     if [[ "$local_ui" = true ]]; then
@@ -542,18 +851,36 @@ if [[ "$no_modify_path" != "true" ]]; then
                 echo -e "\n# opencode local ui" >> "$config_file"
                 echo "export OPENCODE_UI_DIR=\"$ui_path\"" >> "$config_file"
                 print_message info "${MUTED}Added ${NC}OPENCODE_UI_DIR ${MUTED}to ${NC}$config_file"
+                health_ui_dir="pass"
+                health_add pass "OPENCODE_UI_DIR" "$config_file"
             else
                 # Update existing
                 sed -i "s|export OPENCODE_UI_DIR=.*|export OPENCODE_UI_DIR=\"$ui_path\"|" "$config_file"
                 print_message info "${MUTED}Updated ${NC}OPENCODE_UI_DIR ${MUTED}in ${NC}$config_file"
+                health_ui_dir="pass"
+                health_add pass "OPENCODE_UI_DIR" "$config_file"
             fi
+        else
+            health_ui_dir="warn"
+            health_add warn "OPENCODE_UI_DIR" "No shell config file to update automatically"
         fi
+    fi
+else
+    health_shell="warn"
+    health_add warn "Shell config" "Skipped due to --no-modify-path"
+    if [ "$local_ui" = true ]; then
+        health_ui_dir="warn"
+        health_add warn "OPENCODE_UI_DIR" "Skipped due to --no-modify-path"
     fi
 fi
 
 if [ -n "${GITHUB_ACTIONS-}" ] && [ "${GITHUB_ACTIONS}" == "true" ]; then
     echo "$INSTALL_DIR" >> $GITHUB_PATH
     print_message info "Added $INSTALL_DIR to \$GITHUB_PATH"
+fi
+
+if [ "$local_repo" = true ]; then
+    print_health
 fi
 
 echo -e ""
