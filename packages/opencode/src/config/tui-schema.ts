@@ -29,7 +29,6 @@ export const TuiInfo = z
     $schema: z.string().optional(),
     theme: z.string().optional(),
     keybinds: KeybindOverride.optional(),
-    audio_enabled: z.boolean().optional().describe("Enable or disable native audio cues in TUI (default: true)"),
   })
   .extend(TuiOptions.shape)
   .strict()

@@ -52,6 +52,12 @@ const parameters = z.object({
     .describe("If true, the task will run in a separate Git Worktree to prevent interference with the main workspace")
     .default(false),
   command: z.string().describe("The command that triggered this task").optional(),
+  model: z
+    .string()
+    .describe(
+      "The model to use for this task (e.g., 'openai:gpt-4.1', 'openai:gpt-4o-mini'). Use cheaper models for simple research or documentation tasks, and premium models for complex coding tasks.",
+    )
+    .optional(),
 })
 
 export const TaskTool = Tool.define("task", async (ctx) => {
@@ -159,6 +165,7 @@ export const TaskTool = Tool.define("task", async (ctx) => {
           })
         })
         const model = await iife(async () => {
+          if (params.model) return Provider.parseModel(params.model)
           if (agent.model) return agent.model
           try {
             const msg = await MessageV2.get({ sessionID: ctx.sessionID, messageID: ctx.messageID })

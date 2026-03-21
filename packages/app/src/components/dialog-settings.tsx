@@ -4,7 +4,6 @@ import { Tabs } from "@opencode-ai/ui/tabs"
 import { Icon } from "@opencode-ai/ui/icon"
 import { useLanguage } from "@/context/language"
 import { usePlatform } from "@/context/platform"
-import { SettingsAudio } from "./settings-audio"
 import { SettingsGeneral } from "./settings-general"
 import { SettingsKeybinds } from "./settings-keybinds"
 import { SettingsCopilot } from "./settings-copilot"
@@ -32,10 +31,6 @@ export const DialogSettings: Component = () => {
                     <Tabs.Trigger value="shortcuts">
                       <Icon name="keyboard" />
                       {language.t("settings.tab.shortcuts")}
-                    </Tabs.Trigger>
-                    <Tabs.Trigger value="audio">
-                      <Icon name="sliders" />
-                      Audio Lab
                     </Tabs.Trigger>
                   </div>
                 </div>
@@ -70,9 +65,6 @@ export const DialogSettings: Component = () => {
         </Tabs.Content>
         <Tabs.Content value="shortcuts" class="no-scrollbar">
           <SettingsKeybinds />
-        </Tabs.Content>
-        <Tabs.Content value="audio" class="no-scrollbar">
-          <SettingsAudio />
         </Tabs.Content>
         <Tabs.Content value="copilot" class="no-scrollbar">
           <SettingsCopilot />

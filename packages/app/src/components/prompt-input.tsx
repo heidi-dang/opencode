@@ -56,6 +56,7 @@ import { PromptImageAttachments } from "./prompt-input/image-attachments"
 import { PromptDragOverlay } from "./prompt-input/drag-overlay"
 import { promptPlaceholder } from "./prompt-input/placeholder"
 import { ImagePreview } from "@opencode-ai/ui/image-preview"
+import { SuggestBar } from "./prompt-input/suggest-bar"
 
 interface PromptInputProps {
   class?: string
@@ -1310,6 +1311,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
           onRemove={removeAttachment}
           removeLabel={language.t("prompt.attachment.remove")}
         />
+        <SuggestBar />
         <div
           class="relative"
           onMouseDown={(e) => {

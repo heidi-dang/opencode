@@ -2,7 +2,6 @@ import { Hono } from "hono"
 import { describeRoute, resolver, validator } from "hono-openapi"
 import { streamSSE } from "hono/streaming"
 import z from "zod"
-import "@/audio/transport"
 import { BusEvent } from "@/bus/bus-event"
 import { GlobalBus } from "@/bus/global"
 import { AsyncQueue } from "@/util/queue"
@@ -14,13 +13,10 @@ import { Config } from "../../config/config"
 import { errors } from "../error"
 import { Flag } from "@/flag/flag"
 import { ServerStats } from "../stats"
-import { SSEBatcher, SSEResumptionBuffer } from "../../util/sse"
 
 const log = Log.create({ service: "server" })
 
 export const GlobalDisposedEvent = BusEvent.define("global.disposed", z.object({}))
-
-const resumption = new SSEResumptionBuffer(50)
 
 export const GlobalRoutes = lazy(() =>
   new Hono()
@@ -73,13 +69,11 @@ export const GlobalRoutes = lazy(() =>
       }),
       async (c) => {
         log.info("global event connected")
-        const lastEventID = c.req.header("Last-Event-ID")
-
         c.header("X-Accel-Buffering", "no")
         c.header("X-Content-Type-Options", "nosniff")
         return streamSSE(c, async (stream) => {
           const close = ServerStats.open("global")
-          const q = new AsyncQueue<{ data: string; id: string } | null>()
+          const q = new AsyncQueue<string | null>()
           let done = false
 
           const max = setTimeout(() => {
@@ -87,34 +81,29 @@ export const GlobalRoutes = lazy(() =>
           }, Flag.OPENCODE_SSE_MAX_AGE_MS ?? 60 * 60 * 1000)
           max.unref?.()
 
-          if (lastEventID) {
-            const missed = resumption.getMissing(lastEventID)
-            for (const item of missed) {
-              q.push(item)
-            }
-          }
-
-          const batcher = new SSEBatcher(q, resumption)
-
-          batcher.push({
-            payload: {
-              type: "server.connected",
-              properties: {},
-            },
-          })
+          q.push(
+            JSON.stringify({
+              payload: {
+                type: "server.connected",
+                properties: {},
+              },
+            }),
+          )
 
           // Send heartbeat every 10s to prevent stalled proxy streams.
           const heartbeat = setInterval(() => {
-            batcher.push({
-              payload: {
-                type: "server.heartbeat",
-                properties: {},
-              },
-            })
+            q.push(
+              JSON.stringify({
+                payload: {
+                  type: "server.heartbeat",
+                  properties: {},
+                },
+              }),
+            )
           }, 10_000)
 
           async function handler(event: any) {
-            batcher.push(event)
+            q.push(JSON.stringify(event))
           }
           GlobalBus.on("event", handler)
 
@@ -132,9 +121,9 @@ export const GlobalRoutes = lazy(() =>
           stream.onAbort(stop)
 
           try {
-            for await (const item of q) {
-              if (item === null) return
-              await stream.writeSSE({ data: item.data, id: item.id })
+            for await (const data of q) {
+              if (data === null) return
+              await stream.writeSSE({ data })
             }
           } finally {
             stop()

@@ -6,7 +6,6 @@ import { cmd } from "./cmd"
 import { Flag } from "../../flag/flag"
 import { bootstrap } from "../bootstrap"
 import { EOL } from "os"
-import { playNativeCue } from "@/audio/native"
 import { Filesystem } from "../../util/filesystem"
 import { createOpencodeClient, type Message, type OpencodeClient, type ToolPart } from "@opencode-ai/sdk/v2"
 import { Server } from "../../server/server"
@@ -303,18 +302,8 @@ export const RunCommand = cmd({
         describe: "show thinking blocks",
         default: false,
       })
-      .option("audio", {
-        type: "boolean",
-        describe: "enable or disable native audio cues (default: true)",
-        default: undefined,
-      })
   },
   handler: async (args) => {
-        // Respect CLI audio flag for runtime config
-        if (typeof args.audio === "boolean") {
-          // Set env var for downstream config load, or patch config if needed
-          process.env.OPENCODE_AUDIO_ENABLED = args.audio ? "1" : "0"
-        }
     let message = [...args.message, ...(args["--"] || [])]
       .map((arg) => (arg.includes(" ") ? `"${arg.replace(/"/g, '\\"')}"` : arg))
       .join(" ")
@@ -530,11 +519,6 @@ export const RunCommand = cmd({
               }
               process.stdout.write(line + EOL)
             }
-          }
-
-          if (event.type === "workflow.audio") {
-            if (event.properties.sessionID && event.properties.sessionID !== sessionID) continue
-            void playNativeCue(event.properties.cue)
           }
 
           if (event.type === "session.error") {

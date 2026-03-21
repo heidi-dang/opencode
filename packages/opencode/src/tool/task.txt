@@ -22,6 +22,7 @@ Usage notes:
 4. The agent's outputs should generally be trusted
 5. Clearly tell the agent whether you expect it to write code or just to do research (search, file reads, web fetches, etc.), since it is not aware of the user's intent. Tell it how to verify its work if possible (e.g., relevant test commands).
 6. If the agent description mentions that it should be used proactively, then you should try your best to use it without the user having to ask for it first. Use your judgement.
+7. COST OPTIMIZATION: Use the `model` parameter to select specific models for subagents. Prefer FREE models (e.g., 'github-copilot/gpt-4.1', 'openai/gpt-5-mini') for research, documentation, or simple audits. Reserve high-end models (e.g., 'github-copilot/gpt-5.4', 'github-copilot/gpt-5.3-codex') for the @implementer or complex refactors.
 
 Example usage (NOTE: The agents below are fictional examples for illustration only - use the actual agents listed above):
 

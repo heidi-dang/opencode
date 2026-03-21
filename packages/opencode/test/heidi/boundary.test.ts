@@ -153,7 +153,7 @@ describe("heidi boundary", () => {
     })
   })
 
-  test("set_mode uses begin_execution path for execution", async () => {
+  test("set_mode rejects mismatched derived mode", async () => {
     await using tmp = await tmpdir({ git: true })
     await Instance.provide({
       directory: tmp.path,
@@ -165,18 +165,14 @@ describe("heidi boundary", () => {
           action: "start",
           payload: { objective: "Keep mode derived" },
         })
-        await Filesystem.write(
-          (await HeidiState.files(session.id)).implementation_plan,
-          "# Goal\nTest\n## Background and discovered repo facts\nNone\n## Scope\nAll\n## Files to modify\n- test.ts\n## Change strategy by component\nNone\n## Verification plan\n- test",
-        )
-        const result = await HeidiBoundary.apply({
-          run_id: "run-5",
-          task_id: session.id,
-          action: "set_mode",
-          payload: { mode: "EXECUTION" },
-        })
-        expect(result.mode).toBe("EXECUTION")
-        expect(result.fsm_state).toBe("EXECUTION")
+        await expect(
+          HeidiBoundary.apply({
+            run_id: "run-5",
+            task_id: session.id,
+            action: "set_mode",
+            payload: { mode: "EXECUTION" },
+          }),
+        ).rejects.toThrow(/derived/)
       },
     })
   })
@@ -201,177 +197,6 @@ describe("heidi boundary", () => {
         })
         expect(result.mode).toBe("PLANNING")
         expect(result.fsm_state).toBe("DISCOVERY")
-      },
-    })
-  })
-
-  test("set_mode preserves guided begin_execution errors", async () => {
-    await using tmp = await tmpdir({ git: true })
-    await Instance.provide({
-      directory: tmp.path,
-      fn: async () => {
-        const session = await Session.create({})
-        await HeidiBoundary.apply({
-          run_id: "run-6b",
-          task_id: session.id,
-          action: "start",
-          payload: { objective: "Need a plan first" },
-        })
-        await expect(
-          HeidiBoundary.apply({
-            run_id: "run-6b",
-            task_id: session.id,
-            action: "set_mode",
-            payload: { mode: "EXECUTION" },
-          }),
-        ).rejects.toThrow(/Missing sections: .*Next action: lock_plan/i)
-      },
-    })
-  })
-
-  test("set_mode reuses verification path when legal", async () => {
-    await using tmp = await tmpdir({ git: true })
-    await Instance.provide({
-      directory: tmp.path,
-      fn: async () => {
-        const session = await Session.create({})
-        await HeidiBoundary.apply({
-          run_id: "run-6c",
-          task_id: session.id,
-          action: "start",
-          payload: { objective: "Move to verification" },
-        })
-        await Filesystem.write(
-          (await HeidiState.files(session.id)).implementation_plan,
-          "# Goal\nTest\n## Background and discovered repo facts\nNone\n## Scope\nAll\n## Files to modify\n- test.ts\n## Change strategy by component\nNone\n## Verification plan\n- test",
-        )
-        await HeidiBoundary.apply({
-          run_id: "run-6c",
-          task_id: session.id,
-          action: "begin_execution",
-          payload: {},
-        })
-        const state = await HeidiState.read(session.id)
-        state.checklist = state.checklist.map((item) => ({ ...item, status: "done" }))
-        await HeidiState.write(session.id, state)
-        const result = await HeidiBoundary.apply({
-          run_id: "run-6c",
-          task_id: session.id,
-          action: "set_mode",
-          payload: { mode: "VERIFICATION" },
-        })
-        expect(result.mode).toBe("VERIFICATION")
-        expect(result.fsm_state).toBe("VERIFICATION")
-      },
-    })
-  })
-
-  test("set_mode preserves guided verification errors", async () => {
-    await using tmp = await tmpdir({ git: true })
-    await Instance.provide({
-      directory: tmp.path,
-      fn: async () => {
-        const session = await Session.create({})
-        await HeidiBoundary.apply({
-          run_id: "run-6d",
-          task_id: session.id,
-          action: "start",
-          payload: { objective: "Cannot verify yet" },
-        })
-        await expect(
-          HeidiBoundary.apply({
-            run_id: "run-6d",
-            task_id: session.id,
-            action: "set_mode",
-            payload: { mode: "VERIFICATION" },
-          }),
-        ).rejects.toThrow(/verification gate failed/i)
-      },
-    })
-  })
-
-  test("set_mode reopens planning from execution", async () => {
-    await using tmp = await tmpdir({ git: true })
-    await Instance.provide({
-      directory: tmp.path,
-      fn: async () => {
-        const session = await Session.create({})
-        await HeidiBoundary.apply({
-          run_id: "run-6e",
-          task_id: session.id,
-          action: "start",
-          payload: { objective: "Go back to planning" },
-        })
-        await Filesystem.write(
-          (await HeidiState.files(session.id)).implementation_plan,
-          "# Goal\nTest\n## Background and discovered repo facts\nNone\n## Scope\nAll\n## Files to modify\n- test.ts\n## Change strategy by component\nNone\n## Verification plan\n- test",
-        )
-        await HeidiBoundary.apply({
-          run_id: "run-6e",
-          task_id: session.id,
-          action: "begin_execution",
-          payload: {},
-        })
-        const result = await HeidiBoundary.apply({
-          run_id: "run-6e",
-          task_id: session.id,
-          action: "set_mode",
-          payload: { mode: "PLANNING" },
-        })
-        expect(result.mode).toBe("PLANNING")
-        expect(result.fsm_state).toBe("DISCOVERY")
-        const state = await HeidiState.read(session.id)
-        expect(state.plan.locked).toBe(false)
-        expect(state.objective.locked).toBe(false)
-        expect(state.plan.amendments).toHaveLength(1)
-      },
-    })
-  })
-
-  test("set_mode reopens planning from blocked", async () => {
-    await using tmp = await tmpdir({ git: true })
-    await Instance.provide({
-      directory: tmp.path,
-      fn: async () => {
-        const session = await Session.create({})
-        await HeidiBoundary.apply({
-          run_id: "run-6f",
-          task_id: session.id,
-          action: "start",
-          payload: { objective: "Unblock into planning" },
-        })
-        await HeidiBoundary.apply({
-          run_id: "run-6f",
-          task_id: session.id,
-          action: "block",
-          payload: { reason: "stuck" },
-        })
-        const result = await HeidiBoundary.apply({
-          run_id: "run-6f",
-          task_id: session.id,
-          action: "set_mode",
-          payload: { mode: "PLANNING" },
-        })
-        expect(result.mode).toBe("PLANNING")
-        expect(result.fsm_state).toBe("DISCOVERY")
-      },
-    })
-  })
-
-  test("set_mode treats idle planning as a no-op", async () => {
-    await using tmp = await tmpdir({ git: true })
-    await Instance.provide({
-      directory: tmp.path,
-      fn: async () => {
-        const session = await Session.create({})
-        const result = await HeidiBoundary.apply({
-          run_id: "run-6g",
-          task_id: session.id,
-          action: "set_mode",
-          payload: { mode: "PLANNING" },
-        })
-        expect(result.mode).toBe("PLANNING")
-        expect(result.fsm_state).toBe("IDLE")
       },
     })
   })

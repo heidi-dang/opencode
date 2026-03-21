@@ -7,7 +7,6 @@ import { assertExternalDirectory } from "./external-directory"
 import { HeidiState } from "@/heidi/state"
 import { HeidiExec } from "@/heidi/exec"
 import { HeidiJail } from "@/heidi/jail"
-import { fuzzyReplace } from "@/util/fuzzy"
 
 const Item = z.object({
   path: z.string(),
@@ -71,15 +70,41 @@ export const ReplaceFileContentTool = Tool.define("replace_file_content", {
       const before = await Filesystem.readText(file)
       let after = ""
 
-      try {
-        after = fuzzyReplace(before, item.search_string, item.replace_string, item.anchor)
-      } catch (err) {
-        if (item.anchor) {
+      if (item.anchor) {
+        const anchorIdx = before.indexOf(item.anchor)
+        if (anchorIdx < 0) {
+          throw new Error(`Anchor not found in ${file}`)
+        }
+        
+        // Find search_string within +/- 1000 chars of anchor
+        const searchRegionStart = Math.max(0, anchorIdx - 1000)
+        const searchRegionEnd = Math.min(before.length, anchorIdx + item.anchor.length + 1000)
+        const searchRegion = before.slice(searchRegionStart, searchRegionEnd)
+        
+        if (!searchRegion.includes(item.search_string)) {
           throw new Error(`search_string not found near anchor in ${file}\n\n<context>\n${region(before, item.anchor, item.search_string)}\n</context>`)
         }
-        throw err
+        
+        // Ensure uniqueness within the specific region
+        const firstMatch = searchRegion.indexOf(item.search_string)
+        const lastMatch = searchRegion.lastIndexOf(item.search_string)
+        if (firstMatch !== lastMatch) {
+          throw new Error(`Multiple matches for search_string found near anchor in ${file}. Provide more unique search_string or anchor.`)
+        }
+        
+        const absoluteIdx = searchRegionStart + firstMatch
+        after = before.substring(0, absoluteIdx) + item.replace_string + before.substring(absoluteIdx + item.search_string.length)
+      } else {
+        if (!before.includes(item.search_string)) {
+          throw new Error(`search_string not found in ${file}`)
+        }
+        const firstMatch = before.indexOf(item.search_string)
+        const lastMatch = before.lastIndexOf(item.search_string)
+        if (firstMatch !== lastMatch) {
+          throw new Error(`Multiple matches for search_string found in ${file}. Use an 'anchor' for precision.`)
+        }
+        after = before.replace(item.search_string, item.replace_string)
       }
-
       next.push({ path: file, before, after })
     }
 

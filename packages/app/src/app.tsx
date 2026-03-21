@@ -41,7 +41,6 @@ import { PromptProvider } from "@/context/prompt"
 import { ServerConnection, ServerProvider, serverName, useServer } from "@/context/server"
 import { SettingsProvider } from "@/context/settings"
 import { TerminalProvider } from "@/context/terminal"
-import { WorkflowAudioService } from "@/lib/audio/audio-service"
 import DirectoryLayout from "@/pages/directory-layout"
 import Layout from "@/pages/layout"
 import { ErrorPage } from "./pages/error"
@@ -50,7 +49,6 @@ import { useCheckServerHealth } from "./utils/server-health"
 const HomeRoute = lazy(() => import("@/pages/home"))
 const Session = lazy(() => import("@/pages/session"))
 const Copilot = lazy(() => import("@/pages/copilot"))
-const AudioPreviewRoute = lazy(() => import("@/routes/internal/audio-preview"))
 const Loading = () => <div class="size-full" />
 
 const SessionRoute = () => (
@@ -125,7 +123,6 @@ function SessionProviders(props: ParentProps) {
 function RouterRoot(props: ParentProps<{ appChildren?: JSX.Element }>) {
   return (
     <AppShellProviders>
-      <WorkflowAudioService />
       <Suspense fallback={<Loading />}>
         {props.appChildren}
         {props.children}
@@ -299,7 +296,6 @@ export function AppInterface(props: {
                 <Route path="/:dir" component={DirectoryLayout}>
                   <Route path="/" component={SessionIndexRoute} />
                   <Route path="/copilot" component={CopilotRoute} />
-                  <Route path="/internal/audio-preview" component={AudioPreviewRoute} />
                   <Route path="/session/:id?" component={SessionRoute} />
                 </Route>
               </Dynamic>

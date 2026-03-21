@@ -231,7 +231,7 @@ export namespace HeidiContext {
     data: ContextState,
     attempts = 0,
   ): Promise<{ status: SyncStatus; attempts: number; last_error: string | null }> {
-    const MAX_ATTEMPTS = 3
+    const MAX_ATTEMPTS = 5
     const baseDelay = 100
     const target = file(sessionID)
     const tmp = target + ".tmp"

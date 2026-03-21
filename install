@@ -65,6 +65,8 @@ repair_actions=""
 compare_status="pending"
 compare_summary=""
 log_keep=10
+source_repo_root=""
+active_repo_root=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -953,17 +955,60 @@ clear_bun() {
     fi
 }
 
-install_deps() {
-    record_action "bun-install-frozen"
-    if [ "$dry_run" = true ]; then
-        print_message info "${MUTED}[dry-run] would verify and install dependencies from bun.lock${NC}"
+prepare_local_repo_root() {
+    local root=$1
+    local checkout_root="$runtime_root/local-repo"
+    local target=""
+    local commit=""
+
+    if [ -z "$pre_git_status" ]; then
+        active_repo_root="$root"
+        print_message info "${MUTED}Using live repository checkout for local install.${NC}"
         return 0
     fi
+
+    commit=$(git -C "$root" rev-parse --short=12 HEAD)
+    target="$checkout_root/$run_ts-$commit"
+    mkdir -p "$checkout_root"
+    rm -rf "$target"
+
+    print_message warning "${ORANGE}Dirty repo detected:${NC} building from a clean HEAD snapshot; uncommitted changes will be ignored"
+    if ! git -C "$root" worktree add --detach "$target" HEAD; then
+        health_deps="fail"
+        health_add fail "Dependencies" "failed to create clean worktree for local install"
+        return 1
+    fi
+
+    ln -sfn "$target" "$checkout_root/current"
+    active_repo_root="$checkout_root/current"
+    health_add warn "Dirty repo" "Using clean HEAD snapshot at $target"
+    return 0
+}
+
+install_deps() {
+    local frozen=${1:-true}
+    if [ "$frozen" = "true" ]; then
+        record_action "bun-install-frozen"
+    else
+        record_action "bun-install-healing"
+    fi
+    if [ "$dry_run" = true ]; then
+        if [ "$frozen" = "true" ]; then
+            print_message info "${MUTED}[dry-run] would verify and install dependencies from bun.lock (frozen)${NC}"
+        else
+            print_message info "${MUTED}[dry-run] would repair and update dependencies (non-frozen)${NC}"
+        fi
+        return 0
+    fi
+    local cmd="install"
+    if [ "$frozen" = "true" ]; then
+        cmd="install --frozen-lockfile"
+    fi
     if [ "$os" = "windows" ]; then
-        bun install --frozen-lockfile --linker hoisted
+        bun $cmd --linker hoisted
         return $?
     fi
-    bun install --frozen-lockfile
+    bun $cmd
 }
 
 check_deps() {
@@ -1187,57 +1232,60 @@ install_from_local_repo() {
     fi
     
     # Get repository root
-    REPO_ROOT=$(git rev-parse --show-toplevel)
-    print_message info "${MUTED}Repository root: ${NC}$REPO_ROOT"
+    source_repo_root=$(git rev-parse --show-toplevel)
+    print_message info "${MUTED}Repository root: ${NC}$source_repo_root"
     
     # Check if this looks like the opencode repository
-    if [ ! -f "$REPO_ROOT/package.json" ]; then
+    if [ ! -f "$source_repo_root/package.json" ]; then
         print_message error "No package.json found in repository root"
         exit 1
     fi
     
     # Check package.json name
-    if ! grep -q '"name": "opencode"' "$REPO_ROOT/package.json"; then
+    if ! grep -q '"name": "opencode"' "$source_repo_root/package.json"; then
         print_message error "This doesn't appear to be the opencode repository"
         exit 1
     fi
     
     print_message info "${MUTED}Building local version...${NC}"
 
-    cd "$REPO_ROOT"
-    preferred_node_version=$(preferred_node "$REPO_ROOT")
-    minimum_node_version=$(minimum_node "$REPO_ROOT")
+    cd "$source_repo_root"
+    preferred_node_version=$(preferred_node "$source_repo_root")
+    minimum_node_version=$(minimum_node "$source_repo_root")
     current_shell=$(shell_detect)
     shell_config_file=$(pick_shell_config "$current_shell")
     pre_git_status=$(git_dirty)
     if [ -n "$pre_git_status" ]; then
         health_add warn "Dirty repo" "Pre-existing tracked changes detected before install"
     fi
-    capture_snapshot "$snapshot_pre" "$REPO_ROOT" "$shell_config_file"
-    require_lock "$REPO_ROOT" || fail_local "Missing required lockfile"
-    check_bun "$REPO_ROOT" || fail_local "Bun environment check failed"
+    capture_snapshot "$snapshot_pre" "$source_repo_root" "$shell_config_file"
+    require_lock "$source_repo_root" || fail_local "Missing required lockfile"
+    check_bun "$source_repo_root" || fail_local "Bun environment check failed"
     check_node || fail_local "Node environment check failed"
 
+    prepare_local_repo_root "$source_repo_root" || fail_local "Failed to prepare clean local checkout"
+    cd "$active_repo_root"
+
     lock_backup="$run_dir/bun.lock.before"
-    cp "$REPO_ROOT/bun.lock" "$lock_backup"
+    cp "$active_repo_root/bun.lock" "$lock_backup"
 
     print_message info "${MUTED}Running deterministic bun install at root...${NC}"
     if ! install_deps; then
-        print_message warning "${ORANGE}Install failed, running repair cycle...${NC}"
-        clear_repo "$REPO_ROOT"
+        print_message warning "${ORANGE}Install failed, running healing cycle...${NC}"
+        clear_repo "$active_repo_root"
         clear_bun
-        if ! install_deps; then
+        if ! install_deps false; then
             health_deps="fail"
-            health_add fail "Dependencies" "install failed even after repair"
-            fail_local "Failed to run bun install after repair"
+            health_add fail "Dependencies" "install failed even after healing"
+            fail_local "Failed to run bun install after healing"
         fi
     fi
 
-    if ! check_deps "$REPO_ROOT"; then
+    if ! check_deps "$active_repo_root"; then
         print_message warning "${ORANGE}Dependency integrity failed, repairing...${NC}"
-        clear_repo "$REPO_ROOT"
+        clear_repo "$active_repo_root"
         clear_bun
-        if ! install_deps || ! check_deps "$REPO_ROOT"; then
+        if ! install_deps || ! check_deps "$active_repo_root"; then
             fail_local "Dependency integrity checks failed after repair"
         fi
     fi
@@ -1245,9 +1293,9 @@ install_from_local_repo() {
     if [ "$dry_run" = true ]; then
         health_ocode="warn"
         health_add warn "OpenCode build" "Skipped due to --dry-run"
-    elif bun run --cwd packages/opencode build -- --skip-install; then
+    elif bun run --cwd packages/opencode build -- --skip-install --single; then
         health_ocode="pass"
-        health_add pass "OpenCode build" "packages/opencode build succeeded"
+        health_add pass "OpenCode build" "packages/opencode build succeeded for the current platform"
     else
         health_ocode="fail"
         health_add fail "OpenCode build" "packages/opencode build failed"
@@ -1269,7 +1317,7 @@ install_from_local_repo() {
             health_add fail "WebUI build" "packages/app build failed"
             fail_local "Failed to build WebUI assets"
         fi
-        UI_PATH="$REPO_ROOT/packages/app/dist"
+        UI_PATH="$active_repo_root/packages/app/dist"
         if [ ! -d "$UI_PATH" ]; then
             health_webui="fail"
             health_add fail "WebUI output" "$UI_PATH not found"
@@ -1283,8 +1331,8 @@ install_from_local_repo() {
     
     # Build the wrapper script with optional UI_DIR baked in
     local ui_export=""
-    if [ "$local_ui" = true ] && [ -d "$REPO_ROOT/packages/app/dist" ]; then
-        ui_export="export OPENCODE_UI_DIR=\"$REPO_ROOT/packages/app/dist\""
+    if [ "$local_ui" = true ] && [ -d "$active_repo_root/packages/app/dist" ]; then
+        ui_export="export OPENCODE_UI_DIR=\"$active_repo_root/packages/app/dist\""
     fi
 
     # Create a wrapper script that calls local development version
@@ -1296,7 +1344,7 @@ install_from_local_repo() {
         cat > "${INSTALL_DIR}/opencode" <<WRAPPER
 #!/usr/bin/env bash
 # OpenCode local development wrapper
-REPO_ROOT="$REPO_ROOT"
+REPO_ROOT="$active_repo_root"
 $ui_export
 
 # Check if we are in development mode
@@ -1314,13 +1362,13 @@ WRAPPER
         print_message info "${MUTED}Created development wrapper${NC}"
     fi
 
-    if [ "$dry_run" != true ] && ! cmp -s "$lock_backup" "$REPO_ROOT/bun.lock"; then
-        cp "$lock_backup" "$REPO_ROOT/bun.lock"
+    if [ "$dry_run" != true ] && [ "$active_repo_root" = "$source_repo_root" ] && ! cmp -s "$lock_backup" "$active_repo_root/bun.lock"; then
+        cp "$lock_backup" "$active_repo_root/bun.lock"
         record_action "restore-bun-lock"
         print_message warning "${ORANGE}Restore:${NC} bun.lock restored to pre-install snapshot"
     fi
 
-    capture_snapshot "$snapshot_post" "$REPO_ROOT" "$shell_config_file"
+    capture_snapshot "$snapshot_post" "$source_repo_root" "$shell_config_file"
     local cmp_result
     cmp_result=$(compare_snapshots)
     compare_status=$(printf "%s" "$cmp_result" | sed -n '1p')
@@ -1330,6 +1378,7 @@ WRAPPER
     fi
 
     specific_version="local"
+    REPO_ROOT="$active_repo_root"
     print_message info "${MUTED}Local install completed successfully!${NC}"
 }
 
