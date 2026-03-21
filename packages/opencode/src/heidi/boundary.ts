@@ -22,6 +22,7 @@ const allowed = new Set([
   "VERIFICATION->PLAN_DRAFT",
   "VERIFICATION->DISCOVERY",
   "COMPLETE->DISCOVERY",
+  "BLOCKED->DISCOVERY",
   // Transitions to BLOCKED
   "IDLE->BLOCKED",
   "DISCOVERY->BLOCKED",
@@ -242,6 +243,50 @@ export namespace HeidiBoundary {
     return next
   }
 
+  async function reopen(task_id: SessionID, reason: string) {
+    const state = await HeidiState.read(task_id)
+    state.plan.locked = false
+    state.objective.locked = false
+    state.block_reason = null
+    state.plan.amendments.push({
+      id: Identifier.ascending("tool"),
+      reason,
+      timestamp: new Date().toISOString(),
+    })
+    move(state, "DISCOVERY")
+    state.last_successful_step = "reopen_plan"
+    state.next_transition = "DISCOVERY->PLAN_DRAFT"
+    state.resume.next_step = "write_plan"
+    await HeidiState.write(task_id, state)
+    await HeidiState.updateResume(task_id)
+    return state
+  }
+
+  async function verification(task_id: SessionID) {
+    const state = await HeidiState.read(task_id)
+    await HeidiVerify.preflight(task_id)
+    move(state, "VERIFICATION")
+    state.last_successful_step = "request_verification"
+    state.next_transition = "VERIFICATION->COMPLETE"
+    state.resume.next_step = "VERIFICATION"
+    await HeidiState.write(task_id, state)
+    await HeidiState.updateResume(task_id)
+    return state
+  }
+
+  async function reply(task_id: SessionID, state: TaskState) {
+    const artifacts = await HeidiState.files(task_id)
+    await Bus.publish(Event.Updated, { task_id, mode: state.mode, fsm_state: state.fsm_state })
+    return Response.parse({
+      ok: true,
+      fsm_state: state.fsm_state,
+      mode: state.mode,
+      task_json_version: 1,
+      artifacts,
+      error: null,
+    })
+  }
+
   export async function apply(input: z.input<typeof Request>) {
     const req = Request.parse(input)
     const state = await HeidiState.ensure(req.task_id, req.action === "start" ? req.payload.objective : "")
@@ -273,8 +318,24 @@ export namespace HeidiBoundary {
     }
 
     if (req.action === "set_mode") {
-      if (state.mode !== req.payload.mode) {
-        throw new Error(`set_mode is invalid; mode is derived from fsm_state ${state.fsm_state}`)
+      if (req.payload.mode === "PLANNING") {
+        if (state.fsm_state === "IDLE" || state.fsm_state === "DISCOVERY" || state.fsm_state === "PLAN_DRAFT") {
+          // no-op
+        } else {
+          return reply(req.task_id, await reopen(req.task_id, "set_mode:PLANNING"))
+        }
+      }
+
+      if (req.payload.mode === "EXECUTION") {
+        if (state.fsm_state !== "EXECUTION") {
+          return reply(req.task_id, await execution(req.task_id))
+        }
+      }
+
+      if (req.payload.mode === "VERIFICATION") {
+        if (state.fsm_state !== "VERIFICATION" && state.fsm_state !== "COMPLETE") {
+          return reply(req.task_id, await verification(req.task_id))
+        }
       }
     }
 
@@ -299,53 +360,19 @@ export namespace HeidiBoundary {
     }
 
     if (req.action === "lock_plan") {
-      const next = await lock(req.task_id)
-      const artifacts = await HeidiState.files(req.task_id)
-      await Bus.publish(Event.Updated, { task_id: req.task_id, mode: next.mode, fsm_state: next.fsm_state })
-      return Response.parse({
-        ok: true,
-        fsm_state: next.fsm_state,
-        mode: next.mode,
-        task_json_version: 1,
-        artifacts,
-        error: null,
-      })
+      return reply(req.task_id, await lock(req.task_id))
     }
 
     if (req.action === "reopen_plan") {
-      state.plan.locked = false
-      state.objective.locked = false
-      state.plan.amendments.push({
-        id: Identifier.ascending("tool"),
-        reason: req.payload.reason,
-        timestamp: new Date().toISOString(),
-      })
-      move(state, "DISCOVERY")
-      state.last_successful_step = "reopen_plan"
-      state.next_transition = "DISCOVERY->PLAN_DRAFT"
-      state.resume.next_step = "write_plan"
+      return reply(req.task_id, await reopen(req.task_id, req.payload.reason))
     }
 
     if (req.action === "begin_execution") {
-      const next = await execution(req.task_id)
-      const artifacts = await HeidiState.files(req.task_id)
-      await Bus.publish(Event.Updated, { task_id: req.task_id, mode: next.mode, fsm_state: next.fsm_state })
-      return Response.parse({
-        ok: true,
-        fsm_state: next.fsm_state,
-        mode: next.mode,
-        task_json_version: 1,
-        artifacts,
-        error: null,
-      })
+      return reply(req.task_id, await execution(req.task_id))
     }
 
     if (req.action === "request_verification") {
-      await HeidiVerify.preflight(req.task_id)
-      move(state, "VERIFICATION")
-      state.last_successful_step = "request_verification"
-      state.next_transition = "VERIFICATION->COMPLETE"
-      state.resume.next_step = "VERIFICATION"
+      return reply(req.task_id, await verification(req.task_id))
     }
 
     if (req.action === "block") {
