@@ -332,6 +332,32 @@ describe("session.prompt parallel assist", () => {
     expect(text).toContain("## Ownership Split")
   })
 
+  test("buildPlanReminder makes planning decide by default", () => {
+    const text = SessionPrompt.buildPlanReminder({
+      plan: "/tmp/plan.md",
+      exists: true,
+    })
+
+    expect(text).toContain("Make the best reasonable assumptions and proceed")
+    expect(text).toContain("Record those assumptions clearly in the plan")
+    expect(text).not.toContain("asking them questions")
+    expect(text).not.toContain("clarify ambiguities in the user request up front")
+  })
+
+  test("buildPlanReminder limits question usage and preserves plan_exit", () => {
+    const text = SessionPrompt.buildPlanReminder({
+      plan: "/tmp/plan.md",
+      exists: false,
+    })
+
+    expect(text).toContain("missing required user-specific information")
+    expect(text).toContain("safety, destructive, or irreversible operations")
+    expect(text).toContain("true ambiguity with materially different outcomes")
+    expect(text).toContain("plan_exit")
+    expect(text).toContain("normal way to finish planning")
+    expect(text).not.toContain("either asking the user a question or calling plan_exit")
+  })
+
   test("adds a beast research subtask for complex heidi prompts", async () => {
     await using tmp = await tmpdir({
       git: true,
