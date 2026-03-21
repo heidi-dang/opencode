@@ -463,6 +463,8 @@ export namespace SessionCompression {
     const saved = outputSavings(msgs) + state.items.filter((item) => item.active).reduce((sum, item) => sum + item.tokens.saved, 0)
     const list = turns(msgs)
     const active = hierarchy(msgs, state.items)
+    const topLevel = active.filter((entry) => entry.depth === 0).length
+    const nested = active.length - topLevel
     const lines = [
       "Context stats",
       `- Visible tokens: ${stats.total}`,
@@ -471,7 +473,7 @@ export namespace SessionCompression {
       `- Tools: ${stats.tools}`,
       `- Summaries: ${stats.summary}`,
       `- Saved by pruning/compression: ${saved}`,
-      `- Active compressions: ${active.length}`,
+      `- Active compressions: ${active.length} (${topLevel} top-level / ${nested} nested)`,
     ]
     if (active.length) {
       lines.push("", "Active compressions")
