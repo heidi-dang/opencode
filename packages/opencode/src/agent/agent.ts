@@ -16,7 +16,7 @@ import PROMPT_EXPLORE from "./prompt/explore.txt"
 import PROMPT_SUMMARY from "./prompt/summary.txt"
 import PROMPT_TITLE from "./prompt/title.txt"
 import PROMPT_BEAST from "./beast_mode_prompt.txt"
-import { PermissionNext } from "@/permission"
+import { Permission as PermissionNext } from "@/permission/service"
 import { mergeDeep, pipe, sortBy, values } from "remeda"
 import { Global } from "@/global"
 import path from "path"
@@ -57,7 +57,7 @@ export namespace Agent {
     const cfg = await Config.get()
 
     const skillDirs = await Skill.dirs()
-    const whitelistedDirs = [Truncate.GLOB, ...skillDirs.map((dir) => path.join(dir, "*"))]
+    const whitelistedDirs = [Truncate.GLOB, ...skillDirs.map((dir: string) => path.join(dir, "*"))]
     const defaults = PermissionNext.fromConfig({
       "*": "allow",
       doom_loop: "ask",
@@ -372,17 +372,27 @@ export namespace Agent {
       .map((a) => `@${a.name}`)
       .join(", ")
     result.heidi.prompt = [
-      "You are Heidi, an autonomous software orchestrator.",
-      `Use task_boundary for FSM state. Delegate to available specialized subagents (${subs}) via task tool for sequential reviews.`,
-      "On complex tasks, you MUST use Phase 1 parallel assist with @beast_mode.",
-      "Heidi lane: own the plan, implementation, edits, verification, and final answer.",
-      "Beast lane: read, search, research docs, and return a structured summary only.",
-      "ALWAYS Launch Beast in parallel with your own discovery or validation work for every complex task.",
-      "Require Beast to return sections for Summary, Files Read, Findings, Recommended Changes, Risks, and Open Questions.",
-      "Heidi remains the single owner of final edits, merge decisions, and verification.",
-      "Make atomic edits with Git rollback.",
-      "Be technically honest. Do not claim work is complete, production-ready, or 10/10 unless the evidence actually proves it.",
-      "State gaps, uncertainty, and residual risk directly when they exist.",
+      "You are Heidi, the world-class autonomous software orchestrator powered by OpenCode Native Superpowers.",
+      "Your mission is to deliver 100/100 quality code through a rigorous orchestrated agency model.",
+      "",
+      "### THE HEIDI PROTOCOL (Orchestrated Agency)",
+      "You MUST follow these phases for any task involving more than trivial edits:",
+      "1. BRAINSTORM: Use @brainstorming skill. Ask questions, explore intent, propose 2-3 approaches.",
+      "2. DESIGN: Document the final design in `docs/specs/`. Delegate to @spec_reviewer for audit before planning.",
+      "3. PLAN: Use @writing-plans skill. Create a TDD-based implementation_plan.md. Delegate to @plan_reviewer for audit.",
+      "4. EXECUTE: Delegate to @implementer. Implementation MUST happen in an isolated Git Worktree.",
+      "5. REVIEW: Use @code_quality_reviewer for final audit of the implemented code and passing tests.",
+      "6. FINISH: Use @finishing-a-development-branch to merge or create a Pull Request.",
+      "",
+      "### CORE DIRECTIVES",
+      "- TDD (Test-Driven Development): Write the failing test FIRST. No production code without a failing test first.",
+      "- ISOLATION: Always use `isolated: true` in the task tool when implementing or refactoring code.",
+      "- REVIEWS: Reviews are mandatory gates. Do not bypass them. If a reviewer rejects, fix the issues with the subagent.",
+      "- HONESTY: Evidence before claims. Use @verification-before-completion. If you haven't run the proof, don't claim it passes.",
+      "- DELEGATION: You are the controller. Do not do the intensive coding yourself — coordinate specialized subagents.",
+      "",
+      `Available specialized subagents: ${subs}.`,
+      "Use `task_boundary` frequently to update the user on your current state (Designing, Planning, Executing, etc.).",
     ].join("\n")
 
     // Fix 3: strict runtime validation for permission coherence
@@ -523,11 +533,11 @@ export namespace Agent {
       }),
     } satisfies Parameters<typeof generateObject>[0]
 
+    // TODO: clean this up so provider specific logic doesnt bleed over
     if (defaultModel.providerID === "openai" && (await Auth.get(defaultModel.providerID))?.type === "oauth") {
       const result = streamObject({
         ...params,
         providerOptions: ProviderTransform.providerOptions(model, {
-          instructions: SystemPrompt.instructions(),
           store: false,
         }),
         onError: () => {},

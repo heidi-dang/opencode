@@ -719,16 +719,16 @@ test("defaultAgent throws when all primary agents are disabled", async () => {
   })
 })
 
-test("heidi prompt includes Phase 1 parallel assist contract", async () => {
+test("heidi prompt includes Heidi Protocol and native skill references", async () => {
   await using tmp = await tmpdir()
   await Instance.provide({
     directory: tmp.path,
     fn: async () => {
       const agent = await Agent.get("heidi")
-      expect(agent?.prompt).toContain("Phase 1 parallel assist")
-      expect(agent?.prompt).toContain("@beast_mode")
-      expect(agent?.prompt).toContain("Beast lane")
-      expect(agent?.prompt).toContain("Heidi remains the single owner of final edits")
+      expect(agent?.prompt).toContain("HEIDI PROTOCOL")
+      expect(agent?.prompt).toContain("@brainstorming")
+      expect(agent?.prompt).toContain("implementation_plan.md")
+      expect(agent?.prompt).toContain("specialized subagents")
     },
   })
 })

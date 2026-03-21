@@ -349,6 +349,12 @@ export namespace SessionPrompt {
         topP: z.number().optional(),
       })
       .optional(),
+    path: z
+      .object({
+        cwd: z.string(),
+        root: z.string(),
+      })
+      .optional(),
     parts: z.array(
       z.discriminatedUnion("type", [
         MessageV2.TextPart.omit({
@@ -422,7 +428,7 @@ export namespace SessionPrompt {
       return message
     }
 
-    return loop({ sessionID: input.sessionID })
+    return loop({ sessionID: input.sessionID, path: input.path })
   })
 
   export async function resolvePromptParts(template: string): Promise<PromptInput["parts"]> {
@@ -511,9 +517,15 @@ export namespace SessionPrompt {
   export const LoopInput = z.object({
     sessionID: SessionID.zod,
     resume_existing: z.boolean().optional(),
+    path: z
+      .object({
+        cwd: z.string(),
+        root: z.string(),
+      })
+      .optional(),
   })
   export const loop = fn(LoopInput, async (input) => {
-    const { sessionID, resume_existing } = input
+    const { sessionID, resume_existing, path: overridePath } = input
 
     const abort = resume_existing ? resume(sessionID) : start(sessionID)
     if (!abort) {
@@ -601,7 +613,7 @@ export namespace SessionPrompt {
           mode: task.agent,
           agent: task.agent,
           variant: lastUser.variant,
-          path: {
+          path: overridePath ?? {
             cwd: Instance.directory,
             root: Instance.worktree,
           },
@@ -632,6 +644,7 @@ export namespace SessionPrompt {
               description: task.description,
               subagent_type: task.agent,
               command: task.command,
+              isolated: task.isolated ?? false,
             },
             time: {
               start: Date.now(),
@@ -646,6 +659,7 @@ export namespace SessionPrompt {
           ownership: task.ownership,
           isolated: false,
           command: task.command,
+          isolated: task.isolated ?? false,
         }
         await Plugin.trigger(
           "tool.execute.before",
@@ -689,12 +703,13 @@ export namespace SessionPrompt {
           log.error("subtask execution failed", { error, agent: task.agent, description: task.description })
           return undefined
         })
-        const attachments = result?.attachments?.map((attachment) => ({
+        const attachments = result?.attachments?.map((attachment: any) => ({
           ...attachment,
+          type: "file" as const,
           id: PartID.ascending(),
           sessionID,
           messageID: assistantMessage.id,
-        }))
+        })) as MessageV2.FilePart[]
         await Plugin.trigger(
           "tool.execute.after",
           {
@@ -1250,10 +1265,11 @@ export namespace SessionPrompt {
     using _ = defer(() => InstructionPrompt.clear(info.id))
 
     type Draft<T> = T extends MessageV2.Part ? Omit<T, "id"> & { id?: string } : never
-    const assign = (part: Draft<MessageV2.Part>): MessageV2.Part => ({
-      ...part,
-      id: part.id ? PartID.make(part.id) : PartID.ascending(),
-    })
+    const assign = (part: Draft<MessageV2.Part>): MessageV2.Part =>
+      ({
+        ...part,
+        id: part.id ? PartID.make(part.id) : PartID.ascending(),
+      }) as any as MessageV2.Part
 
     const parts = await Promise.all(
       input.parts.map(async (part): Promise<Draft<MessageV2.Part>[]> => {
