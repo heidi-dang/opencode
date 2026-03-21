@@ -34,10 +34,10 @@ export const SuggestBar: Component = () => {
 
   return (
     <Show when={currentSuggestion()}>
-      {(suggestion) => (
+      {(suggestion: ModelSuggestion) => (
         <div class="px-3 py-1.5 flex items-center gap-2 bg-surface-raised-stronger border-b border-white/5 animate-in fade-in slide-in-from-bottom-1 duration-200">
           <div class="flex items-center gap-1.5 text-12-medium text-text-weak shrink-0">
-            <Icon name="sparkles" size="small" class="text-icon-info-base" />
+            <Icon name="models" size="small" class="text-icon-info-base" />
             <span>AI Suggestion:</span>
           </div>
           <Button
@@ -46,10 +46,10 @@ export const SuggestBar: Component = () => {
             class="h-6 px-2 text-12-medium text-text-strong hover:bg-white/5 border border-white/10 shrink-0"
             onClick={applySuggestion}
           >
-            Switch to {suggestion().label}
+            Switch to {suggestion.label}
           </Button>
           <span class="truncate text-11-regular text-text-weak opacity-60">
-            {suggestion().reason}
+            {suggestion.reason}
           </span>
         </div>
       )}
