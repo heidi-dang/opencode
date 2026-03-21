@@ -58,7 +58,7 @@ console.log(`Loaded ${migrations.length} migrations`)
 
 const singleFlag = process.argv.includes("--single")
 const baselineFlag = process.argv.includes("--baseline")
-const skipInstall = process.argv.includes("--skip-install")
+const skipInstall = process.argv.includes("--skip-install") || process.env.OPENCODE_INSTALL_SKIP_BUILD_INSTALL === "1"
 
 const allTargets: {
   os: string
@@ -202,6 +202,19 @@ for (const item of targets) {
       OPENCODE_LIBC: item.os === "linux" ? `'${item.abi ?? "glibc"}'` : "",
     },
   })
+
+  // Smoke test: only run if binary is for current platform
+  if (item.os === process.platform && item.arch === process.arch && !item.abi) {
+    const binaryPath = `dist/${name}/bin/opencode`
+    console.log(`Running smoke test: ${binaryPath} --version`)
+    try {
+      const versionOutput = await $`${binaryPath} --version`.text()
+      console.log(`Smoke test passed: ${versionOutput.trim()}`)
+    } catch (e) {
+      console.error(`Smoke test failed for ${name}:`, e)
+      process.exit(1)
+    }
+  }
 
   await $`rm -rf ./dist/${name}/bin/tui`
   await Bun.file(`dist/${name}/package.json`).write(

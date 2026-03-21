@@ -13,7 +13,7 @@ import { Provider } from "../provider/provider"
 import { iife } from "@/util/iife"
 import { defer } from "@/util/defer"
 import { Config } from "../config/config"
-import { PermissionNext } from "@/permission"
+import { Permission as PermissionNext } from "@/permission/service"
 import { HeidiTelemetry } from "@/heidi/telemetry"
 
 // Fix 6: file lock registry to prevent concurrent subagent edits on the same file

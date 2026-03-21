@@ -21,6 +21,9 @@ import { lazy } from "../../util/lazy"
 import { Client, type ClientChannel, type ConnectConfig, type SFTPWrapper } from "ssh2"
 import path from "path"
 import { ulid } from "ulid"
+import { Log } from "../../util/log"
+
+const log = Log.create({ service: "server" })
 
 const DeployInput = z.object({
   host: z.string().min(1),
@@ -429,7 +432,7 @@ export namespace ProviderRemote {
         conn,
         `ln -sfn ${shell(dir)} ${shell(join(root, ".next"))} && mv -Tf ${shell(join(root, ".next"))} ${shell(layout.current)}`,
         logs,
-      )
+        )
       logs.push(prev ? `Promoted ${body.release.id} over ${prev.id}` : `Promoted initial release ${body.release.id}`)
       if (prev?.compose) {
         await exec(conn, `docker compose -f ${shell(prev.compose)} down --remove-orphans >/dev/null 2>&1 || true`, logs)
