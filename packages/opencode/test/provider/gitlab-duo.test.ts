@@ -7,7 +7,6 @@ import { Instance } from "../../src/project/instance"
 import { Provider } from "../../src/provider/provider"
 import { Env } from "../../src/env"
 import { Global } from "../../src/global"
-// @ts-ignore
 import { GitLabWorkflowLanguageModel } from "gitlab-ai-provider"
 
 test("GitLab Duo: loads provider with API key from environment", async () => {

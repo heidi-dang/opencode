@@ -11,7 +11,6 @@ import { CodexAuthPlugin } from "./codex"
 import { Session } from "../session"
 import { NamedError } from "@opencode-ai/util/error"
 import { CopilotAuthPlugin } from "./copilot"
-// @ts-ignore
 import { gitlabAuthPlugin as GitlabAuthPlugin } from "opencode-gitlab-auth"
 
 export namespace Plugin {

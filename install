@@ -116,6 +116,7 @@ done
 
 INSTALL_DIR=$HOME/.opencode/bin
 mkdir -p "$INSTALL_DIR"
+XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-$HOME/.config}
 
 runtime_root="$HOME/.opencode/install"
 log_dir="$runtime_root/logs"
@@ -596,7 +597,7 @@ PY
 write_health_json() {
     python3 - <<'PY' "$health_json" "$run_ts" "$run_log" "$snapshot_pre" "$snapshot_post" "$compare_json" "$health_lines" "$health_bun" "$health_node" "$health_lock" "$health_deps" "$health_ocode" "$health_webui" "$health_shell" "$health_wrapper" "$health_ui_dir" "$compare_status" "$compare_summary" "$dry_run" "$repair_actions"
 import json, pathlib, sys
-path, ts, log, pre, post, compare, lines, bun, node, lock, deps, ocode, webui, shell, wrapper, ui, compare_status, compare_summary, dry_run, repair = sys.argv[1:20]
+path, ts, log, pre, post, compare, lines, bun, node, lock, deps, ocode, webui, shell, wrapper, ui, compare_status, compare_summary, dry_run, repair = sys.argv[1:21]
 data = {
     "timestamp": ts,
     "dry_run": dry_run == "true",
@@ -1355,8 +1356,6 @@ add_to_path() {
         print_message info "  $command"
     fi
 }
-
-XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-$HOME/.config}
 
 if [ -z "$current_shell" ]; then
     current_shell=$(shell_detect)

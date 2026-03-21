@@ -40,7 +40,6 @@ import { createGateway } from "@ai-sdk/gateway"
 import { createTogetherAI } from "@ai-sdk/togetherai"
 import { createPerplexity } from "@ai-sdk/perplexity"
 import { createVercel } from "@ai-sdk/vercel"
-// @ts-ignore
 import {
   createGitLab,
   VERSION as GITLAB_PROVIDER_VERSION,
