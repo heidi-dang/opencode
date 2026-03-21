@@ -1,5 +1,5 @@
 import { createEffect, onCleanup } from "solid-js"
-import { cue_ids, type WorkflowAudioEvent } from "@opencode-ai/workflow-audio"
+import { cue_ids, WorkflowAudioEvent } from "@opencode-ai/workflow-audio"
 import type { CueID } from "@opencode-ai/workflow-audio/types"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useSettings } from "@/context/settings"
@@ -8,6 +8,13 @@ import { createAudioPlayer } from "./audio-player"
 import { createAudioQueue } from "./audio-queue"
 import { cueSrc } from "./audio-settings"
 import { createAudioStore } from "./audio-store"
+
+export function parseWorkflowAudioEvent(event: { details?: { type?: string; properties?: unknown } }) {
+  if (event.details?.type !== "workflow.audio") return
+  const result = WorkflowAudioEvent.safeParse(event.details.properties)
+  if (!result.success) return
+  return result.data
+}
 
 export function WorkflowAudioService() {
   const globalSDK = useGlobalSDK()
@@ -27,8 +34,8 @@ export function WorkflowAudioService() {
   })
 
   const unsub = globalSDK.event.listen((event) => {
-    if (event.details.type !== "workflow.audio") return
-    const info = event.details.properties as WorkflowAudioEvent
+    const info = parseWorkflowAudioEvent(event)
+    if (!info) return
     if (!settings.workflowAudio.enabled()) {
       store.push({ cue: info.cue, status: "disabled", time: Date.now() })
       return

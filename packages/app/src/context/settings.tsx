@@ -1,8 +1,9 @@
 import { createStore, reconcile } from "solid-js/store"
 import { createEffect, createMemo } from "solid-js"
 import { createSimpleContext } from "@opencode-ai/ui/context"
-import { persisted } from "@/utils/persist"
 import type { PackID } from "@opencode-ai/workflow-audio/types"
+import { default_audio } from "@opencode-ai/workflow-audio/defaults"
+import { persisted } from "@/utils/persist"
 
 export interface NotificationSettings {
   agent: boolean
@@ -47,8 +48,8 @@ export interface Settings {
     autoApprove: boolean
   }
   notifications: NotificationSettings
-  sounds: SoundSettings
   workflowAudio: WorkflowAudioSettings
+  sounds: SoundSettings
 }
 
 const defaultSettings: Settings = {
@@ -76,6 +77,12 @@ const defaultSettings: Settings = {
     permissions: true,
     errors: false,
   },
+  workflowAudio: {
+    enabled: default_audio.enabled,
+    pack: default_audio.pack,
+    volume: default_audio.volume,
+    debug: default_audio.debug,
+  },
   sounds: {
     agentEnabled: true,
     agent: "staplebops-01",
@@ -83,12 +90,6 @@ const defaultSettings: Settings = {
     permissions: "staplebops-02",
     errorsEnabled: true,
     errors: "nope-03",
-  },
-  workflowAudio: {
-    enabled: true,
-    pack: "minimal-pro",
-    volume: 70,
-    debug: false,
   },
 }
 
@@ -222,6 +223,24 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
           setStore("notifications", "errors", value)
         },
       },
+      workflowAudio: {
+        enabled: withFallback(() => store.workflowAudio?.enabled, defaultSettings.workflowAudio.enabled),
+        setEnabled(value: boolean) {
+          setStore("workflowAudio", "enabled", value)
+        },
+        pack: withFallback(() => store.workflowAudio?.pack, defaultSettings.workflowAudio.pack),
+        setPack(value: PackID) {
+          setStore("workflowAudio", "pack", value)
+        },
+        volume: withFallback(() => store.workflowAudio?.volume, defaultSettings.workflowAudio.volume),
+        setVolume(value: number) {
+          setStore("workflowAudio", "volume", Math.max(0, Math.min(100, value)))
+        },
+        debug: withFallback(() => store.workflowAudio?.debug, defaultSettings.workflowAudio.debug),
+        setDebug(value: boolean) {
+          setStore("workflowAudio", "debug", value)
+        },
+      },
       sounds: {
         agentEnabled: withFallback(() => store.sounds?.agentEnabled, defaultSettings.sounds.agentEnabled),
         setAgentEnabled(value: boolean) {
@@ -249,24 +268,6 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         errors: withFallback(() => store.sounds?.errors, defaultSettings.sounds.errors),
         setErrors(value: string) {
           setStore("sounds", "errors", value)
-        },
-      },
-      workflowAudio: {
-        enabled: withFallback(() => store.workflowAudio?.enabled, defaultSettings.workflowAudio.enabled),
-        setEnabled(value: boolean) {
-          setStore("workflowAudio", "enabled", value)
-        },
-        pack: withFallback(() => store.workflowAudio?.pack, defaultSettings.workflowAudio.pack),
-        setPack(value: PackID) {
-          setStore("workflowAudio", "pack", value)
-        },
-        volume: withFallback(() => store.workflowAudio?.volume, defaultSettings.workflowAudio.volume),
-        setVolume(value: number) {
-          setStore("workflowAudio", "volume", value)
-        },
-        debug: withFallback(() => store.workflowAudio?.debug, defaultSettings.workflowAudio.debug),
-        setDebug(value: boolean) {
-          setStore("workflowAudio", "debug", value)
         },
       },
     }
