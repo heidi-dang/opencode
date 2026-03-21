@@ -318,7 +318,6 @@ export namespace HeidiState {
   export async function setPlanHash(sessionID: SessionID) {
     const state = await read(sessionID)
     const text = await Filesystem.readText(planPath(sessionID)).catch(() => "")
-    validatePlan(text)
     const items = parsePlan(text)
     if (items.length > 0) state.checklist = items
     state.plan.hash = hash(text)

@@ -114,7 +114,7 @@ describe("heidi verify", () => {
             network_failures: [],
           },
         })
-        await expect(HeidiVerify.gate(session.id)).rejects.toThrow("checks missing")
+        await expect(HeidiVerify.gate(session.id)).rejects.toThrow(/verification gate failed/)
       },
     })
   })
@@ -142,7 +142,7 @@ describe("heidi verify", () => {
             network_failures: [],
           },
         })
-        await expect(HeidiVerify.gate(session.id)).rejects.toThrow("checks missing")
+        await expect(HeidiVerify.gate(session.id)).rejects.toThrow(/verification gate failed/)
       },
     })
   })
@@ -170,7 +170,7 @@ describe("heidi verify", () => {
             network_failures: [],
           },
         })
-        await expect(HeidiVerify.gate(session.id)).rejects.toThrow("checks missing")
+        await expect(HeidiVerify.gate(session.id)).rejects.toThrow(/verification gate failed/)
       },
     })
   })

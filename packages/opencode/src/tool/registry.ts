@@ -72,12 +72,30 @@ export namespace ToolRegistry {
         Glob.scanSync("{tool,tools}/*.{js,ts}", { cwd: dir, absolute: true, dot: true, symlink: true }),
       ),
     )
-    if (matches.length) await Config.waitForDependencies()
+    if (matches.length) {
+      if (!process.env.OPENCODE_SKIP_TOOL_INSTALL) await Config.waitForDependencies()
+      else log.info("skipping dependency installation for tools (OPENCODE_SKIP_TOOL_INSTALL=1)")
+    }
     for (const match of matches) {
       const namespace = path.basename(match, path.extname(match))
-      const mod = await import(process.platform === "win32" ? match : pathToFileURL(match).href)
-      for (const [id, def] of Object.entries<ToolDefinition>(mod)) {
-        custom.push(fromPlugin(id === "default" ? namespace : `${namespace}_${id}`, def))
+      try {
+        const mod = await import(process.platform === "win32" ? match : pathToFileURL(match).href)
+        for (const [id, def] of Object.entries<ToolDefinition>(mod)) {
+          custom.push(fromPlugin(id === "default" ? namespace : `${namespace}_${id}`, def))
+        }
+      } catch (err) {
+        log.warn("failed to import custom tool module", { match, error: String(err) })
+        // Register a lightweight placeholder so registry still exposes the tool id
+        custom.push(
+          fromPlugin(namespace, {
+            description: `failed to import ${namespace}`,
+            args: {},
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            execute: async (_: any) => {
+              return `tool ${namespace} unavailable`
+            },
+          } as unknown as ToolDefinition),
+        )
       }
     }
 

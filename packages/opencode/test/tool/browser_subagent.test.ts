@@ -48,6 +48,7 @@ describe("browser_subagent", () => {
       fn: async () => {
         const { server, url } = await startTestServer("<html>proof</html>", 201, "text/html; charset=utf-8")
         try {
+          await HeidiState.ensure(ctx.sessionID, "browser test objective")
           const tool = await BrowserSubagentTool.init()
           const result = await tool.execute({ url, checks: [] }, ctx)
           expect(result.metadata.status).toBe("pass")
@@ -73,6 +74,7 @@ describe("browser_subagent", () => {
       fn: async () => {
         const { server, url } = await startTestServer("fail", 404, "text/plain")
         try {
+          await HeidiState.ensure(ctx.sessionID, "browser test objective")
           const tool = await BrowserSubagentTool.init()
           const result = await tool.execute({ url, checks: [] }, ctx)
           expect(result.metadata.status).toBe("fail")

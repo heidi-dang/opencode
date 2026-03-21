@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test"
+process.env.OPENCODE_SKIP_TOOL_INSTALL = "1"
 import path from "path"
 import fs from "fs/promises"
 import { tmpdir } from "../fixture/fixture"
