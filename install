@@ -646,6 +646,12 @@ def note(kind, field, before, after, level):
         status = "warn"
 if pre["machine"] != post["machine"]:
     note("machine", "machine", pre["machine"], post["machine"], "regression")
+if pre["repo"]["branch"] != post["repo"]["branch"]:
+    note("repo", "branch", pre["repo"]["branch"], post["repo"]["branch"], "regression")
+if pre["repo"]["commit"] != post["repo"]["commit"]:
+    note("repo", "commit", pre["repo"]["commit"], post["repo"]["commit"], "regression")
+if pre["repo"]["dirty"] != post["repo"]["dirty"]:
+    note("repo", "dirty", pre["repo"]["dirty"], post["repo"]["dirty"], "regression")
 for key, value in pre["repo"]["hashes"].items():
     after = post["repo"]["hashes"].get(key)
     if value != after:
