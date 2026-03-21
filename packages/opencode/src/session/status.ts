@@ -1,5 +1,6 @@
 import { BusEvent } from "@/bus/bus-event"
 import { Bus } from "@/bus"
+import { WorkflowAudioRuntime } from "@/audio/runtime-hooks"
 import { Instance } from "@/project/instance"
 import { SessionID } from "./schema"
 import z from "zod"
@@ -60,6 +61,7 @@ export namespace SessionStatus {
   }
 
   export function set(sessionID: SessionID, status: Info) {
+    WorkflowAudioRuntime.ensure()
     Bus.publish(Event.Status, {
       sessionID,
       status,

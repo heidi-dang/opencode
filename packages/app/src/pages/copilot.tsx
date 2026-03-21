@@ -1,10 +1,19 @@
+// Extend Window interface for __AUDIO_PREVIEW_DATA__
+declare global {
+  interface Window {
+    __AUDIO_PREVIEW_DATA__?: any[];
+  }
+}
+
+
+
+import { Show, For, createEffect, createMemo, createResource, createSignal, on, batch } from "solid-js"
+import { createStore } from "solid-js/store"
 import { Button } from "@opencode-ai/ui/button"
 import { useDialog } from "@opencode-ai/ui/context/dialog"
 import { Select } from "@opencode-ai/ui/select"
 import { TextField } from "@opencode-ai/ui/text-field"
 import { showToast } from "@opencode-ai/ui/toast"
-import { batch, createEffect, createMemo, createResource, createSignal, For, on, Show } from "solid-js"
-import { createStore } from "solid-js/store"
 import { useNavigate, useParams } from "@solidjs/router"
 import { DialogConnectProvider } from "@/components/dialog-connect-provider"
 import { DialogEnvironment } from "@/components/dialog-environment"
@@ -13,6 +22,12 @@ import { useLanguage } from "@/context/language"
 import { useSync } from "@/context/sync"
 import { useBuilder } from "@/hooks/use-builder"
 import { useCopilotSummary } from "@/hooks/use-copilot-summary"
+import { Slider } from "../components/slider"
+import { Waveform } from "../components/waveform"
+import { AudioMetadata } from "../components/audio-metadata"
+import { AudioPackBrowser } from "../components/audio-pack-browser"
+import { AudioRating } from "../components/audio-rating"
+
 
 function text(value: unknown) {
   return typeof value === "string" ? value : ""
@@ -280,11 +295,11 @@ export default function CopilotPage() {
     return sync.data.message[id] ?? []
   })
   const thread = createMemo(() =>
-    messages().map((msg) => {
-      const parts = sync.data.part[msg.id] ?? []
+    messages().map((msg: any) => {
+      const parts: any[] = sync.data.part[msg.id] ?? []
       const body = parts
-        .filter((part) => part.type === "text")
-        .map((part) => text("text" in part ? part.text : ""))
+        .filter((part: any) => part.type === "text")
+        .map((part: any) => text("text" in part ? part.text : ""))
         .join("\n")
         .trim()
 
@@ -327,16 +342,20 @@ export default function CopilotPage() {
     temperature: 0.7,
     topK: 40,
     topP: 0.9,
+    previewIntensity: 0.7,
+    previewBrightness: 0.5,
+    previewTail: 0.5,
+    dragOver: false,
   })
-  const environments = createMemo(() => builder.data()?.environments ?? [])
-  const releases = createMemo(() => builder.data()?.releases ?? [])
-  const deploys = createMemo(() => builder.data()?.deploys ?? [])
-  const annotations = createMemo(() => builder.data()?.annotations ?? [])
-  const selectedEnv = createMemo(() => environments().find((item) => item.id === store.environment))
-  const environmentMap = createMemo(() => Object.fromEntries(environments().map((item) => [item.id, item.name])))
+  const environments = createMemo<any[]>(() => builder.data()?.environments ?? [])
+  const releases = createMemo<any[]>(() => builder.data()?.releases ?? [])
+  const deploys = createMemo<any[]>(() => builder.data()?.deploys ?? [])
+  const annotations = createMemo<any[]>(() => builder.data()?.annotations ?? [])
+  const selectedEnv = createMemo<any>(() => environments().find((item: any) => item.id === store.environment))
+  const environmentMap = createMemo<Record<string, string>>(() => Object.fromEntries(environments().map((item: any) => [item.id, item.name])))
   const [secrets] = createResource(
     () => builder.dir(),
-    async (dir) => {
+    async (dir: string) => {
       if (!dir || !builder.sdk()) return [] as SecretItem[]
       const out = await builder.sdk()!.builder.secret.list(undefined, { throwOnError: true })
       return (out.data ?? []) as SecretItem[]
@@ -346,7 +365,7 @@ export default function CopilotPage() {
   createEffect(
     on(
       () => builder.data()?.sessionID,
-      (id) => {
+      (id: string | undefined) => {
         if (!id) return
         void sync.session.sync(id, { force: true })
         void sync.session.diff(id, { force: true })
@@ -801,15 +820,113 @@ export default function CopilotPage() {
                                 <span class="text-[9px] text-white/20 sm:text-[10px]">{item.time}</span>
                               </div>
                               <div class="whitespace-pre-wrap break-words text-12-regular leading-[1.6] sm:text-13-regular sm:leading-[1.7]">
-                                {item.body ||
-                                  (item.busy ? (
-                                    <span class="inline-flex items-center gap-1 text-white/40">
-                                      <span class="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-sky-400" />
-                                      Working…
-                                    </span>
-                                  ) : (
-                                    "No text content."
-                                  ))}
+                                {/* Audio playback/download support */}
+                                {(() => {
+                                  // Regex for .wav/.mp3/.ogg URLs (public path)
+                                  const audioRegex = /\b(\/audio\/[\w\/-]+\.(wav|mp3|ogg))\b/g
+                                  const matches = [...(item.body?.matchAll(audioRegex) ?? [])]
+                                  if (matches.length > 0) {
+                                    return (
+                                      <>
+                                        <For each={matches}>
+                                          {(m) => {
+                                            // Try to find metadata from preview.json (if available)
+                                            let meta: any = undefined
+                                            try {
+                                              // @ts-ignore
+                                              const previewData = window.__AUDIO_PREVIEW_DATA__ as any[] | undefined
+                                              if (previewData) {
+                                                meta = previewData.find((x) => x.url === m[1])
+                                              }
+                                            } catch {}
+                                            return (
+                                              <div class="flex flex-col gap-1 my-2">
+                                                <audio
+                                                  controls
+                                                  src={m[1]}
+                                                  style={{ width: '100%', outline: 'none' }}
+                                                  tabIndex={0}
+                                                  aria-label="Audio preview"
+                                                  onMouseEnter={e => { try { e.currentTarget.currentTime = 0; e.currentTarget.play() } catch {} }}
+                                                  onFocus={e => { try { e.currentTarget.currentTime = 0; e.currentTarget.play() } catch {} }}
+                                                  onMouseLeave={e => { try { e.currentTarget.pause() } catch {} }}
+                                                  onBlur={e => { try { e.currentTarget.pause() } catch {} }}
+                                                  onKeyDown={e => {
+                                                    if (e.key === ' ' || e.key === 'Enter') {
+                                                      e.preventDefault();
+                                                      try { e.currentTarget.currentTime = 0; e.currentTarget.play() } catch {}
+                                                    }
+                                                  }}
+                                                />
+                                                <Waveform url={m[1]} />
+                                                <AudioMetadata
+                                                  duration={meta?.metrics?.duration_ms ?? 0}
+                                                  score={meta?.score?.total ?? 0}
+                                                  style={meta?.style_family ?? meta?.engine ?? ''}
+                                                />
+                                                <AudioRating onRate={score => console.log('Rated', m[1], score)} />
+                                                <div class="flex flex-row gap-2 mt-1" role="group" aria-label="Audio quick actions">
+                                                  {/* Flexible download: show all formats if available */}
+                                                  {(() => {
+                                                    let meta: any = undefined
+                                                    try {
+                                                      // @ts-ignore
+                                                      const previewData = window.__AUDIO_PREVIEW_DATA__ as any[] | undefined
+                                                      if (previewData) meta = previewData.find((x) => x.url === m[1])
+                                                    } catch {}
+                                                    const formats = ["wav", "mp3", "ogg"]
+                                                    return formats.map(fmt => {
+                                                      const url = meta?.file?.replace(/\.(wav|mp3|ogg)$/i, "." + fmt)
+                                                      return url && (
+                                                        <a
+                                                          href={url.replace(/^.*\/public/, "")}
+                                                          // download prop removed: not valid for chat thread items
+                                                          class="text-sky-400 underline text-12-regular"
+                                                          aria-label={`Download as ${fmt}`}
+                                                        >
+                                                          {fmt.toUpperCase()}
+                                                        </a>
+                                                      )
+                                                    })
+                                                  })()}
+                                                  <button
+                                                    class="text-sky-400 underline text-12-regular"
+                                                    onClick={() => navigator.clipboard.writeText(window.location.origin + m[1])}
+                                                    aria-label="Copy audio link"
+                                                  >
+                                                    Copy link
+                                                  </button>
+                                                  <button
+                                                    class="text-sky-400 underline text-12-regular"
+                                                    onClick={() => {/* TODO: trigger regeneration logic */}}
+                                                    disabled
+                                                    aria-label="Regenerate audio"
+                                                  >
+                                                    Regenerate
+                                                  </button>
+                                                </div>
+                                              </div>
+                                            )
+                                          }}
+                                        </For>
+                                        {/* Show any non-audio text as well */}
+                                        <Show when={item.body.replace(audioRegex, '').trim().length > 0}>
+                                          <div>{item.body.replace(audioRegex, '').trim()}</div>
+                                        </Show>
+                                      </>
+                                    )
+                                  }
+                                  // Fallback: busy or plain text
+                                  return item.body ||
+                                    (item.busy ? (
+                                      <span class="inline-flex items-center gap-1 text-white/40">
+                                        <span class="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-sky-400" />
+                                        Working…
+                                      </span>
+                                    ) : (
+                                      "No text content."
+                                    ))
+                                })()}
                               </div>
                             </div>
                           </div>
@@ -823,8 +940,16 @@ export default function CopilotPage() {
 
             {/* floating composer */}
             <div class="shrink-0 border-t border-white/6 bg-[#0d1117]/95 px-2 py-2 backdrop-blur-lg sm:px-6 sm:py-4">
-              <div class="mx-auto max-w-3xl">
-                <div class="rounded-xl border border-white/8 bg-white/[0.03] p-2 transition-all duration-200 focus-within:border-sky-400/30 sm:rounded-2xl sm:p-3">
+              <div class="mx-auto max-w-3xl" onDragOver={e => { e.preventDefault(); setStore("dragOver", true) }} onDragLeave={e => { e.preventDefault(); setStore("dragOver", false) }} onDrop={e => {
+                e.preventDefault();
+                setStore("dragOver", false);
+                const files = Array.from(e.dataTransfer?.files ?? []).filter(f => f.type.startsWith("audio/"));
+                if (files.length) {
+                  // TODO: handle upload or preview of dropped audio files
+                  alert(`Dropped ${files.length} audio file(s).`)
+                }
+              }}>
+                <div class={`rounded-xl border border-white/8 bg-white/[0.03] p-2 transition-all duration-200 focus-within:border-sky-400/30 sm:rounded-2xl sm:p-3 ${store.dragOver ? 'ring-2 ring-sky-400/60' : ''}`}>
                   <textarea
                     class="w-full resize-none bg-transparent text-12-regular text-white/90 outline-none placeholder:text-white/25 sm:text-13-regular"
                     rows={1}
@@ -1144,6 +1269,10 @@ export default function CopilotPage() {
                 <div class="min-h-0 flex-1 overflow-y-auto px-4 py-4">
                   <div class="flex flex-col gap-4">
                     {/* preview controls */}
+                                        {/* audio pack browser */}
+                                        <Show when={typeof window !== 'undefined' && window.__AUDIO_PREVIEW_DATA__ && Array.isArray(window.__AUDIO_PREVIEW_DATA__)}>
+                                          <AudioPackBrowser items={window.__AUDIO_PREVIEW_DATA__ ?? []} />
+                                        </Show>
                     <div class="rounded-xl border border-white/6 bg-white/3 px-3 py-3">
                       <div class="text-12-medium text-white/60 mb-2">Preview controls</div>
                       <div class="grid gap-2">
@@ -1156,6 +1285,30 @@ export default function CopilotPage() {
                           label="URL"
                           value={store.previewURL}
                           onChange={(value) => setStore("previewURL", value)}
+                        />
+                        <Slider
+                          label="Intensity"
+                          min={0}
+                          max={1}
+                          step={0.01}
+                          value={store.previewIntensity}
+                          onChange={v => setStore("previewIntensity", v)}
+                        />
+                        <Slider
+                          label="Brightness"
+                          min={0}
+                          max={1}
+                          step={0.01}
+                          value={store.previewBrightness}
+                          onChange={v => setStore("previewBrightness", v)}
+                        />
+                        <Slider
+                          label="Tail Length"
+                          min={0}
+                          max={1}
+                          step={0.01}
+                          value={store.previewTail}
+                          onChange={v => setStore("previewTail", v)}
                         />
                       </div>
                     </div>

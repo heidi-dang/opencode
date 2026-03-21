@@ -69,6 +69,48 @@ export type EventFileWatcherUpdated = {
   }
 }
 
+export type WorkflowAudioCue =
+  | "turn.start"
+  | "turn.complete"
+  | "turn.error"
+  | "tool.start"
+  | "tool.finish"
+  | "tool.error"
+  | "tool.chain"
+  | "plan.ready"
+  | "attention.permission"
+  | "attention.question"
+  | "status.retry"
+
+export type WorkflowAudioCategory = "turn" | "tool" | "planner" | "attention" | "error" | "status"
+
+export type WorkflowAudioSource =
+  | "session.status"
+  | "tool.state"
+  | "todo.updated"
+  | "permission.asked"
+  | "question.asked"
+
+export type WorkflowAudioEvent = {
+  id: string
+  time: number
+  cue: WorkflowAudioCue
+  category: WorkflowAudioCategory
+  source: WorkflowAudioSource
+  priority: number
+  sessionID?: string
+  dedupe?: string
+  combo?: string
+  meta?: {
+    [key: string]: unknown
+  }
+}
+
+export type EventWorkflowAudio = {
+  type: "workflow.audio"
+  properties: WorkflowAudioEvent
+}
+
 export type PermissionRequest = {
   id: string
   sessionID: string
@@ -411,6 +453,7 @@ export type SubtaskPart = {
     modelID: string
   }
   command?: string
+  isolated?: boolean
 }
 
 export type ReasoningPart = {
@@ -516,6 +559,7 @@ export type ToolStateCompleted = {
     start: number
     end: number
     compacted?: number
+    inputCompacted?: number
   }
   attachments?: Array<FilePart>
 }
@@ -532,6 +576,7 @@ export type ToolStateError = {
   time: {
     start: number
     end: number
+    inputCompacted?: number
   }
 }
 
@@ -706,6 +751,23 @@ export type EventSessionCompacted = {
   }
 }
 
+export type EventTaskBoundaryUpdated = {
+  type: "task_boundary.updated"
+  properties: {
+    task_id: string
+    mode: "PLANNING" | "EXECUTION" | "VERIFICATION"
+    fsm_state:
+      | "IDLE"
+      | "DISCOVERY"
+      | "PLAN_DRAFT"
+      | "PLAN_LOCKED"
+      | "EXECUTION"
+      | "VERIFICATION"
+      | "COMPLETE"
+      | "BLOCKED"
+  }
+}
+
 export type Todo = {
   /**
    * Brief description of the task
@@ -729,20 +791,42 @@ export type EventTodoUpdated = {
   }
 }
 
-export type EventTaskBoundaryUpdated = {
-  type: "task_boundary.updated"
+export type Pty = {
+  id: string
+  title: string
+  command: string
+  args: Array<string>
+  cwd: string
+  status: "running" | "exited"
+  pid: number
+}
+
+export type EventPtyCreated = {
+  type: "pty.created"
   properties: {
-    task_id: string
-    mode: "PLANNING" | "EXECUTION" | "VERIFICATION"
-    fsm_state:
-      | "IDLE"
-      | "DISCOVERY"
-      | "PLAN_DRAFT"
-      | "PLAN_LOCKED"
-      | "EXECUTION"
-      | "VERIFICATION"
-      | "COMPLETE"
-      | "BLOCKED"
+    info: Pty
+  }
+}
+
+export type EventPtyUpdated = {
+  type: "pty.updated"
+  properties: {
+    info: Pty
+  }
+}
+
+export type EventPtyExited = {
+  type: "pty.exited"
+  properties: {
+    id: string
+    exitCode: number
+  }
+}
+
+export type EventPtyDeleted = {
+  type: "pty.deleted"
+  properties: {
+    id: string
   }
 }
 
@@ -926,45 +1010,6 @@ export type EventWorkspaceFailed = {
   }
 }
 
-export type Pty = {
-  id: string
-  title: string
-  command: string
-  args: Array<string>
-  cwd: string
-  status: "running" | "exited"
-  pid: number
-}
-
-export type EventPtyCreated = {
-  type: "pty.created"
-  properties: {
-    info: Pty
-  }
-}
-
-export type EventPtyUpdated = {
-  type: "pty.updated"
-  properties: {
-    info: Pty
-  }
-}
-
-export type EventPtyExited = {
-  type: "pty.exited"
-  properties: {
-    id: string
-    exitCode: number
-  }
-}
-
-export type EventPtyDeleted = {
-  type: "pty.deleted"
-  properties: {
-    id: string
-  }
-}
-
 export type EventWorktreeReady = {
   type: "worktree.ready"
   properties: {
@@ -987,6 +1032,7 @@ export type Event =
   | EventFileEdited
   | EventServerInstanceDisposed
   | EventFileWatcherUpdated
+  | EventWorkflowAudio
   | EventPermissionAsked
   | EventPermissionReplied
   | EventVcsBranchUpdated
@@ -1005,8 +1051,12 @@ export type Event =
   | EventSessionStatus
   | EventSessionIdle
   | EventSessionCompacted
-  | EventTodoUpdated
   | EventTaskBoundaryUpdated
+  | EventTodoUpdated
+  | EventPtyCreated
+  | EventPtyUpdated
+  | EventPtyExited
+  | EventPtyDeleted
   | EventTuiPromptAppend
   | EventTuiCommandExecute
   | EventTuiToastShow
@@ -1021,10 +1071,6 @@ export type Event =
   | EventSessionError
   | EventWorkspaceReady
   | EventWorkspaceFailed
-  | EventPtyCreated
-  | EventPtyUpdated
-  | EventPtyExited
-  | EventPtyDeleted
   | EventWorktreeReady
   | EventWorktreeFailed
 
@@ -1504,6 +1550,44 @@ export type Config = {
      * Token buffer for compaction. Leaves enough window to avoid overflow during compaction.
      */
     reserved?: number
+    /**
+     * Tool IDs that should be protected from compaction pruning strategies.
+     */
+    protectedTools?: Array<string>
+    /**
+     * Preserve important user instructions verbatim inside compaction summaries.
+     */
+    protectUserMessages?: boolean
+    deduplicate?: {
+      /**
+       * Prune older duplicate tool calls while keeping the newest.
+       */
+      enabled?: boolean
+      /**
+       * Additional tool IDs to exclude from duplicate pruning.
+       */
+      protectedTools?: Array<string>
+    }
+    supersedeWrites?: {
+      /**
+       * Prune stale write/edit inputs once a newer read captures the file state.
+       */
+      enabled?: boolean
+    }
+    purgeErrors?: {
+      /**
+       * Prune errored tool inputs after they age out of the active working set.
+       */
+      enabled?: boolean
+      /**
+       * Number of user turns to keep errored tool inputs before pruning them.
+       */
+      turns?: number
+      /**
+       * Additional tool IDs to exclude from errored-input pruning.
+       */
+      protectedTools?: Array<string>
+    }
   }
   experimental?: {
     disable_paste_summary?: boolean
@@ -1794,6 +1878,7 @@ export type SubtaskPartInput = {
     modelID: string
   }
   command?: string
+  isolated?: boolean
 }
 
 export type ProviderAuthMethod = {
@@ -1927,7 +2012,7 @@ export type Command = {
   description?: string
   agent?: string
   model?: string
-  source?: "command" | "mcp" | "skill"
+  source?: "builtin" | "command" | "mcp" | "skill"
   template: string
   subtask?: boolean
   hints: Array<string>
@@ -5044,7 +5129,7 @@ export type SessionTaskContextResponses = {
         exit_code: number
       }>
       warnings: Array<string>
-      remediation: Array<{
+      remediation?: Array<{
         file: string
         line: number
         rule_id: string
@@ -5069,6 +5154,22 @@ export type SessionTaskContextResponses = {
         source: string
       }>
     }
+    freshness: {
+      fingerprint: string
+      sources: {
+        task: string
+        verification: string
+        knowledge: string
+        messages: string
+        memory: string
+      }
+    }
+    sync_status: {
+      status: "ok" | "degraded" | "failed"
+      last_sync_at: string
+      attempts: number
+      last_error: string | null
+    }
     version: number
     updated_at: string
   }
@@ -5077,22 +5178,81 @@ export type SessionTaskContextResponses = {
 export type SessionTaskContextResponse = SessionTaskContextResponses[keyof SessionTaskContextResponses]
 
 export type SessionTaskBoundaryData = {
-  body?: {
-    action:
-      | "start"
-      | "set_mode"
-      | "mark_item"
-      | "lock_plan"
-      | "reopen_plan"
-      | "begin_execution"
-      | "request_verification"
-      | "block"
-      | "complete"
-    payload?: {
-      [key: string]: unknown
-    }
-    run_id?: string
-  }
+  body?:
+    | {
+        action: "start"
+        payload: {
+          objective: string
+        }
+        run_id?: string
+      }
+    | {
+        action: "set_mode"
+        payload: {
+          mode: "PLANNING" | "EXECUTION" | "VERIFICATION"
+        }
+        run_id?: string
+      }
+    | {
+        action: "mark_item"
+        payload: {
+          id: string
+          status: "todo" | "doing" | "done" | "blocked"
+        }
+        run_id?: string
+      }
+    | {
+        action: "lock_plan"
+        payload?: {
+          [key: string]: unknown
+        }
+        run_id?: string
+      }
+    | {
+        action: "reopen_plan"
+        payload: {
+          reason: string
+        }
+        run_id?: string
+      }
+    | {
+        action: "begin_execution"
+        payload?: {
+          [key: string]: unknown
+        }
+        run_id?: string
+      }
+    | {
+        action: "request_verification"
+        payload?: {
+          [key: string]: unknown
+        }
+        run_id?: string
+      }
+    | {
+        action: "block"
+        payload: {
+          reason: string
+        }
+        run_id?: string
+      }
+    | {
+        action: "complete"
+        payload?: {
+          [key: string]: unknown
+        }
+        run_id?: string
+      }
+    | {
+        action: "add_items"
+        payload: {
+          items: Array<{
+            label: string
+            category: "Modify" | "New" | "Delete" | "Verify"
+          }>
+        }
+        run_id?: string
+      }
   path: {
     sessionID: string
   }
@@ -5472,6 +5632,10 @@ export type SessionPromptData = {
       topK?: number
       topP?: number
     }
+    path?: {
+      cwd: string
+      root: string
+    }
     parts: Array<TextPartInput | FilePartInput | AgentPartInput | SubtaskPartInput>
   }
   path: {
@@ -5676,6 +5840,10 @@ export type SessionPromptAsyncData = {
       temperature?: number
       topK?: number
       topP?: number
+    }
+    path?: {
+      cwd: string
+      root: string
     }
     parts: Array<TextPartInput | FilePartInput | AgentPartInput | SubtaskPartInput>
   }

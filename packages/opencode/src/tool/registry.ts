@@ -65,6 +65,14 @@ import { WikiTool } from "./wiki"
 import { LighthouseTool } from "./lighthouse"
 import { PlaywrightTool } from "./playwright"
 import { DynamicSkillTool } from "./dynamic_skill"
+import {
+  AudioAnalyzeTool,
+  AudioEditTool,
+  AudioGenerateTool,
+  AudioLayerTool,
+  AudioNormalizeTool,
+  AudioPackagePreviewTool,
+} from "./audio"
 import { Glob } from "../util/glob"
 import { pathToFileURL } from "url"
 
@@ -208,6 +216,12 @@ export namespace ToolRegistry {
       LighthouseTool,
       PlaywrightTool,
       DynamicSkillTool,
+      AudioGenerateTool,
+      AudioEditTool,
+      AudioLayerTool,
+      AudioNormalizeTool,
+      AudioAnalyzeTool,
+      AudioPackagePreviewTool,
       ...(Flag.OPENCODE_EXPERIMENTAL_LSP_TOOL ? [LspTool] : []),
       ...(config.experimental?.batch_tool === true ? [BatchTool] : []),
       ...(Flag.OPENCODE_EXPERIMENTAL_PLAN_MODE && Flag.OPENCODE_CLIENT === "cli" ? [PlanExitTool] : []),
