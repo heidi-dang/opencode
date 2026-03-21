@@ -371,6 +371,71 @@ check_bun() {
     return 0
 }
 
+upgrade_node() {
+    local dest="$HOME/.local/node"
+    local arch
+    arch=$(uname -m)
+    case "$arch" in
+        x86_64) arch="linux-x64" ;;
+        aarch64|arm64) arch="linux-arm64" ;;
+        *)
+            print_message error "Unsupported architecture: $arch"
+            return 1
+            ;;
+    esac
+
+    print_message info "${MUTED}Fetching latest Node LTS from nodejs.org...${NC}"
+
+    local version
+    version=$(curl -sL "https://nodejs.org/dist/index.json" | \
+        sed -n 's/.*"version":"v\([^"]*\)".*"lts":"\([^"]*\)".*/\1 \2/p' | \
+        awk '$2 != "false" {print $1; exit}')
+    if [ -z "$version" ]; then
+        print_message error "Failed to fetch latest Node LTS version"
+        return 1
+    fi
+    version=${version#v}
+
+    print_message info "${MUTED}Upgrading Node to v$version...${NC}"
+
+    mkdir -p "$dest"
+    local url="https://nodejs.org/dist/v${version}/node-v${version}-${arch}.tar.xz"
+    local tarball="/tmp/node-v${version}-${arch}.tar.xz"
+
+    if ! curl -fSL --progress-bar "$url" -o "$tarball"; then
+        print_message error "Failed to download Node v$version for $arch"
+        return 1
+    fi
+
+    tar -xf "$tarball" -C "$dest" --strip-components=1
+    rm -f "$tarball"
+
+    # Add to shell config
+    local node_bin="$dest/bin"
+    local export_line="export PATH=\"\$HOME/.local/node/bin:\$PATH\""
+
+    for cfg in "$HOME/.bashrc" "$HOME/.zshrc"; do
+        if [ -f "$cfg" ]; then
+            if ! grep -q "$node_bin" "$cfg" 2>/dev/null; then
+                printf '\n%s\n' "$export_line" >> "$cfg"
+            fi
+        fi
+    done
+
+    # Re-export for this script session
+    export PATH="$node_bin:$PATH"
+
+    local new_node
+    new_node=$("$node_bin/node" --version 2>/dev/null || true)
+    if [ -z "$new_node" ]; then
+        print_message error "Node upgrade verification failed"
+        return 1
+    fi
+
+    print_message info "Node upgraded to $new_node at $node_bin"
+    return 0
+}
+
 check_node() {
     if [ "$local_ui" != "true" ]; then
         health_node="pass"
@@ -378,10 +443,15 @@ check_node() {
         return 0
     fi
     if ! command -v node >/dev/null 2>&1; then
-        health_node="fail"
-        health_add fail "Node" "node is not installed"
-        print_message error "Node.js is required for WebUI build (Vite 7). Install Node >=20.19 or >=22.12"
-        return 1
+        print_message warning "${ORANGE}Node not found — installing...${NC}"
+        if ! upgrade_node; then
+            health_node="fail"
+            health_add fail "Node" "node is not installed"
+            return 1
+        fi
+        health_node="pass"
+        health_add pass "Node" "$(node --version) (installed)"
+        return 0
     fi
     local got
     got=$(node --version 2>/dev/null || true)
@@ -402,10 +472,21 @@ check_node() {
         health_add pass "Node" "$got"
         return 0
     fi
-    health_node="fail"
-    health_add fail "Node" "$got is too old for Vite 7 (need >=20.19 or >=22.12)"
-    print_message error "Node.js $got is unsupported for WebUI build. Please upgrade Node to >=20.19 or >=22.12 and rerun ./install --local-ui"
-    return 1
+
+    # Too old — attempt auto-upgrade
+    print_message warning "${ORANGE}Node $got is too old for Vite 7 — upgrading...${NC}"
+    local old="$got"
+    if ! upgrade_node; then
+        health_node="fail"
+        health_add fail "Node" "$got (upgrade failed)"
+        print_message error "Node.js $got is unsupported. Please upgrade Node manually."
+        return 1
+    fi
+    local new
+    new=$(node --version)
+    health_node="pass"
+    health_add pass "Node" "$new (upgraded from $old)"
+    return 0
 }
 
 clear_repo() {
