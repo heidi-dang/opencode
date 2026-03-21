@@ -16,6 +16,7 @@ import { Config } from "@/config/config"
 import { ProviderTransform } from "@/provider/transform"
 import { ModelID, ProviderID } from "@/provider/schema"
 import path from "path"
+import { SessionCompression } from "./compression"
 
 export namespace SessionCompaction {
   const log = Log.create({ service: "session.compaction" })
@@ -362,6 +363,7 @@ When constructing the summary, try to stick to this template:
 
     const promptText = compacting.prompt ?? [defaultPrompt, ...compacting.context].join("\n\n")
     const msgs = structuredClone(messages)
+    await SessionCompression.apply({ sessionID: input.sessionID, messages: msgs })
     await Plugin.trigger("experimental.chat.messages.transform", {}, { messages: msgs })
     const result = await processor.process({
       user: userMessage,
@@ -397,6 +399,7 @@ When constructing the summary, try to stick to this template:
           abort: input.abort,
         })
         const msgs2 = structuredClone(pruned)
+        await SessionCompression.apply({ sessionID: input.sessionID, messages: msgs2 })
         await Plugin.trigger("experimental.chat.messages.transform", {}, { messages: msgs2 })
         const retry = await retryProcessor.process({
           user: userMessage,

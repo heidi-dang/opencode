@@ -668,6 +668,7 @@ export namespace Session {
       for (const child of await children(sessionID)) {
         await remove(child.id)
       }
+      await Storage.remove(["session_compression", sessionID]).catch(() => undefined)
       await unshare(sessionID).catch((err) => {
         log.warn("unshare failed during session removal", { sessionID, err })
       })

@@ -50,6 +50,7 @@ import { Truncate } from "@/tool/truncate"
 import { Output } from "@/tool/output"
 import { decodeDataUrl } from "@/util/data-url"
 import { Process } from "@/util/process"
+import { SessionCompression } from "./compression"
 
 // @ts-ignore
 globalThis.AI_SDK_LOG_WARNINGS = false
@@ -916,6 +917,8 @@ export namespace SessionPrompt {
           }
         }
       }
+
+      await SessionCompression.apply({ sessionID, messages: msgs })
 
       await Plugin.trigger("experimental.chat.messages.transform", {}, { messages: msgs })
 
@@ -2070,6 +2073,88 @@ NOTE: At any point in time through this workflow you should feel free to ask the
   export async function command(input: CommandInput) {
     log.info("command", input)
     const command = await Command.get(input.command)
+    if (!command) {
+      const error = new NamedError.Unknown({ message: `Command not found: ${input.command}` })
+      Bus.publish(Session.Event.Error, {
+        sessionID: input.sessionID,
+        error: error.toObject(),
+      })
+      throw error
+    }
+    if (command.source === "builtin") {
+      const text = await SessionCompression.command({
+        sessionID: input.sessionID,
+        command: input.command,
+        arguments: input.arguments,
+      })
+      const model = input.model ? Provider.parseModel(input.model) : await lastModel(input.sessionID)
+      const agentName = input.agent ?? (await Agent.defaultAgent())
+      const user = await Session.updateMessage({
+        id: input.messageID ?? MessageID.ascending(),
+        sessionID: input.sessionID,
+        role: "user",
+        time: {
+          created: Date.now(),
+        },
+        agent: agentName,
+        model,
+        variant: input.variant,
+      })
+      await Session.updatePart({
+        id: PartID.ascending(),
+        messageID: user.id,
+        sessionID: input.sessionID,
+        type: "text",
+        text: `/${input.command}${input.arguments ? ` ${input.arguments}` : ""}`,
+        synthetic: true,
+        metadata: { command: input.command },
+      })
+      const info = await Session.updateMessage({
+        id: MessageID.ascending(),
+        sessionID: input.sessionID,
+        parentID: user.id,
+        role: "assistant",
+        mode: input.command,
+        agent: agentName,
+        variant: input.variant,
+        path: {
+          cwd: Instance.directory,
+          root: Instance.worktree,
+        },
+        cost: 0,
+        tokens: {
+          output: 0,
+          input: 0,
+          reasoning: 0,
+          cache: { read: 0, write: 0 },
+        },
+        modelID: model.modelID,
+        providerID: model.providerID,
+        time: {
+          created: Date.now(),
+          completed: Date.now(),
+        },
+        finish: "stop",
+      })
+      const part = (await Session.updatePart({
+        id: PartID.ascending(),
+        messageID: info.id,
+        sessionID: input.sessionID,
+        type: "text",
+        text,
+        synthetic: true,
+        metadata: { command: input.command },
+      })) as MessageV2.TextPart
+
+      Bus.publish(Command.Event.Executed, {
+        name: input.command,
+        sessionID: input.sessionID,
+        arguments: input.arguments,
+        messageID: info.id,
+      })
+
+      return { info, parts: [part] }
+    }
     const agentName = command.agent ?? input.agent ?? (await Agent.defaultAgent())
 
     const raw = input.arguments.match(argsRegex) ?? []

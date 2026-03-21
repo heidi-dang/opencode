@@ -28,7 +28,7 @@ export namespace Command {
       description: z.string().optional(),
       agent: z.string().optional(),
       model: z.string().optional(),
-      source: z.enum(["command", "mcp", "skill"]).optional(),
+      source: z.enum(["builtin", "command", "mcp", "skill"]).optional(),
       // workaround for zod not supporting async functions natively so we use getters
       // https://zod.dev/v4/changelog?id=zfunction
       template: z.promise(z.string()).or(z.string()),
@@ -53,6 +53,11 @@ export namespace Command {
   }
 
   export const Default = {
+    CONTEXT: "context",
+    SWEEP: "sweep",
+    COMPACT: "compact",
+    DECOMPRESS: "decompress",
+    RECOMPRESS: "recompress",
     INIT: "init",
     REVIEW: "review",
   } as const
@@ -61,6 +66,41 @@ export namespace Command {
     const cfg = await Config.get()
 
     const result: Record<string, Info> = {
+      [Default.CONTEXT]: {
+        name: Default.CONTEXT,
+        description: "show current session context usage and active compression ranges",
+        source: "builtin",
+        template: "",
+        hints: [],
+      },
+      [Default.SWEEP]: {
+        name: Default.SWEEP,
+        description: "manually prune recent tool calls, optionally limiting by count",
+        source: "builtin",
+        template: "",
+        hints: ["$ARGUMENTS"],
+      },
+      [Default.COMPACT]: {
+        name: Default.COMPACT,
+        description: "compress a turn range or the latest turn into a reversible stored summary",
+        source: "builtin",
+        template: "",
+        hints: ["$ARGUMENTS"],
+      },
+      [Default.DECOMPRESS]: {
+        name: Default.DECOMPRESS,
+        description: "restore a compressed range back into live context",
+        source: "builtin",
+        template: "",
+        hints: ["$ARGUMENTS"],
+      },
+      [Default.RECOMPRESS]: {
+        name: Default.RECOMPRESS,
+        description: "re-apply a previously decompressed range",
+        source: "builtin",
+        template: "",
+        hints: ["$ARGUMENTS"],
+      },
       [Default.INIT]: {
         name: Default.INIT,
         description: "create/update AGENTS.md",
