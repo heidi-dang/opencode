@@ -23,9 +23,10 @@ export function WorkflowAudioService() {
   const player = createAudioPlayer((entry) => store.push({ ...entry, time: Date.now() }))
   const queue = createAudioQueue({
     play: (info) => {
-      player.play(info, cueSrc(settings.workflowAudio.pack(), info.cue), settings.workflowAudio.volume())
+      player.play(info, cueSrc(settings.workflowAudio.pack(), info.cue), settings.workflowAudio.volume() / 100)
     },
     onEvent: (entry) => store.push({ ...entry, time: Date.now() }),
+    enabled: () => settings.workflowAudio.enabled(),
   })
 
   createEffect(() => {
@@ -36,10 +37,6 @@ export function WorkflowAudioService() {
   const unsub = globalSDK.event.listen((event) => {
     const info = parseWorkflowAudioEvent(event)
     if (!info) return
-    if (!settings.workflowAudio.enabled()) {
-      store.push({ cue: info.cue, status: "disabled", time: Date.now() })
-      return
-    }
     queue.push(info)
   })
 

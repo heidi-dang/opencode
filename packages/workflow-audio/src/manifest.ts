@@ -77,5 +77,6 @@ export const pack_preview: Record<PackID, PackPreviewCue[]> = {
 }
 
 export function pack_src(pack: PackID, cue: CueID) {
-  return `/audio/${pack}/${pack_files[pack][cue]}`
+  const file = pack_files[pack]?.[cue]
+  return file ? `/audio/${pack}/${file}` : ""
 }

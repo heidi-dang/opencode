@@ -3,6 +3,7 @@ import { cue_meta, pick_audio, RateLimit, type WorkflowAudioEvent } from "@openc
 type Opts = {
   play: (info: WorkflowAudioEvent) => void
   onEvent: (entry: { cue: string; status: "queued" | "dropped" }) => void
+  enabled: () => boolean
 }
 
 export function createAudioQueue(opts: Opts) {
@@ -17,7 +18,7 @@ export function createAudioQueue(opts: Opts) {
     if (!next) return
     const meta = cue_meta[next.cue]
     if (!gate.allow(next.cue, next.dedupe, next.time, meta.cooldown)) {
-      opts.onEvent({ cue: next.cue, status: "dropped" })
+      if (opts.enabled()) opts.onEvent({ cue: next.cue, status: "dropped" })
       return
     }
     opts.play(next)
@@ -25,6 +26,7 @@ export function createAudioQueue(opts: Opts) {
 
   return {
     push(info: WorkflowAudioEvent) {
+      if (!opts.enabled()) return
       list.push(info)
       opts.onEvent({ cue: info.cue, status: "queued" })
       if (timer) return
