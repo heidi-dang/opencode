@@ -15,6 +15,7 @@ import { Plugin } from "@/plugin"
 import { Config } from "@/config/config"
 import { ProviderTransform } from "@/provider/transform"
 import { ModelID, ProviderID } from "@/provider/schema"
+import path from "path"
 
 export namespace SessionCompaction {
   const log = Log.create({ service: "session.compaction" })
@@ -29,6 +30,101 @@ export namespace SessionCompaction {
   }
 
   const COMPACTION_BUFFER = 20_000
+  const DEFAULT_PROTECTED_TOOLS = ["skill", "task", "todowrite", "todoread", "batch", "plan_enter", "plan_exit"]
+  const WRITE_TOOLS = new Set(["write", "edit", "multiedit", "apply_patch", "replace_file_content"])
+  const READ_TOOLS = new Set(["read"])
+  const INPUT_PLACEHOLDER = "[Old tool input content cleared]"
+  const ERROR_INPUT_PLACEHOLDER = "[Failed tool input removed after several turns]"
+
+  function tools(cfg: Awaited<ReturnType<typeof Config.get>>, extra: string[] = []) {
+    return new Set([...DEFAULT_PROTECTED_TOOLS, ...(cfg.compaction?.protectedTools ?? []), ...extra])
+  }
+
+  function stable(input: unknown): string {
+    if (input === null || typeof input !== "object") return JSON.stringify(input)
+    if (Array.isArray(input)) return `[${input.map(stable).join(",")}]`
+
+    return `{${Object.keys(input)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${stable((input as Record<string, unknown>)[key])}`)
+      .join(",")}}`
+  }
+
+  function compactInput(input: unknown, text: string, key?: string): unknown {
+    if (typeof input === "string") {
+      if (key === "filePath") return input
+      return text
+    }
+
+    if (Array.isArray(input)) {
+      if (key === "filePaths") return input
+      return input.map((item) => compactInput(item, text))
+    }
+
+    if (!input || typeof input !== "object") return input
+
+    return Object.fromEntries(
+      Object.entries(input as Record<string, unknown>).map(([name, value]) => {
+        if (name === "filePath" && typeof value === "string") return [name, value]
+        if (name === "filePaths" && Array.isArray(value)) return [name, value]
+        return [name, compactInput(value, text, name)]
+      }),
+    )
+  }
+
+  function collectPaths(input: unknown) {
+    const result = new Set<string>()
+
+    const visit = (value: unknown, key?: string) => {
+      if (!value) return
+
+      if (typeof value === "string") {
+        if (key === "filePath") {
+          const item = path.isAbsolute(value) ? path.relative(Instance.worktree, value) : value
+          result.add(item.replaceAll("\\", "/"))
+        }
+        return
+      }
+
+      if (Array.isArray(value)) {
+        if (key === "filePaths") {
+          value.forEach((item) => {
+            if (typeof item !== "string") return
+            const next = path.isAbsolute(item) ? path.relative(Instance.worktree, item) : item
+            result.add(next.replaceAll("\\", "/"))
+          })
+          return
+        }
+        value.forEach((item) => visit(item))
+        return
+      }
+
+      if (typeof value !== "object") return
+      Object.entries(value as Record<string, unknown>).forEach(([name, item]) => visit(item, name))
+    }
+
+    visit(input)
+    return result
+  }
+
+  function compactToolInput(part: MessageV2.ToolPart, text: string) {
+    if (part.state.status !== "completed" && part.state.status !== "error") return 0
+    if (part.state.time.inputCompacted) return 0
+
+    const size = Token.estimate(JSON.stringify(part.state.input))
+    part.state.input = compactInput(part.state.input, text) as Record<string, any>
+    part.state.time.inputCompacted = Date.now()
+    return size
+  }
+
+  function compactToolOutput(part: MessageV2.ToolPart) {
+    if (part.state.status !== "completed") return 0
+    if (part.state.time.compacted) return 0
+
+    const size = Token.estimate(part.state.output)
+    part.state.time.compacted = Date.now()
+    return size
+  }
 
   export async function isOverflow(input: { tokens: MessageV2.Assistant["tokens"]; model: Provider.Model }) {
     const config = await Config.get()
@@ -51,8 +147,6 @@ export namespace SessionCompaction {
   export const PRUNE_MINIMUM = 20_000
   export const PRUNE_PROTECT = 40_000
 
-  const PRUNE_PROTECTED_TOOLS = ["skill"]
-
   // goes backwards through parts until there are 40_000 tokens worth of tool
   // calls. then erases output of previous tool calls. idea is to throw away old
   // tool calls that are no longer relevant.
@@ -61,42 +155,102 @@ export namespace SessionCompaction {
     if (config.compaction?.prune === false) return
     log.info("pruning")
     const msgs = await Session.messages({ sessionID: input.sessionID })
+    const pruneTools = tools(config)
+    const dedupeTools = tools(config, config.compaction?.deduplicate?.protectedTools ?? [])
+    const errorTools = tools(config, config.compaction?.purgeErrors?.protectedTools ?? [])
+    const errorTurns = Math.max(1, config.compaction?.purgeErrors?.turns ?? 4)
     let total = 0
-    let pruned = 0
-    const toPrune = []
+    let stale = 0
+    let out = 0
+    let inputSize = 0
     let turns = 0
+    let deduped = 0
+    let purged = 0
+    let writes = 0
+    const toPrune: MessageV2.ToolPart[] = []
+    const updates = new Map<string, MessageV2.ToolPart>()
+    const seen = new Set<string>()
+    const reads = new Set<string>()
 
     loop: for (let msgIndex = msgs.length - 1; msgIndex >= 0; msgIndex--) {
       const msg = msgs[msgIndex]
       if (msg.info.role === "user") turns++
-      if (turns < 2) continue
       if (msg.info.role === "assistant" && msg.info.summary) break loop
       for (let partIndex = msg.parts.length - 1; partIndex >= 0; partIndex--) {
         const part = msg.parts[partIndex]
-        if (part.type === "tool")
-          if (part.state.status === "completed") {
-            if (PRUNE_PROTECTED_TOOLS.includes(part.tool)) continue
+        if (part.type !== "tool") continue
 
-            if (part.state.time.compacted) break loop
-            const estimate = Token.estimate(part.state.output)
-            total += estimate
-            if (total > PRUNE_PROTECT) {
-              pruned += estimate
-              toPrune.push(part)
-            }
-          }
-      }
-    }
-    log.info("found", { pruned, total })
-    if (pruned > PRUNE_MINIMUM) {
-      for (const part of toPrune) {
+        const sig = `${part.tool}:${stable(part.state.input)}`
         if (part.state.status === "completed") {
-          part.state.time.compacted = Date.now()
-          await Session.updatePart(part)
+          if (READ_TOOLS.has(part.tool)) collectPaths(part.state.input).forEach((item) => reads.add(item))
+
+          if (config.compaction?.deduplicate?.enabled !== false && !dedupeTools.has(part.tool)) {
+            if (seen.has(sig)) {
+              out += compactToolOutput(part)
+              inputSize += compactToolInput(part, INPUT_PLACEHOLDER)
+              updates.set(part.id, part)
+              deduped++
+              continue
+            }
+            seen.add(sig)
+          }
+
+          if (
+            config.compaction?.supersedeWrites?.enabled !== false &&
+            WRITE_TOOLS.has(part.tool) &&
+            [...collectPaths(part.state.input)].some((item) => reads.has(item))
+          ) {
+            inputSize += compactToolInput(part, INPUT_PLACEHOLDER)
+            updates.set(part.id, part)
+            writes++
+          }
+
+          if (pruneTools.has(part.tool)) continue
+          if (part.state.time.compacted) break loop
+
+          const estimate = Token.estimate(part.state.output)
+          total += estimate
+          if (turns < 2 || total <= PRUNE_PROTECT) continue
+
+          stale += estimate
+          toPrune.push(part)
+          continue
         }
+
+        if (part.state.status !== "error") continue
+
+        if (config.compaction?.deduplicate?.enabled !== false && !dedupeTools.has(part.tool)) {
+          if (seen.has(sig)) {
+            inputSize += compactToolInput(part, ERROR_INPUT_PLACEHOLDER)
+            updates.set(part.id, part)
+            deduped++
+            continue
+          }
+          seen.add(sig)
+        }
+
+        if (config.compaction?.purgeErrors?.enabled === false) continue
+        if (turns < errorTurns) continue
+        if (errorTools.has(part.tool)) continue
+
+        inputSize += compactToolInput(part, ERROR_INPUT_PLACEHOLDER)
+        updates.set(part.id, part)
+        purged++
       }
-      log.info("pruned", { count: toPrune.length })
     }
+
+    if (stale > PRUNE_MINIMUM) {
+      for (const part of toPrune) {
+        out += compactToolOutput(part)
+        updates.set(part.id, part)
+      }
+    }
+
+    log.info("found", { stale, total, out, input: inputSize, deduped, purged, writes })
+    if (updates.size === 0) return
+
+    for (const part of updates.values()) await Session.updatePart(part)
+    log.info("pruned", { count: updates.size, out, input: inputSize, deduped, purged, writes })
   }
 
   export async function process(input: {
@@ -107,6 +261,7 @@ export namespace SessionCompaction {
     auto: boolean
     overflow?: boolean
   }) {
+    const config = await Config.get()
     const userMessage = input.messages.findLast((m) => m.info.id === input.parentID)!.info as MessageV2.User
 
     let messages = input.messages
@@ -171,9 +326,15 @@ export namespace SessionCompaction {
       { sessionID: input.sessionID },
       { context: [], prompt: undefined },
     )
+    const protectedUsers = config.compaction?.protectUserMessages
+      ? `
+
+Include a section named "Protected user messages" that quotes the user's most important instructions, constraints, and open questions verbatim.`
+      : ""
     const defaultPrompt = `Provide a detailed prompt for continuing our conversation above.
 Focus on information that would be helpful for continuing the conversation, including what we did, what we're doing, which files we're working on, and what we're going to do next.
 The summary that you construct will be used so that another agent can read it and continue the work.
+${protectedUsers}
 
 When constructing the summary, try to stick to this template:
 ---

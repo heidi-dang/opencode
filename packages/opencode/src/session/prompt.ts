@@ -644,6 +644,7 @@ export namespace SessionPrompt {
           subagent_type: task.agent,
           lane: task.lane,
           ownership: task.ownership,
+          isolated: false,
           command: task.command,
         }
         await Plugin.trigger(

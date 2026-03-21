@@ -6,7 +6,7 @@ import { SessionID, MessageID } from "../session/schema"
 import { MessageV2 } from "../session/message-v2"
 import { Identifier } from "../id/id"
 import { Agent } from "../agent/agent"
-import { Worktree } from "../util/worktree"
+import { Worktree } from "../worktree"
 import { Instance } from "../project/instance"
 import { SessionPrompt } from "../session/prompt"
 import { Provider } from "../provider/provider"
@@ -94,8 +94,8 @@ export const TaskTool = Tool.define("task", async (ctx) => {
         // Setup Worktree if requested or if it's the implementer
         if (params.isolated || agent.name === "implementer") {
           const taskId = ctx.sessionID.substring(0, 8)
-          const result = await Worktree.add(taskId, Instance.worktree)
-          worktreePath = result.path
+          const result = await Worktree.create({ name: taskId })
+          worktreePath = result.directory
         }
 
         // Skip permission check when user explicitly invoked via @ or command subtask
@@ -279,7 +279,7 @@ export const TaskTool = Tool.define("task", async (ctx) => {
         if (locked) releaseLocks(owned)
         if (worktreePath) {
           try {
-            await Worktree.remove(worktreePath, Instance.worktree)
+            await Worktree.remove({ directory: worktreePath })
           } catch (err) {
             HeidiTelemetry.warn(ctx.sessionID, "task.worktree_cleanup", err)
           }

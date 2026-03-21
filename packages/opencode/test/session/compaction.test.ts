@@ -7,6 +7,8 @@ import { Log } from "../../src/util/log"
 import { tmpdir } from "../fixture/fixture"
 import { Session } from "../../src/session"
 import type { Provider } from "../../src/provider/provider"
+import { MessageID, PartID } from "../../src/session/schema"
+import { ModelID, ProviderID } from "../../src/provider/schema"
 
 Log.init({ print: false })
 
@@ -38,6 +40,141 @@ function createModel(opts: {
     api: { npm: opts.npm ?? "@ai-sdk/anthropic" },
     options: {},
   } as Provider.Model
+}
+
+async function addUser(sessionID: Awaited<ReturnType<typeof Session.create>>["id"], text: string) {
+  const msg = await Session.updateMessage({
+    id: MessageID.ascending(),
+    role: "user",
+    sessionID,
+    agent: "default",
+    model: {
+      providerID: ProviderID.make("test"),
+      modelID: ModelID.make("test-model"),
+    },
+    time: {
+      created: Date.now(),
+    },
+  })
+
+  await Session.updatePart({
+    id: PartID.ascending(),
+    messageID: msg.id,
+    sessionID,
+    type: "text",
+    text,
+  })
+
+  return msg
+}
+
+async function addAssistant(
+  sessionID: Awaited<ReturnType<typeof Session.create>>["id"],
+  parentID: ReturnType<typeof MessageID.ascending>,
+  parts: Array<
+    | {
+        type: "text"
+        text: string
+      }
+    | {
+        type: "tool"
+        tool: string
+        callID: string
+        state:
+          | {
+              status: "completed"
+              input: Record<string, any>
+              output: string
+            }
+          | {
+              status: "error"
+              input: Record<string, any>
+              error: string
+            }
+      }
+  >,
+) {
+  const msg = await Session.updateMessage({
+    id: MessageID.ascending(),
+    role: "assistant",
+    sessionID,
+    mode: "default",
+    agent: "default",
+    path: {
+      cwd: Instance.directory,
+      root: Instance.worktree,
+    },
+    cost: 0,
+    tokens: {
+      output: 0,
+      input: 0,
+      reasoning: 0,
+      cache: { read: 0, write: 0 },
+    },
+    modelID: ModelID.make("test-model"),
+    providerID: ProviderID.make("test"),
+    parentID,
+    time: {
+      created: Date.now(),
+    },
+    finish: "end_turn",
+  })
+
+  for (const part of parts) {
+    if (part.type === "text") {
+      await Session.updatePart({
+        id: PartID.ascending(),
+        messageID: msg.id,
+        sessionID,
+        type: "text",
+        text: part.text,
+      })
+      continue
+    }
+
+    if (part.state.status === "completed") {
+      await Session.updatePart({
+        id: PartID.ascending(),
+        messageID: msg.id,
+        sessionID,
+        type: "tool",
+        tool: part.tool,
+        callID: part.callID,
+        state: {
+          status: "completed",
+          input: part.state.input,
+          output: part.state.output,
+          title: part.tool,
+          metadata: {},
+          time: {
+            start: Date.now(),
+            end: Date.now(),
+          },
+        },
+      })
+      continue
+    }
+
+    await Session.updatePart({
+      id: PartID.ascending(),
+      messageID: msg.id,
+      sessionID,
+      type: "tool",
+      tool: part.tool,
+      callID: part.callID,
+      state: {
+        status: "error",
+        input: part.state.input,
+        error: part.state.error,
+        time: {
+          start: Date.now(),
+          end: Date.now(),
+        },
+      },
+    })
+  }
+
+  return msg
 }
 
 describe("session.compaction.isOverflow", () => {
@@ -222,6 +359,166 @@ describe("session.compaction.isOverflow", () => {
         const model = createModel({ context: 100_000, output: 32_000 })
         const tokens = { input: 75_000, output: 5_000, reasoning: 0, cache: { read: 0, write: 0 } }
         expect(await SessionCompaction.isOverflow({ tokens, model })).toBe(false)
+      },
+    })
+  })
+})
+
+describe("session.compaction.prune", () => {
+  test("redacts older duplicate tool calls while keeping the newest copy", async () => {
+    await using tmp = await tmpdir()
+    await Instance.provide({
+      directory: tmp.path,
+      fn: async () => {
+        const session = await Session.create({})
+        const first = await addUser(session.id, "run it")
+        await addAssistant(session.id, first.id, [
+          {
+            type: "tool",
+            tool: "bash",
+            callID: "call-1",
+            state: {
+              status: "completed",
+              input: { cmd: "pwd" },
+              output: "first output",
+            },
+          },
+        ])
+
+        const second = await addUser(session.id, "run it again")
+        await addAssistant(session.id, second.id, [
+          {
+            type: "tool",
+            tool: "bash",
+            callID: "call-2",
+            state: {
+              status: "completed",
+              input: { cmd: "pwd" },
+              output: "second output",
+            },
+          },
+        ])
+
+        await SessionCompaction.prune({ sessionID: session.id })
+        const messages = await Session.messages({ sessionID: session.id })
+        const tools = messages.flatMap((msg) => msg.parts.filter((part) => part.type === "tool"))
+        const old = tools.find((part) => part.callID === "call-1")
+        const current = tools.find((part) => part.callID === "call-2")
+
+        expect(old?.state.status).toBe("completed")
+        expect(old?.state.status === "completed" && old.state.time.compacted).toBeTruthy()
+        expect(old?.state.status === "completed" && old.state.time.inputCompacted).toBeTruthy()
+        expect(old?.state.status === "completed" && old.state.input).toEqual({ cmd: "[Old tool input content cleared]" })
+
+        expect(current?.state.status).toBe("completed")
+        expect(current?.state.status === "completed" && current.state.time.compacted).toBeUndefined()
+        expect(current?.state.status === "completed" && current.state.input).toEqual({ cmd: "pwd" })
+      },
+    })
+  })
+
+  test("redacts stale errored tool inputs after configured turn age", async () => {
+    await using tmp = await tmpdir({
+      init: async (dir) => {
+        await Bun.write(
+          path.join(dir, "opencode.json"),
+          JSON.stringify({
+            compaction: {
+              purgeErrors: {
+                turns: 2,
+              },
+            },
+          }),
+        )
+      },
+    })
+    await Instance.provide({
+      directory: tmp.path,
+      fn: async () => {
+        const session = await Session.create({})
+        const first = await addUser(session.id, "search")
+        await addAssistant(session.id, first.id, [
+          {
+            type: "tool",
+            tool: "grep",
+            callID: "call-error",
+            state: {
+              status: "error",
+              input: { pattern: "needle", filePath: path.join(tmp.path, "a.txt") },
+              error: "boom",
+            },
+          },
+        ])
+
+        const second = await addUser(session.id, "continue")
+        await addAssistant(session.id, second.id, [{ type: "text", text: "ok" }])
+
+        const third = await addUser(session.id, "continue again")
+        await addAssistant(session.id, third.id, [{ type: "text", text: "ok" }])
+
+        await SessionCompaction.prune({ sessionID: session.id })
+        const messages = await Session.messages({ sessionID: session.id })
+        const error = messages
+          .flatMap((msg) => msg.parts.filter((part) => part.type === "tool"))
+          .find((part) => part.callID === "call-error")
+
+        expect(error?.state.status).toBe("error")
+        expect(error?.state.status === "error" && error.state.time.inputCompacted).toBeTruthy()
+        expect(error?.state.status === "error" && error.state.input).toEqual({
+          pattern: "[Failed tool input removed after several turns]",
+          filePath: path.join(tmp.path, "a.txt"),
+        })
+      },
+    })
+  })
+
+  test("redacts write inputs once a later read supersedes the file content", async () => {
+    await using tmp = await tmpdir()
+    await Instance.provide({
+      directory: tmp.path,
+      fn: async () => {
+        const target = path.join(tmp.path, "notes.txt")
+        const session = await Session.create({})
+        const first = await addUser(session.id, "write file")
+        await addAssistant(session.id, first.id, [
+          {
+            type: "tool",
+            tool: "write",
+            callID: "call-write",
+            state: {
+              status: "completed",
+              input: { filePath: target, content: "hello world" },
+              output: "Wrote file successfully.",
+            },
+          },
+        ])
+
+        const second = await addUser(session.id, "read it")
+        await addAssistant(session.id, second.id, [
+          {
+            type: "tool",
+            tool: "read",
+            callID: "call-read",
+            state: {
+              status: "completed",
+              input: { filePath: target, offset: 1 },
+              output: "<content>hello world</content>",
+            },
+          },
+        ])
+
+        await SessionCompaction.prune({ sessionID: session.id })
+        const messages = await Session.messages({ sessionID: session.id })
+        const write = messages
+          .flatMap((msg) => msg.parts.filter((part) => part.type === "tool"))
+          .find((part) => part.callID === "call-write")
+
+        expect(write?.state.status).toBe("completed")
+        expect(write?.state.status === "completed" && write.state.time.inputCompacted).toBeTruthy()
+        expect(write?.state.status === "completed" && write.state.input).toEqual({
+          filePath: target,
+          content: "[Old tool input content cleared]",
+        })
       },
     })
   })

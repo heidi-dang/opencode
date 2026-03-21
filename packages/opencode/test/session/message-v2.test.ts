@@ -509,6 +509,73 @@ describe("session.message-v2.toModelMessage", () => {
     ])
   })
 
+  test("preserves redacted tool input when input has been compacted", () => {
+    const userID = "m-user"
+    const assistantID = "m-assistant"
+
+    const input: MessageV2.WithParts[] = [
+      {
+        info: userInfo(userID),
+        parts: [
+          {
+            ...basePart(userID, "u1"),
+            type: "text",
+            text: "write the file",
+          },
+        ] as MessageV2.Part[],
+      },
+      {
+        info: assistantInfo(assistantID, userID),
+        parts: [
+          {
+            ...basePart(assistantID, "a1"),
+            type: "tool",
+            callID: "call-1",
+            tool: "write",
+            state: {
+              status: "completed",
+              input: { filePath: "/tmp/demo.txt", content: "[Old tool input content cleared]" },
+              output: "Wrote file successfully.",
+              title: "Write",
+              metadata: {},
+              time: { start: 0, end: 1, inputCompacted: 1 },
+            },
+          },
+        ] as MessageV2.Part[],
+      },
+    ]
+
+    expect(MessageV2.toModelMessages(input, model)).toStrictEqual([
+      {
+        role: "user",
+        content: [{ type: "text", text: "write the file" }],
+      },
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "tool-call",
+            toolCallId: "call-1",
+            toolName: "write",
+            input: { filePath: "/tmp/demo.txt", content: "[Old tool input content cleared]" },
+            providerExecuted: undefined,
+          },
+        ],
+      },
+      {
+        role: "tool",
+        content: [
+          {
+            type: "tool-result",
+            toolCallId: "call-1",
+            toolName: "write",
+            output: { type: "text", value: "Wrote file successfully." },
+          },
+        ],
+      },
+    ])
+  })
+
   test("converts assistant tool error into error-text tool result", () => {
     const userID = "m-user"
     const assistantID = "m-assistant"

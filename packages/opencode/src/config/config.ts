@@ -1206,6 +1206,49 @@ export namespace Config {
             .min(0)
             .optional()
             .describe("Token buffer for compaction. Leaves enough window to avoid overflow during compaction."),
+          protectedTools: z
+            .array(z.string())
+            .optional()
+            .describe("Tool IDs that should be protected from compaction pruning strategies."),
+          protectUserMessages: z
+            .boolean()
+            .optional()
+            .describe("Preserve important user instructions verbatim inside compaction summaries."),
+          deduplicate: z
+            .object({
+              enabled: z.boolean().optional().describe("Prune older duplicate tool calls while keeping the newest."),
+              protectedTools: z
+                .array(z.string())
+                .optional()
+                .describe("Additional tool IDs to exclude from duplicate pruning."),
+            })
+            .optional(),
+          supersedeWrites: z
+            .object({
+              enabled: z
+                .boolean()
+                .optional()
+                .describe("Prune stale write/edit inputs once a newer read captures the file state."),
+            })
+            .optional(),
+          purgeErrors: z
+            .object({
+              enabled: z
+                .boolean()
+                .optional()
+                .describe("Prune errored tool inputs after they age out of the active working set."),
+              turns: z
+                .number()
+                .int()
+                .positive()
+                .optional()
+                .describe("Number of user turns to keep errored tool inputs before pruning them."),
+              protectedTools: z
+                .array(z.string())
+                .optional()
+                .describe("Additional tool IDs to exclude from errored-input pruning."),
+            })
+            .optional(),
         })
         .optional(),
       experimental: z

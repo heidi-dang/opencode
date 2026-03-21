@@ -310,6 +310,7 @@ export namespace MessageV2 {
         start: z.number(),
         end: z.number(),
         compacted: z.number().optional(),
+        inputCompacted: z.number().optional(),
       }),
       attachments: FilePart.array().optional(),
     })
@@ -327,6 +328,7 @@ export namespace MessageV2 {
       time: z.object({
         start: z.number(),
         end: z.number(),
+        inputCompacted: z.number().optional(),
       }),
     })
     .meta({
