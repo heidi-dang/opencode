@@ -42,6 +42,7 @@ import { type FollowupDraft, sendFollowupDraft } from "@/components/prompt-input
 import { createSessionComposerState, SessionComposerRegion } from "@/pages/session/composer"
 import { createOpenReviewFile, createSessionTabs, createSizing, focusTerminalById } from "@/pages/session/helpers"
 import { MessageTimeline } from "@/pages/session/message-timeline"
+import { MobileReview } from "@/pages/session/mobile-review"
 import { type DiffStyle, SessionReviewTab, type SessionReviewTabProps } from "@/pages/session/review-tab"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { syncSessionModel } from "@/pages/session/session-model-helpers"
@@ -1695,16 +1696,25 @@ export default function Page() {
                 <Show when={lastUserMessage()}>
                   <MessageTimeline
                     mobileChanges={mobileChanges()}
-                    mobileFallback={reviewContent({
-                      diffStyle: "unified",
-                      classes: {
-                        root: "pb-8",
-                        header: "px-4",
-                        container: "px-4",
-                      },
-                      loadingClass: "px-4 py-4 text-text-weak",
-                      emptyClass: "h-full pb-64 -mt-4 flex flex-col items-center justify-center text-center gap-6",
-                    })}
+                    mobileFallback={
+                      <MobileReview
+                        title={changesTitle()}
+                        diffs={reviewDiffs}
+                        loading={store.changes === "session" && hasReview() && !diffsReady()}
+                        empty={reviewEmpty({
+                          loadingClass: "px-4 py-4 text-text-weak",
+                          emptyClass: "h-full pb-64 -mt-4 flex flex-col items-center justify-center text-center gap-6",
+                        })}
+                        labels={{
+                          open: language.t("ui.sessionReview.openFile"),
+                          added: language.t("ui.sessionReview.change.added"),
+                          removed: language.t("ui.sessionReview.change.removed"),
+                          modified: language.t("ui.sessionReview.change.modified"),
+                          loading: language.t("session.review.loadingChanges"),
+                        }}
+                        onViewFile={openReviewFile}
+                      />
+                    }
                     actions={actions}
                     scroll={ui.scroll}
                     onResumeScroll={resumeScroll}
