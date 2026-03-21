@@ -816,6 +816,7 @@ export const dict = {
   "settings.copilot.feature.deploy": "First-party VPS deployment staging with Docker Compose and ephemeral credentials.",
   "settings.tab.general": "General",
   "settings.tab.shortcuts": "Shortcuts",
+  "settings.tab.audio": "Audio",
   "settings.desktop.section.wsl": "WSL",
   "settings.desktop.wsl.title": "WSL integration",
   "settings.desktop.wsl.description": "Run the OpenCode server inside WSL on Windows.",

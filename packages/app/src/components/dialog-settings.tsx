@@ -9,6 +9,7 @@ import { SettingsKeybinds } from "./settings-keybinds"
 import { SettingsCopilot } from "./settings-copilot"
 import { SettingsProviders } from "./settings-providers"
 import { SettingsModels } from "./settings-models"
+import { SettingsAudio } from "./settings-audio"
 
 export const DialogSettings: Component = () => {
   const language = useLanguage()
@@ -31,6 +32,10 @@ export const DialogSettings: Component = () => {
                     <Tabs.Trigger value="shortcuts">
                       <Icon name="keyboard" />
                       {language.t("settings.tab.shortcuts")}
+                    </Tabs.Trigger>
+                    <Tabs.Trigger value="audio">
+                      <Icon name="server" />
+                      {language.t("settings.tab.audio")}
                     </Tabs.Trigger>
                   </div>
                 </div>
@@ -65,6 +70,9 @@ export const DialogSettings: Component = () => {
         </Tabs.Content>
         <Tabs.Content value="shortcuts" class="no-scrollbar">
           <SettingsKeybinds />
+        </Tabs.Content>
+        <Tabs.Content value="audio" class="no-scrollbar">
+          <SettingsAudio />
         </Tabs.Content>
         <Tabs.Content value="copilot" class="no-scrollbar">
           <SettingsCopilot />
