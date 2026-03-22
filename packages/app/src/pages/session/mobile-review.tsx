@@ -1,4 +1,3 @@
-/** @jsxImportSource solid-js */
 import type { FileDiff } from "@opencode-ai/sdk/v2"
 import { getDirectory, getFilename } from "@opencode-ai/util/path"
 import { For, Match, Show, Switch, type JSX } from "solid-js"

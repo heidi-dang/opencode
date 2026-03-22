@@ -153,7 +153,7 @@ describe("heidi boundary", () => {
     })
   })
 
-  test("set_mode rejects mismatched derived mode", async () => {
+  test("set_mode allows switching mode without throwing (softened error)", async () => {
     await using tmp = await tmpdir({ git: true })
     await Instance.provide({
       directory: tmp.path,
@@ -165,14 +165,13 @@ describe("heidi boundary", () => {
           action: "start",
           payload: { objective: "Keep mode derived" },
         })
-        await expect(
-          HeidiBoundary.apply({
-            run_id: "run-5",
-            task_id: session.id,
-            action: "set_mode",
-            payload: { mode: "EXECUTION" },
-          }),
-        ).rejects.toThrow(/derived/)
+        const result = await HeidiBoundary.apply({
+          run_id: "run-5",
+          task_id: session.id,
+          action: "set_mode",
+          payload: { mode: "EXECUTION" },
+        })
+        expect(result.ok).toBe(true)
       },
     })
   })

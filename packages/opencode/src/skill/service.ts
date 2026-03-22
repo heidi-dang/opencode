@@ -23,7 +23,6 @@ export namespace Skill {
   const EXTERNAL_SKILL_PATTERN = "skills/**/SKILL.md"
   const OPENCODE_SKILL_PATTERN = "{skill,skills}/**/SKILL.md"
   const SKILL_PATTERN = "**/SKILL.md"
-  const BUILTIN_SKILLS_DIR = path.resolve(import.meta.dirname, "../../skills")
 
   export const Info = z.object({
     name: z.string(),
@@ -144,9 +143,15 @@ export namespace Skill {
         await scan(state, dir, OPENCODE_SKILL_PATTERN)
       }
 
-      if (await Filesystem.isDir(BUILTIN_SKILLS_DIR)) {
-        log.debug("loading builtin skills", { dir: BUILTIN_SKILLS_DIR })
-        await scan(state, BUILTIN_SKILLS_DIR, SKILL_PATTERN, { scope: "builtin" })
+      const builtinDir = (() => {
+        if (process.env.OPENCODE_TEST_HOME) {
+          return path.join(process.env.OPENCODE_TEST_HOME, ".opencode", "skills")
+        }
+        return path.resolve(import.meta.dirname, "../../skills")
+      })()
+      if (await Filesystem.isDir(builtinDir)) {
+        log.debug("loading builtin skills", { dir: builtinDir })
+        await scan(state, builtinDir, SKILL_PATTERN, { scope: "builtin" })
       }
 
       const cfg = await Config.get()

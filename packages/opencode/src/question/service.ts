@@ -1,6 +1,7 @@
 import { Deferred, Effect, Layer, Schema, ServiceMap } from "effect"
 import { Bus } from "@/bus"
 import { BusEvent } from "@/bus/bus-event"
+import { WorkflowAudioRuntime } from "@/audio/runtime-hooks"
 import { SessionID, MessageID } from "@/session/schema"
 import { Log } from "@/util/log"
 import z from "zod"
@@ -121,6 +122,7 @@ export namespace Question {
           tool: input.tool,
         }
         pending.set(id, { info, deferred })
+        WorkflowAudioRuntime.ensure()
         Bus.publish(Event.Asked, info)
 
         return yield* Effect.ensuring(

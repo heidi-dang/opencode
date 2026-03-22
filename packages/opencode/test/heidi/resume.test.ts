@@ -19,13 +19,14 @@ describe("heidi resume", () => {
         await HeidiState.updateResume(session.id)
         const paths = await HeidiState.files(session.id)
         const resume = await Filesystem.readJson<any>(paths.resume)
-        expect(resume.next_step).toBe("PLAN_DRAFT")
+        expect(resume.next_step).toBe("write_plan")
         // Simulate completion
-        state.resume.next_step = undefined
+        state.fsm_state = "COMPLETE"
+        state.plan.locked = true
         await HeidiState.write(session.id, state)
         await HeidiState.updateResume(session.id)
         const loaded = await HeidiState.read(session.id)
-        expect(loaded.resume.next_step).toBeUndefined()
+        expect(loaded.resume.next_step).toBe("done")
       },
     })
   })
@@ -48,7 +49,7 @@ describe("heidi resume", () => {
         // Simulate interruption and reload
         const loaded = await HeidiState.read(session.id)
         expect(loaded.checklist[0].status).toBe("done")
-        expect(loaded.resume.next_step).toBe("step2")
+        expect(loaded.resume.next_step).toBe("EXECUTION")
         // Resume should not replay step1
         expect(loaded.checklist.filter((x) => x.status === "done").length).toBe(1)
       },
@@ -63,15 +64,15 @@ describe("heidi resume", () => {
         const session = await Session.create({})
         await enterExecution(session.id, "resume")
         let state = await HeidiState.read(session.id)
-        // Case 1: checklist empty, next_step should be preserved
+        // Case 1: checklist empty, next_step should be derived from state
         state.checklist = []
         state.resume.next_step = "PLAN_DRAFT"
         await HeidiState.write(session.id, state)
         await HeidiState.updateResume(session.id)
         const loaded1 = await HeidiState.read(session.id)
-        expect(loaded1.resume.next_step).toBe("PLAN_DRAFT")
+        expect(loaded1.resume.next_step).toBe("request_verification")
 
-        // Case 2: checklist with all done, next_step should be cleared
+        // Case 2: checklist with all done, next_step should be cleared/set to done
         state = await HeidiState.read(session.id)
         state.checklist = [
           { id: "1", label: "step1", status: "done", category: "Modify", priority: "medium" },
@@ -82,9 +83,9 @@ describe("heidi resume", () => {
         await HeidiState.updateResume(session.id)
         const loaded2 = await HeidiState.read(session.id)
         expect(loaded2.checklist.every((x) => x.status === "done")).toBe(true)
-        expect(loaded2.resume.next_step).toBe(undefined)
+        expect(loaded2.resume.next_step).toBe("request_verification")
 
-        // Case 3: checklist with some pending, next_step should be preserved
+        // Case 3: checklist with some pending, next_step should be derived
         state.checklist = [
           { id: "1", label: "step1", status: "done", category: "Modify", priority: "medium" },
           { id: "2", label: "step2", status: "todo", category: "Modify", priority: "medium" },
@@ -93,7 +94,7 @@ describe("heidi resume", () => {
         await HeidiState.write(session.id, state)
         await HeidiState.updateResume(session.id)
         const loaded3 = await HeidiState.read(session.id)
-        expect(loaded3.resume.next_step).toBe("step2")
+        expect(loaded3.resume.next_step).toBe("EXECUTION")
         expect(loaded3.checklist.filter((x) => x.status === "done").length).toBe(1)
       },
     })

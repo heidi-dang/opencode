@@ -1,4 +1,3 @@
-/** @jsxImportSource solid-js */
 import { describe, expect, test } from "bun:test"
 import type { FileDiff } from "@opencode-ai/sdk/v2"
 import { mobileReviewItems, mobileReviewMode, mobileReviewOpen } from "./mobile-review"
