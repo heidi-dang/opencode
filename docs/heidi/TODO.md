@@ -6,6 +6,7 @@ Following the successful Phase 1-6 upgrade, this TODO list outlines the remainin
 - [ ] **Vector Search Integration**: Add `sqlite-vec` adapter to the `HeidiIndexer`. Implement semantic search for files and symbols to complement the keyword index.
 - [ ] **Long-Context Reranking**: Integrate a reranking step for `index_search` results to prioritize the most relevant implementation details.
 - [ ] **Automated Indexing Hooks**: Wire the indexer into the `Vcs` service to automatically update on branch switch or commit.
+- [ ] **Full Feature Extraction**: Implement deterministic extraction for Symbols, Imports, Routes (Fastify), and Tests (Bun) in `HeidiIndexer`.
 - [ ] **Indexer Synchronization Lag Monitor**: Add a doctor check to detect when the index is significantly behind the current HEAD.
 - [ ] **Public State API Refactoring**: Move internal helper functions like `root` and `path` resolution from `state.ts` into a clean, versioned public API for tools.
 
@@ -14,6 +15,7 @@ Following the successful Phase 1-6 upgrade, this TODO list outlines the remainin
 - [ ] **Real-time Performance Metrics**: Add token usage, latency, and cost-per-task tracking to the Mission Control dashboard.
 - [ ] **Glassmorphism UI Polish**: Refine the `/heidi/mission-control` CSS to match the high-fidelity mockup (blur effects, translucent cards, neon accents).
 - [ ] **Mobile-First Dashboard**: Optimize the Mission Control Kanban board for mobile review and approvals.
+- [ ] **Style Guide Alignment**: Refactor newly introduced internal identifiers (e.g., `screenshotPath` -> `shot`, `reportPath` -> `rep`) to strictly follow the `AGENTS.md` single-word preference.
 
 ## Orchestration & Reliability
 - [ ] **Parallel Subagent Spawning**: Allow the primary Heidi agent to spawn multiple specialized subagents (e.g., "Refactor Agent" + "Test Agent") and coordinate their work via the dashboard.
