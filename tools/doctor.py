@@ -15,6 +15,7 @@ from doctor_checks.runtime_artifacts import run as run_runtime_artifacts
 from doctor_checks.fsm_execution_consistency import run as run_fsm_execution_consistency
 from doctor_checks.mission_control_upgrade import run as run_mission_control_upgrade
 from doctor_checks.artifact_validator import run as run_artifact_validator
+from doctor_checks.browser_validator import run as run_browser_validator
 
 def main() -> int:
   checks = [
@@ -25,6 +26,7 @@ def main() -> int:
     run_fsm_execution_consistency(),
     run_mission_control_upgrade(),
     run_artifact_validator(),
+    run_browser_validator(),
   ]
   ok = all(item[0] for item in checks)
 
