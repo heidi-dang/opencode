@@ -39,6 +39,7 @@ import { SeoAuditTool } from "./seo_audit"
 import { GscIndexingTool } from "./gsc_indexing"
 import { IndexNowTool } from "./indexnow"
 import { MemoryTool } from "./memory"
+import { IndexSearchTool } from "./index_search"
 import { PatternTool } from "./pattern"
 import { ReasoningTool } from "./reasoning"
 import { BlueprintTool } from "./blueprint"
@@ -179,6 +180,7 @@ export namespace ToolRegistry {
       SeoAuditTool,
       GscIndexingTool,
       IndexNowTool,
+      IndexSearchTool,
       MemoryTool,
       PatternTool,
       ReasoningTool,

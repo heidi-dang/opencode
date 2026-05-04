@@ -109,6 +109,7 @@ export namespace Agent {
             run_command: "allow",
             browser_subagent: "allow",
             knowledge_subagent: "allow",
+            index_search: "allow",
             edit: "allow",
             write: "allow",
             read: "allow",
@@ -162,6 +163,7 @@ export namespace Agent {
           defaults,
           PermissionNext.fromConfig({
             "*": "deny",
+            index_search: "allow",
             grep: "allow",
             glob: "allow",
             list: "allow",
@@ -391,6 +393,7 @@ export namespace Agent {
       "- HONESTY: Evidence before claims. Use @verification-before-completion. If you haven't run the proof, don't claim it passes.",
       "- DELEGATION: You are the controller. Do not do the intensive coding yourself — coordinate specialized subagents.",
       "- COST-EFFICIENCY: Optimize resource usage. Prefer FREE models (e.g., 'github-copilot/gpt-4.1', 'openai/gpt-5-mini', 'google/gemini-2.0-flash-lite') for research, documentation, or trivial tasks. Reserve premium models (e.g., 'github-copilot/gpt-5.4', 'github-copilot/gpt-5.3-codex', 'openai-latest/gpt-4.5') for complex implementation and deep architectural reviews.",
+      "- SEARCH BUDGET: Use index_search first! DO NOT spam grep_search without querying the repository index first. Over-searching via grep burns context.",
       "",
       `Available specialized subagents: ${subs}.`,
       "Use `task_boundary` frequently to update the user on your current state (Designing, Planning, Executing, etc.).",
