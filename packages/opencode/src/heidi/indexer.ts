@@ -8,14 +8,15 @@ import { Instance } from "@/project/instance"
 export namespace HeidiIndexer {
   const log = Log.create({ service: "heidi.indexer" })
 
-  function getDbPath() {
+  function dbPath() {
     return path.join(Instance.worktree, ".opencode", "heidi", "index.sqlite")
   }
 
   export async function init() {
-    const dbPath = getDbPath()
-    await Filesystem.mkdir(path.dirname(dbPath))
-    const db = new Database(dbPath, { create: true })
+    const p = dbPath()
+    // Filesystem.write creates dirs recursively — use to ensure parent exists
+    await Filesystem.write(path.join(path.dirname(p), ".keep"), "")
+    const db = new Database(p, { create: true })
 
     db.run(`
       CREATE TABLE IF NOT EXISTS files (
@@ -35,17 +36,6 @@ export namespace HeidiIndexer {
         FOREIGN KEY(file_id) REFERENCES files(id) ON DELETE CASCADE
       );
     `)
-    
-    // Create an FTS5 virtual table for fast full-text searching
-    db.run(`
-      CREATE VIRTUAL TABLE IF NOT EXISTS symbols_fts USING fts5(
-        name,
-        type,
-        path UNINDEXED,
-        line UNINDEXED,
-        content=symbols
-      );
-    `)
 
     return db
   }
@@ -56,14 +46,12 @@ export namespace HeidiIndexer {
     const files = await Array.fromAsync(Ripgrep.files({ cwd: Instance.worktree }))
     const now = Date.now()
 
-    const insertFile = db.prepare("INSERT OR REPLACE INTO files (path, last_indexed) VALUES (?, ?) RETURNING id")
-    
+    const insert = db.prepare("INSERT OR REPLACE INTO files (path, last_indexed) VALUES (?, ?)")
+
     db.transaction(() => {
       for (const file of files) {
         if (file.includes(".opencode") || file.includes(".git") || file.includes("node_modules")) continue
-        insertFile.get(file, now)
-        // Note: For a production indexer, we would parse TS/JS symbols here.
-        // For MVP, we rely on the file paths and FTS grep.
+        insert.run(file, now)
       }
     })()
 
@@ -71,11 +59,11 @@ export namespace HeidiIndexer {
     db.close()
   }
 
-  export async function searchFiles(query: string, limit: number = 20) {
+  export async function searchFiles(query: string, limit = 20) {
     const db = await init()
     const stmt = db.prepare("SELECT path FROM files WHERE path LIKE ? LIMIT ?")
     const results = stmt.all(`%${query}%`, limit) as { path: string }[]
     db.close()
-    return results.map(r => r.path)
+    return results.map((r) => r.path)
   }
 }

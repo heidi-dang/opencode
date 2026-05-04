@@ -7,7 +7,7 @@ import { HeidiState } from "../../src/heidi/state"
 import { Filesystem } from "../../src/util/filesystem"
 import { TaskBoundaryTool } from "../../src/tool/task_boundary"
 import { MessageID } from "../../src/session/schema"
-import { enterVerification } from "../fixture/heidi"
+import { enterVerification, writeArtifactPack } from "../fixture/heidi"
 import { PlanExitTool } from "../../src/tool/plan"
 import * as QuestionModule from "../../src/question"
 import { MessageV2 } from "../../src/session/message-v2"
@@ -66,6 +66,7 @@ describe("heidi boundary", () => {
             },
           ],
         })
+        await writeArtifactPack(session.id, { browser: true })
         const result = await HeidiBoundary.apply({
           run_id: "run-1",
           task_id: session.id,

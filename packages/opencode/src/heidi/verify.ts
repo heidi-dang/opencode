@@ -1,5 +1,5 @@
 import { SessionID } from "@/session/schema"
-import { HeidiState } from "./state"
+import { HeidiState, root as heidiRoot } from "./state"
 import { VerifyState } from "./schema"
 import { Filesystem } from "@/util/filesystem"
 import path from "path"
@@ -37,7 +37,7 @@ export namespace HeidiVerify {
     }
 
     // Phase 5: Artifact-First Task Pack Validator checks
-    const rootDir = HeidiState.root(sessionID)
+    const rootDir = heidiRoot(sessionID)
     const requiredFiles = [
       "implementation_plan.md",
       "task.md",

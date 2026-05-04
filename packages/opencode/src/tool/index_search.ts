@@ -17,28 +17,21 @@ export const IndexSearchTool = Tool.define("index_search", {
       permission: "read",
       patterns: ["*"],
       always: ["*"],
-      metadata: {
-        query: params.query,
-      }
+      metadata: { query: params.query },
     })
 
-    // Ensure the index is initialized
+    // Ensure the index is initialized and up to date
     await HeidiIndexer.indexRepository()
 
     const results = await HeidiIndexer.searchFiles(params.query, params.limit)
 
-    if (results.length === 0) {
-      return {
-        title: `Index search: ${params.query}`,
-        output: "No results found in the index. You may need to use grep_search as a fallback.",
-        metadata: {}
-      }
-    }
-
     return {
       title: `Index search: ${params.query}`,
-      output: `Found ${results.length} files matching "${params.query}":\n\n${results.join("\n")}`,
-      metadata: { results }
+      metadata: { results },
+      output:
+        results.length === 0
+          ? `No results found in the index for "${params.query}". Use grep_search as fallback.`
+          : `Found ${results.length} files matching "${params.query}":\n\n${results.join("\n")}`,
     }
-  }
+  },
 })

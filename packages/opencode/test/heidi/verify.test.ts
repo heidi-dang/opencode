@@ -5,7 +5,7 @@ import { Session } from "../../src/session"
 import { HeidiState } from "../../src/heidi/state"
 import { HeidiVerify } from "../../src/heidi/verify"
 import { Filesystem } from "../../src/util/filesystem"
-import { enterVerification } from "../fixture/heidi"
+import { enterVerification, writeArtifactPack } from "../fixture/heidi"
 
 describe("heidi verify", () => {
   test("persists browser evidence and passes verify-complete lifecycle", async () => {
@@ -31,6 +31,7 @@ describe("heidi verify", () => {
             network_failures: [],
           },
         })
+        await writeArtifactPack(session.id, { browser: true })
         await expect(HeidiVerify.gate(session.id)).resolves.toBe(true)
         // Check browser evidence persisted
         const files = await HeidiState.files(session.id)
@@ -198,6 +199,7 @@ describe("heidi verify", () => {
             network_failures: [],
           },
         })
+        await writeArtifactPack(session.id, { browser: true })
         await expect(HeidiVerify.gate(session.id)).resolves.toBe(true)
       },
     })

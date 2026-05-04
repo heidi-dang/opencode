@@ -1,6 +1,7 @@
 import z from "zod"
 import { Tool } from "./tool"
 import { HeidiState } from "../heidi/state"
+import { root as heidiRoot } from "../heidi/state"
 import { Filesystem } from "../util/filesystem"
 import { spawn } from "child_process"
 import { Instance } from "../project/instance"
@@ -15,12 +16,18 @@ export const BrowserSubagentTool = Tool.define("browser_subagent", {
   }),
   async execute(params, ctx) {
     await HeidiState.ensure(ctx.sessionID, "browser verification")
-    
-    const rootDir = HeidiState.root(ctx.sessionID)
+
+    const rootDir = heidiRoot(ctx.sessionID)
     const reportPath = path.join(rootDir, "browser_report.md")
     const screenshotPath = path.join(rootDir, "browser_screenshot.png")
-    
-    // We will run a playwright script in a child process to avoid leaking or blocking the main process
+    const consolePath = path.join(rootDir, "console_errors.json")
+    const networkPath = path.join(rootDir, "network_failures.json")
+    const domPath = path.join(rootDir, "dom_snapshot.json")
+    const scriptPath = path.join(rootDir, "run_browser.js")
+
+    // Ensure root dir exists
+    await Filesystem.write(path.join(rootDir, ".keep"), "")
+
     const script = `
 const { chromium } = require('playwright');
 const fs = require('fs');
@@ -29,117 +36,125 @@ const fs = require('fs');
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext();
   const page = await context.newPage();
-  
+
   const consoleLogs = [];
   const networkErrors = [];
-  
+
   page.on('console', msg => consoleLogs.push(msg.type() + ': ' + msg.text()));
-  page.on('requestfailed', request => networkErrors.push(request.url() + ' ' + request.failure().errorText));
-  page.on('response', response => {
-    if (response.status() >= 400) {
-      networkErrors.push(response.url() + ' ' + response.status());
-    }
+  page.on('requestfailed', req => networkErrors.push({ url: req.url(), error: req.failure()?.errorText || 'unknown' }));
+  page.on('response', res => {
+    if (res.status() >= 400) networkErrors.push({ url: res.url(), error: String(res.status()) });
   });
 
   try {
-    const response = await page.goto('${params.url}', { waitUntil: 'networkidle', timeout: 30000 });
-    await page.screenshot({ path: '${screenshotPath}', fullPage: true });
-    
-    const html = await page.content();
-    
+    const response = await page.goto(${JSON.stringify(params.url)}, { waitUntil: 'networkidle', timeout: 30000 });
+    await page.screenshot({ path: ${JSON.stringify(screenshotPath)}, fullPage: true });
+
+    const dom = await page.evaluate(() => ({
+      title: document.title,
+      bodyLength: document.body?.innerHTML?.length || 0,
+      links: Array.from(document.querySelectorAll('a')).length,
+    }));
+
+    fs.writeFileSync(${JSON.stringify(consolePath)}, JSON.stringify(consoleLogs, null, 2));
+    fs.writeFileSync(${JSON.stringify(networkPath)}, JSON.stringify(networkErrors, null, 2));
+    fs.writeFileSync(${JSON.stringify(domPath)}, JSON.stringify(dom, null, 2));
+
+    const status = response && response.ok() ? 'pass' : 'fail';
+    const httpStatus = response ? response.status() : null;
+
     const report = [
       '# Browser Validation Report',
       '**URL**: ${params.url}',
-      '**Status**: ' + (response ? response.status() : 'Unknown'),
+      '**Status**: ' + (httpStatus || 'unknown'),
+      '**Result**: ' + status,
       '',
       '## Console Logs',
       consoleLogs.length ? consoleLogs.map(l => '- ' + l).join('\\n') : 'No console messages.',
       '',
       '## Network Errors',
-      networkErrors.length ? networkErrors.map(e => '- ' + e).join('\\n') : 'No network errors.',
+      networkErrors.length ? networkErrors.map(e => '- ' + e.url + ': ' + e.error).join('\\n') : 'No network errors.',
+      '',
+      '## DOM Snapshot',
+      '- Title: ' + dom.title,
+      '- Body length: ' + dom.bodyLength,
+      '- Links: ' + dom.links,
       '',
       '## Screenshots',
-      'Screenshot saved to browser_screenshot.png'
+      'Screenshot saved to browser_screenshot.png',
     ].join('\\n');
-    
-    fs.writeFileSync('${reportPath}', report);
-    
-    console.log(JSON.stringify({
-      status: response && response.ok() ? 'pass' : 'fail',
-      httpStatus: response ? response.status() : null,
-      consoleErrors: consoleLogs,
-      networkFailures: networkErrors
-    }));
+
+    fs.writeFileSync(${JSON.stringify(reportPath)}, report);
+
+    console.log(JSON.stringify({ status, httpStatus, consoleErrors: consoleLogs.map(String), networkFailures: networkErrors.map(e => e.url + ': ' + e.error) }));
   } catch (err) {
-    console.error("BROWSER_ERROR:", err.message);
+    const msg = err.message || String(err);
+    fs.writeFileSync(${JSON.stringify(reportPath)}, '# Browser Validation Report\\n\\n**FAILED**: ' + msg);
+    fs.writeFileSync(${JSON.stringify(consolePath)}, JSON.stringify([msg]));
+    fs.writeFileSync(${JSON.stringify(networkPath)}, JSON.stringify([]));
+    fs.writeFileSync(${JSON.stringify(domPath)}, JSON.stringify({}));
+    console.error('BROWSER_ERROR: ' + msg);
     process.exit(1);
   } finally {
     await browser.close();
   }
 })();
-`;
+`
 
-    const scriptPath = path.join(rootDir, "run_browser.js");
-    await Filesystem.write(scriptPath, script);
+    await Filesystem.write(scriptPath, script)
 
-    return new Promise((resolve) => {
-      const proc = spawn("node", [scriptPath], { cwd: Instance.directory });
-      let stdout = "";
-      let stderr = "";
+    return new Promise<{ title: string; metadata: Record<string, unknown>; output: string }>((resolve) => {
+      const proc = spawn("node", [scriptPath], { cwd: Instance.directory })
+      let stdout = ""
+      let stderr = ""
 
-      proc.stdout.on("data", (data) => (stdout += data.toString()));
-      proc.stderr.on("data", (data) => (stderr += data.toString()));
+      proc.stdout.on("data", (data) => (stdout += data.toString()))
+      proc.stderr.on("data", (data) => (stderr += data.toString()))
 
       proc.on("close", async (code) => {
-        let status = "fail";
-        let consoleErrors = [];
-        let networkFailures = [];
+        let status: "pass" | "fail" | "skipped" = "fail"
+        let consoleErrors: string[] = []
+        let networkFailures: string[] = []
 
         if (code === 0 && stdout) {
-          try {
-            const parsed = JSON.parse(stdout.trim());
-            status = parsed.status;
-            consoleErrors = parsed.consoleErrors || [];
-            networkFailures = parsed.networkFailures || [];
-          } catch (e) {
-            status = "fail";
-          }
+          const parsed = JSON.parse(stdout.trim())
+          status = parsed.status === "pass" ? "pass" : "fail"
+          consoleErrors = parsed.consoleErrors ?? []
+          networkFailures = parsed.networkFailures ?? []
         } else {
-          status = "fail";
-          consoleErrors.push(stderr);
+          consoleErrors = [stderr.slice(0, 2000)]
         }
 
         const evidence = {
           required: true,
           status,
           screenshots: ["browser_screenshot.png"],
-          html: [],
+          html: [] as string[],
           console_errors: consoleErrors,
           network_failures: networkFailures,
-          report: "browser_report.md"
-        };
+        }
 
-        // Merge with existing verification.json
-        let verify = await HeidiState.readVerification(ctx.sessionID);
+        // Merge with existing verification.json or create fresh
+        let verify = await HeidiState.readVerification(ctx.sessionID)
         if (!verify) {
           verify = {
             task_id: ctx.sessionID,
-            status,
+            status: status === "pass" ? "pass" : "fail",
             checks: [],
-            evidence: { changed_files: [], command_summary: [], before_after: "" },
+            evidence: { changed_files: [], command_summary: [] },
             warnings: [],
             remediation: [],
-          };
+          }
         }
-        verify.browser = evidence;
-        await HeidiState.writeVerification(ctx.sessionID, verify);
+        verify.browser = evidence
+        await HeidiState.writeVerification(ctx.sessionID, verify)
 
         resolve({
           title: "Browser Validation Subagent",
-          metadata: evidence,
-          output: `Playwright validation completed. Status: ${status}.\nReport written to browser_report.md`,
-        });
-      });
-    });
+          metadata: { status, artifacts: ["browser_report.md", "browser_screenshot.png", "console_errors.json", "network_failures.json", "dom_snapshot.json"] },
+          output: `Playwright validation complete. Status: ${status}\nReport: ${reportPath}`,
+        })
+      })
+    })
   },
 })

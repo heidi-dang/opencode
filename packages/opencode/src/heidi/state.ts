@@ -31,7 +31,7 @@ const PLAN_SECTIONS = [
   "Verification plan",
 ] as const
 
-function root(sessionID: SessionID) {
+export function root(sessionID: SessionID) {
   try {
     if (Instance.project.vcs) return path.join(Instance.worktree, ".opencode", "heidi", sessionID)
   } catch {}
