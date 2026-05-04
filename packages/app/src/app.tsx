@@ -50,6 +50,7 @@ import { useCheckServerHealth } from "./utils/server-health"
 const HomeRoute = lazy(() => import("@/pages/home"))
 const Session = lazy(() => import("@/pages/session"))
 const Copilot = lazy(() => import("@/pages/copilot"))
+const MissionControlRoute = lazy(() => import("@/pages/mission-control"))
 const AudioPreviewRoute = lazy(() => import("@/routes/internal/audio-preview"))
 const Loading = () => <div class="size-full" />
 
@@ -296,6 +297,7 @@ export function AppInterface(props: {
                 root={(routerProps) => <RouterRoot appChildren={props.children}>{routerProps.children}</RouterRoot>}
               >
                 <Route path="/" component={HomeRoute} />
+                <Route path="/heidi/mission-control" component={MissionControlRoute} />
                 <Route path="/:dir" component={DirectoryLayout}>
                   <Route path="/" component={SessionIndexRoute} />
                   <Route path="/copilot" component={CopilotRoute} />
