@@ -14,6 +14,7 @@ from doctor_checks.live_usage_stats import run as run_live_usage_stats
 from doctor_checks.runtime_artifacts import run as run_runtime_artifacts
 from doctor_checks.fsm_execution_consistency import run as run_fsm_execution_consistency
 from doctor_checks.mission_control_upgrade import run as run_mission_control_upgrade
+from doctor_checks.artifact_validator import run as run_artifact_validator
 
 def main() -> int:
   checks = [
@@ -23,6 +24,7 @@ def main() -> int:
     run_runtime_artifacts(),
     run_fsm_execution_consistency(),
     run_mission_control_upgrade(),
+    run_artifact_validator(),
   ]
   ok = all(item[0] for item in checks)
 

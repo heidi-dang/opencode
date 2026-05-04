@@ -1,6 +1,8 @@
 import { SessionID } from "@/session/schema"
 import { HeidiState } from "./state"
 import { VerifyState } from "./schema"
+import { Filesystem } from "@/util/filesystem"
+import path from "path"
 
 export namespace HeidiVerify {
   export async function preflight(sessionID: SessionID) {
@@ -33,6 +35,28 @@ export namespace HeidiVerify {
     if (verify.browser?.required === true && verify.browser.status !== "pass") {
       throw new Error("verification gate failed: browser evidence missing or failed")
     }
+
+    // Phase 5: Artifact-First Task Pack Validator checks
+    const rootDir = HeidiState.root(sessionID)
+    const requiredFiles = [
+      "implementation_plan.md",
+      "task.md",
+      "verification.json",
+      "diff_summary.md",
+      "test_output.txt"
+    ]
+    
+    if (verify.browser?.required === true) {
+      requiredFiles.push("browser_report.md")
+    }
+
+    for (const file of requiredFiles) {
+      const exists = await Filesystem.exists(path.join(rootDir, file))
+      if (!exists) {
+        throw new Error(`verification gate failed: missing required artifact ${file}`)
+      }
+    }
+
     return true
   }
 
