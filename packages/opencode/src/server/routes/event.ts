@@ -9,8 +9,11 @@ import { ServerStats } from "../stats"
 import { lazy } from "../../util/lazy"
 import { AsyncQueue } from "../../util/queue"
 import { Instance } from "@/project/instance"
+import { SSEResumptionBuffer, SSEBatcher } from "@/util/sse"
 
 const log = Log.create({ service: "server" })
+
+const globalEventBuffer = new SSEResumptionBuffer(500)
 
 export const EventRoutes = lazy(() =>
   new Hono().get(
@@ -36,7 +39,8 @@ export const EventRoutes = lazy(() =>
       c.header("X-Content-Type-Options", "nosniff")
       return streamSSE(c, async (stream) => {
         const close = ServerStats.open("event")
-        const q = new AsyncQueue<string | null>()
+        const q = new AsyncQueue<{ data: string; id: string } | null>()
+        const batcher = new SSEBatcher<any>(q, globalEventBuffer)
         let done = false
 
         const max = setTimeout(() => {
@@ -44,25 +48,30 @@ export const EventRoutes = lazy(() =>
         }, Flag.OPENCODE_SSE_MAX_AGE_MS ?? 60 * 60 * 1000)
         max.unref?.()
 
-        q.push(
-          JSON.stringify({
-            type: "server.connected",
-            properties: {},
-          }),
-        )
+        // Handle Reconnection
+        const lastEventId = c.req.header("Last-Event-ID")
+        if (lastEventId) {
+          const missing = globalEventBuffer.getMissing(lastEventId)
+          for (const msg of missing) {
+            q.push({ data: msg.data, id: msg.id })
+          }
+        }
+
+        batcher.push({
+          type: "server.connected",
+          properties: {},
+        })
 
         // Send heartbeat every 10s to prevent stalled proxy streams.
         const heartbeat = setInterval(() => {
-          q.push(
-            JSON.stringify({
-              type: "server.heartbeat",
-              properties: {},
-            }),
-          )
+          batcher.push({
+            type: "server.heartbeat",
+            properties: {},
+          })
         }, 10_000)
 
         const unsub = Bus.subscribeAll((event) => {
-          q.push(JSON.stringify(event))
+          batcher.push(event)
           if (event.type === Bus.InstanceDisposed.type) {
             stop()
           }
@@ -82,9 +91,12 @@ export const EventRoutes = lazy(() =>
         stream.onAbort(stop)
 
         try {
-          for await (const data of q) {
-            if (data === null) return
-            await stream.writeSSE({ data })
+          for await (const chunk of q) {
+            if (chunk === null) {
+              batcher.flush()
+              return
+            }
+            await stream.writeSSE({ data: chunk.data, id: chunk.id })
           }
         } finally {
           stop()

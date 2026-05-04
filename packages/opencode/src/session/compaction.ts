@@ -30,7 +30,7 @@ export namespace SessionCompaction {
     ),
   }
 
-  const COMPACTION_BUFFER = 20_000
+  const COMPACTION_BUFFER = 40_000
   const DEFAULT_PROTECTED_TOOLS = ["skill", "task", "todowrite", "todoread", "batch", "plan_enter", "plan_exit"]
   const WRITE_TOOLS = new Set(["write", "edit", "multiedit", "apply_patch", "replace_file_content"])
   const READ_TOOLS = new Set(["read"])
@@ -145,8 +145,8 @@ export namespace SessionCompaction {
     return count >= usable
   }
 
-  export const PRUNE_MINIMUM = 20_000
-  export const PRUNE_PROTECT = 40_000
+  export const PRUNE_MINIMUM = 40_000
+  export const PRUNE_PROTECT = 80_000
 
   // goes backwards through parts until there are 40_000 tokens worth of tool
   // calls. then erases output of previous tool calls. idea is to throw away old
@@ -430,7 +430,7 @@ When constructing the summary, try to stick to this template:
               sessionID: input.sessionID,
               type: "text",
               synthetic: true,
-              text: "Conversation was aggressively pruned and compacted. Continue if you have next steps, or stop and ask for clarification if unsure.",
+              text: `Conversation was aggressively pruned and compacted. You are still executing your task. Consult your .opencode/heidi/${input.sessionID}/task.json to determine your exact FSM state and continue from there without restarting.`,
               time: { start: Date.now(), end: Date.now() },
             })
           }
@@ -489,7 +489,7 @@ When constructing the summary, try to stick to this template:
           (input.overflow
             ? "The previous request exceeded the provider's size limit due to large media attachments. The conversation was compacted and media files were removed from context. If the user was asking about attached images or files, explain that the attachments were too large to process and suggest they try again with smaller or fewer files.\n\n"
             : "") +
-          "Continue if you have next steps, or stop and ask for clarification if you are unsure how to proceed."
+          `Continue your execution exactly where you left off. Do not restart from DISCOVERY. Check .opencode/heidi/${input.sessionID}/task.json for your FSM state and checklist progress. If you are in VERIFICATION, run your tests. If you are in EXECUTION, continue editing. If you are unsure, read your implementation_plan.md.`
         await Session.updatePart({
           id: PartID.ascending(),
           messageID: continueMsg.id,
