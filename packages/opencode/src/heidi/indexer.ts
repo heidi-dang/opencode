@@ -7,6 +7,7 @@ import { Instance } from "@/project/instance"
 import { HeidiVector } from "./vector"
 import { HeidiRerank } from "./rerank"
 import { HeidiExtractor } from "./extractor"
+import { HeidiLagMonitor } from "./lag-monitor"
 
 export namespace HeidiIndexer {
   const log = Log.create({ service: "heidi.indexer" })
@@ -142,6 +143,9 @@ export namespace HeidiIndexer {
       }
     }
 
+    // Update lag monitor with current commit
+    await HeidiLagMonitor.updateIndex()
+
     log.info(`Indexed ${files.length} files.`)
     db.close()
   }
@@ -186,5 +190,9 @@ export namespace HeidiIndexer {
     const results = stmt.all(fileId) as { name: string; type: string; line: number }[]
     db.close()
     return results
+  }
+
+  export async function checkIndexLag() {
+    return await HeidiLagMonitor.doctorCheck()
   }
 }
