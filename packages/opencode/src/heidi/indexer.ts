@@ -4,6 +4,7 @@ import { Filesystem } from "@/util/filesystem"
 import { Ripgrep } from "@/file/ripgrep"
 import { Log } from "@/util/log"
 import { Instance } from "@/project/instance"
+import { HeidiVector } from "./vector"
 
 export namespace HeidiIndexer {
   const log = Log.create({ service: "heidi.indexer" })
@@ -14,7 +15,6 @@ export namespace HeidiIndexer {
 
   export async function init() {
     const p = dbPath()
-    // Filesystem.write creates dirs recursively — use to ensure parent exists
     await Filesystem.write(path.join(path.dirname(p), ".keep"), "")
     const db = new Database(p, { create: true })
 
@@ -47,6 +47,7 @@ export namespace HeidiIndexer {
     const now = Date.now()
 
     const insert = db.prepare("INSERT OR REPLACE INTO files (path, last_indexed) VALUES (?, ?)")
+    const getFileId = db.prepare("SELECT id FROM files WHERE path = ?")
 
     db.transaction(() => {
       for (const file of files) {
@@ -54,6 +55,21 @@ export namespace HeidiIndexer {
         insert.run(file, now)
       }
     })()
+
+    // Generate embeddings after transaction
+    for (const file of files) {
+      if (file.includes(".opencode") || file.includes(".git") || file.includes("node_modules")) continue
+      const fileId = (getFileId.get(file) as { id: number } | undefined)?.id
+      if (fileId) {
+        try {
+          const content = await Filesystem.readText(path.join(Instance.worktree, file))
+          const embedding = HeidiVector.generateEmbedding(content)
+          await HeidiVector.storeEmbedding(fileId, embedding)
+        } catch {
+          // Skip files that can't be read
+        }
+      }
+    }
 
     log.info(`Indexed ${files.length} files.`)
     db.close()
@@ -65,5 +81,22 @@ export namespace HeidiIndexer {
     const results = stmt.all(`%${query}%`, limit) as { path: string }[]
     db.close()
     return results.map((r) => r.path)
+  }
+
+  export async function searchFilesSemantic(query: string, limit = 20) {
+    const embedding = HeidiVector.generateEmbedding(query)
+    const results = await HeidiVector.searchSimilar(embedding, limit)
+
+    const db = await init()
+    const getPath = db.prepare("SELECT path FROM files WHERE id = ?")
+    const paths = results
+      .map((r) => {
+        const file = getPath.get(r.file_id) as { path: string } | undefined
+        return file?.path
+      })
+      .filter(Boolean) as string[]
+    db.close()
+
+    return paths
   }
 }
