@@ -5,6 +5,7 @@ import { Ripgrep } from "@/file/ripgrep"
 import { Log } from "@/util/log"
 import { Instance } from "@/project/instance"
 import { HeidiVector } from "./vector"
+import { HeidiRerank } from "./rerank"
 
 export namespace HeidiIndexer {
   const log = Log.create({ service: "heidi.indexer" })
@@ -98,5 +99,14 @@ export namespace HeidiIndexer {
     db.close()
 
     return paths
+  }
+
+  export async function searchFilesReranked(query: string, limit = 20) {
+    const [keywordResults, vectorResults] = await Promise.all([
+      searchFiles(query, limit * 2).then((paths) => paths.map((path) => ({ path }))),
+      searchFilesSemantic(query, limit * 2).then((paths) => paths.map((path) => ({ path }))),
+    ])
+
+    return HeidiRerank.rerankHybrid(keywordResults, vectorResults, limit)
   }
 }
