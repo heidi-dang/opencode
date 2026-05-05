@@ -31,7 +31,7 @@ function deny(profile: Profile, cmd: string) {
   if (profile === "git_safe") return /(\bgit\s+push\s+--force\b|\bgit\s+reset\s+--hard\b)/.test(cmd)
   if (profile === "format") return /(\bgit\s+reset\b|\bgit\s+clean\b)/.test(cmd)
   if (profile === "test") return /(\bchmod\b|\bchown\b|\bgit\s+reset\b)/.test(cmd)
-  if (profile === "build") return /(\brm\s+-rf\s+\/|\bchmod\b)/.test(cmd)
+  if (profile === "build") return /(\brm\s+-rf\s+/\/|\bchmod\b)/.test(cmd)
   return false
 }
 
@@ -44,13 +44,13 @@ async function pick(sessionID: SessionID, id?: string) {
 export namespace HeidiExec {
   export async function checkpoint(sessionID: SessionID, files: string[], step?: string) {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-      const step_id = typeof step === "string" && step.length > 0 ? step : "unknown"
+    const step_id = typeof step === "string" && step.length > 0 ? step : "unknown"
     const worktree = Instance.worktree
 
     // Try Git-based checkpoint (hidden ref)
     if (Instance.project.vcs === "git") {
       const g = (args: string[]) => git(args, { cwd: worktree })
-      
+
       // Capture EVERYTHING (including untracked)
       await g(["add", "-A"])
       const stash = await g(["stash", "create"])
@@ -61,9 +61,9 @@ export namespace HeidiExec {
         const sha = stash.text().trim()
         const ref = `refs/heidi/checkpoints/${sessionID}/${id}`
         await g(["update-ref", ref, sha])
-        
+
         const state = await HeidiState.ensure(sessionID, "")
-          state.checkpoints.push({ id, step_id, files, created_at: now() })
+        state.checkpoints.push({ id, step_id, files, created_at: now() })
         state.resume.checkpoint_id = id
         await HeidiState.write(sessionID, state)
         return id
@@ -81,7 +81,7 @@ export namespace HeidiExec {
     )
     await Filesystem.writeJson(out, { id, step, files: snap, time: now() })
     const state = await HeidiState.ensure(sessionID, "")
-      state.checkpoints.push({ id, step_id, files, created_at: now() })
+    state.checkpoints.push({ id, step_id, files, created_at: now() })
     state.resume.checkpoint_id = id
     await HeidiState.write(sessionID, state)
     return id
@@ -148,12 +148,13 @@ export namespace HeidiExec {
 
   export async function commit(sessionID: SessionID) {
     const state = await HeidiState.read(sessionID)
-    // Only clear checkpoint if it was created in this commit
+    // Only clear checkpoint if it was created in this transaction
     state.resume.checkpoint_id = null
     await HeidiState.write(sessionID, state)
     await HeidiState.updateResume(sessionID)
   }
 
+  // Sequential command execution (existing)
   export async function cmd(
     sessionID: SessionID,
     input: {
@@ -215,5 +216,68 @@ export namespace HeidiExec {
       out,
       ms: Date.now() - start,
     }
+  }
+
+  // NEW: Parallel subagent spawning
+  export async function spawn(
+    sessionID: SessionID,
+    agents: {
+      name: string
+      cmd: string
+      cwd: string
+      profile: string
+      timeout: number
+    }[],
+  ) {
+    const state = await HeidiState.ensure(sessionID, "")
+
+    const procs = agents.map(async (agent) => {
+      const profile = (Profile.includes(agent.profile as Profile) ? agent.profile : "app_local") as Profile
+      if (deny(profile, agent.cmd)) {
+        return { name: agent.name, code: 1, out: `Command denied by profile ${profile}`, ms: 0 }
+      }
+
+      const start = Date.now()
+      const proc = spawn(agent.cmd, {
+        shell: true,
+        cwd: agent.cwd,
+        stdio: ["ignore", "pipe", "pipe"],
+        env: process.env,
+      })
+
+      let out = ""
+      proc.stdout?.on("data", (buf) => (out += buf.toString()))
+      proc.stderr?.on("data", (buf) => (out += buf.toString()))
+
+      await new Promise<void>((resolve) => {
+        proc.on("exit", () => resolve())
+      })
+
+      return {
+        name: agent.name,
+        code: proc.exitCode ?? 1,
+        out,
+        ms: Date.now() - start,
+      }
+    })
+
+    const results = await Promise.all(procs)
+
+    // Log parallel execution
+    for (const r of results) {
+      state.commands.push({
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        cmd: `parallel:${r.name}`,
+        cwd: ".",
+        profile: "parallel",
+        exit_code: r.code,
+        timestamp: now(),
+      })
+    }
+
+    await HeidiState.write(sessionID, state)
+    await HeidiState.updateResume(sessionID)
+
+    return results
   }
 }
