@@ -20,12 +20,12 @@ export default function MissionControl() {
   }
 
   return (
-    <div class="h-full w-full bg-gradient-to-br from-slate-900 to-slate-800 text-white flex flex-col p-6 overflow-hidden">
-      <header class="flex items-center justify-between mb-8 border-b border-white/10 pb-4">
-        <h1 class="text-2xl font-bold text-white">Heidi Mission Control</h1>
-        <div class="flex gap-4">
+    <div class="min-h-screen w-full bg-gradient-to-br from-slate-900 to-slate-800 text-white flex flex-col p-4 md:p-6 overflow-hidden">
+      <header class="flex items-center justify-between mb-4 md:mb-8 border-b border-white/10 pb-4">
+        <h1 class="text-xl md:text-2xl font-bold text-white">Heidi Mission Control</h1>
+        <div class="flex gap-2 md:gap-4">
           <button
-            class="px-4 py-2 bg-blue-600/80 backdrop-blur-md rounded-md hover:bg-blue-700/90 transition-colors"
+            class="px-3 py-2 md:px-4 bg-blue-600/80 backdrop-blur-md rounded-md hover:bg-blue-700/90 transition-colors text-sm md:text-base"
             onClick={() => {
               setTasks([
                 ...tasks(),
@@ -33,13 +33,13 @@ export default function MissionControl() {
               ])
             }}
           >
-            New Task
+            + New Task
           </button>
         </div>
       </header>
 
-      <div class="flex-1 overflow-x-auto">
-        <div class="flex gap-6 h-full min-w-max">
+      <div class="flex-1 overflow-x-auto md:overflow-hidden">
+        <div class="flex gap-3 md:gap-6 h-full min-w-max md:min-w-0 md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 md:gap-4">
           <Column title="Queued" tasks={tasks().filter(t => t.state === "queued")} onCinema={openCinema} />
           <Column title="Planning" tasks={tasks().filter(t => t.state === "planning")} onCinema={openCinema} />
           <Column title="Running" tasks={tasks().filter(t => t.state === "running")} onCinema={openCinema} />
@@ -65,10 +65,10 @@ function Column(props: {
   onCinema: (task: any) => void
 }) {
   return (
-    <div class="w-80 flex flex-col glass-card border-white/20">
+    <div class="w-72 md:w-80 flex flex-col glass-card border-white/20 flex-shrink-0">
       <div class="p-3 border-b border-white/10 font-semibold flex items-center justify-between">
-        <span class="text-white">{props.title}</span>
-        <span class="text-white/60 text-sm bg-white/10 px-2 py-0.5 rounded-full">
+        <span class="text-white text-sm md:text-base">{props.title}</span>
+        <span class="text-white/60 text-xs bg-white/10 px-2 py-0.5 rounded-full">
           {props.tasks.length}
         </span>
       </div>
