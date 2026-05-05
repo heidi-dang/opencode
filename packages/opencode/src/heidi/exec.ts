@@ -12,7 +12,7 @@ import { HeidiJail } from "./jail"
 
 const Profile = ["read_only", "build", "test", "format", "git_safe", "app_local"] as const
 
-type Profile = (typeof Profile)[number]
+type Profile = typeof Profile[number]
 
 function now() {
   return new Date().toISOString()
@@ -23,7 +23,7 @@ function dir(sessionID: SessionID) {
 }
 
 function block(cmd: string) {
-  return /(\brm\b|\bmv\b|\bcp\b|\bmkdir\b|\btouch\b|\bchmod\b|\bchown\b|\bgit\s+reset\b|\bgit\s+clean\b)/.test(cmd)
+  return /(\rm\b|\bmv\b|\bcp\b|\bmkdir\b|\btouch\b|\bchmod\b|\bchown\b|\bgit\s+reset\b|\bgit\s+clean\b)/.test(cmd)
 }
 
 function deny(profile: Profile, cmd: string) {
@@ -81,7 +81,7 @@ export namespace HeidiExec {
     )
     await Filesystem.writeJson(out, { id, step, files: snap, time: now() })
     const state = await HeidiState.ensure(sessionID, "")
-    state.checkpoints.push({ id, step_id, files, created_at: now() })
+    state.checkpoints.push({ id, step_id: step_id, files, created_at: now() })
     state.resume.checkpoint_id = id
     await HeidiState.write(sessionID, state)
     return id
@@ -279,5 +279,40 @@ export namespace HeidiExec {
     await HeidiState.updateResume(sessionID)
 
     return results
+  }
+
+  // NEW: Branch from Snapshot
+  export async function branchFromSnapshot(
+    sessionID: SessionID,
+    snapshotId: string,
+    newBranch: string,
+  ) {
+    const worktree = Instance.worktree
+    const g = (args: string[]) => git(args, { cwd: worktree })
+
+    if (Instance.project.vcs !== "git") {
+      throw new Error("Branch from snapshot only supported for git repos")
+    }
+
+    // Resolve snapshot to ref
+    const ref = `refs/heidi/checkpoints/${sessionID}/${snapshotId}`
+    const check = await g(["rev-parse", "--verify", ref])
+
+    if (check.exitCode !== 0) {
+      throw new Error(`Snapshot ${snapshotId} not found`)
+    }
+
+    // Create new branch from snapshot
+    await g(["checkout", "-b", newBranch, ref])
+    await g(["checkout", "-"])
+
+    const state = await HeidiState.read(sessionID)
+    state.resume.checkpoint_id = snapshotId
+    await HeidiState.write(sessionID, state)
+
+    return {
+      branch: newBranch,
+      from: snapshotId,
+    }
   }
 }
