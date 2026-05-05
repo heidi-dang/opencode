@@ -11,9 +11,11 @@ export const FsmState = z.enum([
   "VERIFICATION",
   "COMPLETE",
   "BLOCKED",
+  "APPROVAL",
 ])
 
-export const Mode = z.enum(["PLANNING", "EXECUTION", "VERIFICATION"])
+export const Mode = z.enum(["PLANNING", "EXECUTION", "VERIFICATION", "MANAGER_APPROVAL"])
+
 
 export const Priority = z.enum(["low", "medium", "high"])
 

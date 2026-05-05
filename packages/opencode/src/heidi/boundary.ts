@@ -42,6 +42,7 @@ const StateMode: Record<z.infer<typeof FsmState>, z.infer<typeof Mode>> = {
   VERIFICATION: "VERIFICATION",
   COMPLETE: "VERIFICATION",
   BLOCKED: "PLANNING",
+  APPROVAL: "MANAGER_APPROVAL",
 }
 
 const Empty = z.object({}).default({})

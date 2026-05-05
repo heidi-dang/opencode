@@ -19,6 +19,7 @@ const StateMode = {
   VERIFICATION: "VERIFICATION",
   COMPLETE: "VERIFICATION",
   BLOCKED: "PLANNING",
+  APPROVAL: "MANAGER_APPROVAL",
 } as const satisfies Record<TaskState["fsm_state"], TaskState["mode"]>
 
 const log = Log.create({ service: "heidi.state" })
@@ -126,6 +127,8 @@ export namespace HeidiGraph {
       return "complete"
     }
     if (current === "COMPLETE") return "done"
+    if (current === "BLOCKED") return "blocked"
+    if (current === "APPROVAL") return "awaiting_approval"
     if (current === "BLOCKED") return "blocked"
     return state.resume.next_step ?? undefined
   }

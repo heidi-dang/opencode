@@ -19,6 +19,10 @@ export default function MissionControl() {
     })
   }
 
+  const approveTask = (taskId: string) => {
+    setTasks(tasks().map(t => t.id === taskId ? { ...t, state: "done" } : t))
+  }
+
   return (
     <div class="min-h-screen w-full bg-gradient-to-br from-slate-900 to-slate-800 text-white flex flex-col p-4 md:p-6 overflow-hidden">
       <header class="flex items-center justify-between mb-4 md:mb-8 border-b border-white/10 pb-4">
@@ -39,11 +43,12 @@ export default function MissionControl() {
       </header>
 
       <div class="flex-1 overflow-x-auto md:overflow-hidden">
-        <div class="flex gap-3 md:gap-6 h-full min-w-max md:min-w-0 md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 md:gap-4">
+        <div class="flex gap-3 md:gap-6 h-full min-w-max md:min-w-0 md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 md:gap-4">
           <Column title="Queued" tasks={tasks().filter(t => t.state === "queued")} onCinema={openCinema} />
           <Column title="Planning" tasks={tasks().filter(t => t.state === "planning")} onCinema={openCinema} />
           <Column title="Running" tasks={tasks().filter(t => t.state === "running")} onCinema={openCinema} />
           <Column title="Verifying" tasks={tasks().filter(t => t.state === "verifying")} onCinema={openCinema} />
+          <Column title="Awaiting Approval" tasks={tasks().filter(t => t.state === "approval")} onCinema={openCinema} approve={approveTask} />
           <Column title="Done" tasks={tasks().filter(t => t.state === "done")} onCinema={openCinema} />
           <Column title="Blocked" tasks={tasks().filter(t => t.state === "blocked")} onCinema={openCinema} />
         </div>
@@ -63,6 +68,7 @@ function Column(props: {
   title: string
   tasks: any[]
   onCinema: (task: any) => void
+  approve?: (taskId: string) => void
 }) {
   return (
     <div class="w-72 md:w-80 flex flex-col glass-card border-white/20 flex-shrink-0">
@@ -81,12 +87,22 @@ function Column(props: {
               <div class="glass-card p-3 rounded shadow-sm border-white/10">
                 <div class="font-medium text-white text-sm mb-1">{task.id}</div>
                 <div class="text-xs text-white/80">{task.objective}</div>
-                <button
-                  class="mt-2 text-xs text-blue-400 hover:underline"
-                  onClick={() => props.onCinema(task)}
-                >
-                  ▶ Cinema
-                </button>
+                <div class="flex gap-2 mt-2">
+                  <button
+                    class="text-xs text-blue-400 hover:underline"
+                    onClick={() => props.onCinema(task)}
+                  >
+                    ▶ Cinema
+                  </button>
+                  {props.approve && (
+                    <button
+                      class="text-xs text-green-400 hover:underline"
+                      onClick={() => props.approve?.(task.id)}
+                    >
+                      ✓ Approve
+                    </button>
+                  )}
+                </div>
               </div>
             )}
           </For>
