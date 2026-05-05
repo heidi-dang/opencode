@@ -20,12 +20,12 @@ export default function MissionControl() {
   }
 
   return (
-    <div class="h-full w-full bg-background-base text-text-base flex flex-col p-6 overflow-hidden">
-      <header class="flex items-center justify-between mb-8 border-b border-border-base pb-4">
-        <h1 class="text-2xl font-bold text-text-strong">Heidi Mission Control</h1>
+    <div class="h-full w-full bg-gradient-to-br from-slate-900 to-slate-800 text-white flex flex-col p-6 overflow-hidden">
+      <header class="flex items-center justify-between mb-8 border-b border-white/10 pb-4">
+        <h1 class="text-2xl font-bold text-white">Heidi Mission Control</h1>
         <div class="flex gap-4">
           <button
-            class="px-4 py-2 bg-accent text-white rounded-md hover:bg-accent/90"
+            class="px-4 py-2 bg-blue-600/80 backdrop-blur-md rounded-md hover:bg-blue-700/90 transition-colors"
             onClick={() => {
               setTasks([
                 ...tasks(),
@@ -65,24 +65,24 @@ function Column(props: {
   onCinema: (task: any) => void
 }) {
   return (
-    <div class="w-80 flex flex-col bg-surface-base rounded-lg border border-border-base">
-      <div class="p-3 border-b border-border-base font-semibold flex items-center justify-between">
-        <span class="text-text-strong">{props.title}</span>
-        <span class="text-text-weak text-sm bg-surface-raised-base px-2 py-0.5 rounded-full">
+    <div class="w-80 flex flex-col glass-card border-white/20">
+      <div class="p-3 border-b border-white/10 font-semibold flex items-center justify-between">
+        <span class="text-white">{props.title}</span>
+        <span class="text-white/60 text-sm bg-white/10 px-2 py-0.5 rounded-full">
           {props.tasks.length}
         </span>
       </div>
       <div class="flex-1 p-3 overflow-y-auto flex flex-col gap-3">
         {props.tasks.length === 0 ? (
-          <div class="text-sm text-text-weak text-center mt-4">No tasks</div>
+          <div class="text-sm text-white/40 text-center mt-4">No tasks</div>
         ) : (
           <For each={props.tasks}>
             {(task) => (
-              <div class="bg-surface-raised-base p-3 rounded shadow-sm border border-border-base">
-                <div class="font-medium text-text-strong text-sm mb-1">{task.id}</div>
-                <div class="text-12-regular text-text-base">{task.objective}</div>
+              <div class="glass-card p-3 rounded shadow-sm border-white/10">
+                <div class="font-medium text-white text-sm mb-1">{task.id}</div>
+                <div class="text-xs text-white/80">{task.objective}</div>
                 <button
-                  class="mt-2 text-xs text-accent hover:underline"
+                  class="mt-2 text-xs text-blue-400 hover:underline"
                   onClick={() => props.onCinema(task)}
                 >
                   ▶ Cinema
