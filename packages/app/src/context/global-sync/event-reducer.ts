@@ -61,6 +61,7 @@ export function cleanupDroppedSessionCaches(
   setSessionTodo?: (sessionID: string, todos: Todo[] | undefined) => void,
 ) {
   const keep = new Set(next.map((item) => item.id))
+  const seen = new Set<string>()
   const stale = [
     ...Object.keys(store.message),
     ...Object.keys(store.session_diff),
@@ -71,7 +72,11 @@ export function cleanupDroppedSessionCaches(
     ...Object.values(store.part)
       .map((parts) => parts?.find((part) => !!part?.sessionID)?.sessionID)
       .filter((sessionID): sessionID is string => !!sessionID),
-  ].filter((sessionID, index, list) => !keep.has(sessionID) && list.indexOf(sessionID) === index)
+  ].filter((sessionID) => {
+    if (keep.has(sessionID) || seen.has(sessionID)) return false
+    seen.add(sessionID)
+    return true
+  })
   if (stale.length === 0) return
   for (const sessionID of stale) {
     setSessionTodo?.(sessionID, undefined)

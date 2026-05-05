@@ -63,13 +63,16 @@ export function SessionTodoDock(props: {
       .split(/(\u0000done\u0000|\u0000total\u0000)/),
   )
 
-  const active = createMemo(
-    () =>
-      props.todos.find((todo) => todo.status === "in_progress") ??
-      props.todos.find((todo) => todo.status === "pending") ??
-      props.todos.filter((todo) => todo.status === "completed").at(-1) ??
-      props.todos[0],
-  )
+  const active = createMemo(() => {
+    let pending: Todo | undefined
+    let last: Todo | undefined
+    for (const todo of props.todos) {
+      if (todo.status === "in_progress") return todo
+      if (todo.status === "pending" && !pending) pending = todo
+      if (todo.status === "completed") last = todo
+    }
+    return pending ?? last ?? props.todos[0]
+  })
 
   const preview = createMemo(() => active()?.content ?? "")
   const collapse = useSpring(() => (store.collapsed ? 1 : 0), { visualDuration: 0.3, bounce: 0 })
